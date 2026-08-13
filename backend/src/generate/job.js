@@ -236,7 +236,7 @@ async function generateOneDeck(
   return { status: "failure", topic_slug: topicSlug, deck_index: deckIndex, reason: lastError, tokens: state.totalTokens };
 }
 
-export async function runDailyJob({ dryRun = false, force = false } = {}) {
+export async function runDailyJob({ dryRun = false, force = false, topics = [] } = {}) {
   // Daily guard: one run per day (idempotent for the cron trigger).
   // force=1 bypasses it for on-demand runs (still requires the secret).
   if (!force) {
@@ -252,14 +252,20 @@ export async function runDailyJob({ dryRun = false, force = false } = {}) {
   const activeRes = await query(
     "select slug, target_decks, decks_generated from topics where status <> 'complete' order by queue_position"
   );
-  if (activeRes.rows.length === 0) {
-    return { status: "all-complete", message: "all queued topics are complete" };
+  // Optional topic filter (comma-separated slugs) so an on-demand run can
+  // generate for one topic quickly instead of all of them.
+  let activeRows = activeRes.rows;
+  if (topics.length > 0) {
+    activeRows = activeRows.filter((t) => topics.includes(t.slug));
+  }
+  if (activeRows.length === 0) {
+    return { status: "all-complete", message: "no matching active topics" };
   }
 
   const state = { calls: 0, totalTokens: 0 };
   const results = [];
 
-  for (const t of activeRes.rows) {
+  for (const t of activeRows) {
     if (state.calls >= DAILY_CALL_LIMIT) {
       results.push({ status: "skipped", topic_slug: t.slug, reason: "daily DeepSeek call limit reached" });
       continue;

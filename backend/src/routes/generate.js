@@ -23,9 +23,8 @@ generateRouter.post("/", async (req, res) => {
     if (result.status === "already-ran") {
       return res.status(429).json(result);
     }
-    if (result.status === "failure" || result.status === "aborted") {
-      return res.status(500).json(result);
-    }
+    // Per-topic failures are reported inside `results` with a 200, so
+    // the caller can see each topic's outcome in one response.
     res.json(result);
   } catch (err) {
     console.error(err);

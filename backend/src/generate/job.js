@@ -12,22 +12,21 @@ import {
 import { insertReviewedDeck } from "./insert.js";
 import { loadSources } from "./sources.js";
 
-// The automated daily generation job (SKILL_pipeline.md +
-// SKILL_topic_queue.md).
+// The automated daily generation job.
 //
-// Reads pipeline/topics_queue.md and syncs it into the topics table
-// (new slugs get status=pending, target_decks=18, their line position).
-// The active topic is the lowest incomplete entry in the file. One deck
-// (10 cards) is generated per run: grounded on curated sources when they
-// exist, otherwise from DeepSeek's own knowledge with a self-check
-// validation pass. On success the deck is published in one transaction
-// with its concept labels, decks_generated increments, and the topic is
-// marked complete when it reaches target_decks. Max 2 attempts (one
-// generation + one retry). Every run is logged to generation_runs;
-// failures also alert the failure webhook.
+// Reads pipeline/topics_queue.md and syncs it into the topics table.
+// Each daily run generates one new deck for EVERY topic in the queue
+// that is not yet complete, so every topic advances one deck per day
+// and always has the next deck ready for users. Decks are generated
+// from DeepSeek's own knowledge with a self-check validation pass. On
+// success a deck is published in one transaction with its concept
+// labels, decks_generated increments, and the topic is marked complete
+// when it reaches target_decks. Max 2 attempts per deck (one generation
+// + one retry). Every attempt is logged to generation_runs; failures
+// also alert the failure webhook.
 
 const MAX_ATTEMPTS = 2; // one generation + one retry, hard cap
-const DAILY_CALL_LIMIT = Number(process.env.DAILY_CALL_LIMIT || 10);
+const DAILY_CALL_LIMIT = Number(process.env.DAILY_CALL_LIMIT || 30);
 const DEFAULT_TARGET_DECKS = Number(process.env.DEFAULT_TARGET_DECKS || 18);
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -97,73 +96,20 @@ export async function syncQueue() {
   }
 }
 
-// The active topic: the lowest incomplete entry in the queue file.
-async function pickActiveTopic() {
-  const res = await query(
-    "select slug, target_decks, decks_generated from topics where status <> 'complete' order by queue_position desc limit 1"
-  );
-  return res.rows[0] || null;
-}
-
-export async function runDailyJob({ dryRun = false } = {}) {
-  // Daily guard: one run per day (idempotent for the cron trigger).
-  const lastRun = await query(
-    "select ran_at from generation_runs order by ran_at desc limit 1"
-  );
-  if (lastRun.rows[0] && sameUtcDay(new Date(lastRun.rows[0].ran_at), new Date())) {
-    return { status: "already-ran", message: "a generation run already happened today" };
-  }
-
-  await syncQueue();
-  const topic = await pickActiveTopic();
-  if (!topic) {
-    return { status: "all-complete", message: "all queued topics are complete" };
-  }
-
-  const topicSlug = topic.slug;
-  const deckIndex = topic.decks_generated; // next deck to generate
-  console.log(`[generate] daily job: topic=${topicSlug} deck=${deckIndex} (${topic.decks_generated}/${topic.target_decks})`);
-
-  const topicRes = await query("select id from topics where slug = $1", [topicSlug]);
-  const topicId = topicRes.rows[0].id;
-
-  const covRes = await query(
-    "select concept_label from covered_concepts where topic_id = $1 order by covered_at",
-    [topicId]
-  );
-  const coveredConcepts = covRes.rows.map((r) => r.concept_label);
-
-  const titlesRes = await query(
-    `select c.title from cards c
-       join decks d on d.id = c.deck_id
-      where d.topic_id = $1
-      order by d.deck_index, c.order_index`,
-    [topicId]
-  );
-  const priorTitles = titlesRes.rows.map((r) => r.title);
-
-  const sources = await loadSources(topicSlug);
-
-  if (dryRun) {
-    const messages = buildGenerationMessages(topicSlug, deckIndex, coveredConcepts, priorTitles, sources);
-    return {
-      status: "dry-run",
-      topic_slug: topicSlug,
-      deck_index: deckIndex,
-      mode: sources.length > 0 ? "grounded" : "self-knowledge",
-      messages,
-    };
-  }
-
-  let totalTokens = 0;
-  let calls = 0;
+// Generates, validates, and publishes one deck for one topic. `state`
+// holds the run-wide DeepSeek call counter and token total so the cost
+// cap applies across all topics in the run.
+async function generateOneDeck(
+  { topicSlug, topicId, deckIndex, coveredConcepts, priorTitles, sources, targetDeckCount },
+  state
+) {
   let feedback = "";
   let lastError = "unknown failure";
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    if (calls >= DAILY_CALL_LIMIT) {
+    if (state.calls >= DAILY_CALL_LIMIT) {
       const reason = "daily DeepSeek call limit exceeded";
-      await logRun({ topicId, topicSlug, deckIndex, status: "aborted", reason, tokens: totalTokens });
+      await logRun({ topicId, topicSlug, deckIndex, status: "aborted", reason, tokens: state.totalTokens });
       sendFailureAlert({ topic_slug: topicSlug, deck_index: deckIndex, reason });
       return { status: "aborted", topic_slug: topicSlug, deck_index: deckIndex, reason };
     }
@@ -176,16 +122,16 @@ export async function runDailyJob({ dryRun = false } = {}) {
     // Pass 1: generate.
     let draft;
     try {
-      calls++;
+      state.calls++;
       const gen = await chat(messages, { temperature: 0.2, json: true });
-      totalTokens += gen.tokens;
+      state.totalTokens += gen.tokens;
       draft = JSON.parse(gen.content);
       draft.deck_index = deckIndex;
       draft.topic = topicSlug;
       draft.difficulty = draft.difficulty || difficultyForDeckIndex(deckIndex);
     } catch (err) {
       lastError = `generation error: ${err.message}`;
-      console.error(`[generate] attempt ${attempt}: ${lastError}`);
+      console.error(`[generate] ${topicSlug} deck ${deckIndex} attempt ${attempt}: ${lastError}`);
       if (attempt === MAX_ATTEMPTS) break;
       continue;
     }
@@ -195,30 +141,30 @@ export async function runDailyJob({ dryRun = false } = {}) {
     if (!auto.ok) {
       lastError = auto.errors.join("; ");
       feedback = auto.errors.map((e) => `- ${e}`).join("\n");
-      console.error(`[generate] attempt ${attempt}: automated checks failed`);
+      console.error(`[generate] ${topicSlug} deck ${deckIndex} attempt ${attempt}: automated checks failed`);
       if (attempt === MAX_ATTEMPTS) break;
       continue;
     }
 
     // Pass 2: LLM validation, separate DeepSeek call with clean context.
-    if (calls >= DAILY_CALL_LIMIT) {
+    if (state.calls >= DAILY_CALL_LIMIT) {
       const reason = "daily DeepSeek call limit exceeded";
-      await logRun({ topicId, topicSlug, deckIndex, status: "aborted", reason, tokens: totalTokens });
+      await logRun({ topicId, topicSlug, deckIndex, status: "aborted", reason, tokens: state.totalTokens });
       sendFailureAlert({ topic_slug: topicSlug, deck_index: deckIndex, reason });
       return { status: "aborted", topic_slug: topicSlug, deck_index: deckIndex, reason };
     }
     let verdict;
     try {
-      calls++;
+      state.calls++;
       const vres = await chat(
         buildValidationMessages(topicSlug, deckIndex, draft, coveredConcepts, priorTitles, sources),
         { temperature: 0, json: true }
       );
-      totalTokens += vres.tokens;
+      state.totalTokens += vres.tokens;
       verdict = JSON.parse(vres.content);
     } catch (err) {
       lastError = `validation error: ${err.message}`;
-      console.error(`[generate] attempt ${attempt}: ${lastError}`);
+      console.error(`[generate] ${topicSlug} deck ${deckIndex} attempt ${attempt}: ${lastError}`);
       if (attempt === MAX_ATTEMPTS) break;
       continue;
     }
@@ -230,7 +176,7 @@ export async function runDailyJob({ dryRun = false } = {}) {
       if (verdict.notes) reasons.push(`notes: ${verdict.notes}`);
       lastError = reasons.join("; ");
       feedback = reasons.map((r) => `- ${r}`).join("\n");
-      console.error(`[generate] attempt ${attempt}: validation failed`);
+      console.error(`[generate] ${topicSlug} deck ${deckIndex} attempt ${attempt}: validation failed`);
       if (attempt === MAX_ATTEMPTS) break;
       continue;
     }
@@ -253,21 +199,88 @@ export async function runDailyJob({ dryRun = false } = {}) {
       [topicSlug]
     );
 
-    await logRun({ topicId, topicSlug, deckIndex, status: "success", tokens: totalTokens });
+    await logRun({ topicId, topicSlug, deckIndex, status: "success", tokens: state.totalTokens });
     console.log(`[generate] published ${topicSlug} deck ${deckIndex} (${draft.cards.length} cards)`);
     return {
       status: "success",
       topic_slug: topicSlug,
       deck_index: deckIndex,
-      decks_generated: topic.decks_generated + 1,
-      target_decks: topic.target_decks,
+      decks_generated: deckIndex + 1,
+      target_decks: targetDeckCount,
       cards: draft.cards.length,
-      tokens: totalTokens,
+      tokens: state.totalTokens,
     };
   }
 
   // Both attempts failed: log with full detail and alert, never publish.
-  await logRun({ topicId, topicSlug, deckIndex, status: "failure", reason: lastError, tokens: totalTokens });
-  sendFailureAlert({ topic_slug: topicSlug, deck_index: deckIndex, reason: lastError, tokens: totalTokens });
-  return { status: "failure", topic_slug: topicSlug, deck_index: deckIndex, reason: lastError, tokens: totalTokens };
+  await logRun({ topicId, topicSlug, deckIndex, status: "failure", reason: lastError, tokens: state.totalTokens });
+  sendFailureAlert({ topic_slug: topicSlug, deck_index: deckIndex, reason: lastError, tokens: state.totalTokens });
+  return { status: "failure", topic_slug: topicSlug, deck_index: deckIndex, reason: lastError, tokens: state.totalTokens };
+}
+
+export async function runDailyJob({ dryRun = false } = {}) {
+  // Daily guard: one run per day (idempotent for the cron trigger).
+  const lastRun = await query(
+    "select ran_at from generation_runs order by ran_at desc limit 1"
+  );
+  if (lastRun.rows[0] && sameUtcDay(new Date(lastRun.rows[0].ran_at), new Date())) {
+    return { status: "already-ran", message: "a generation run already happened today" };
+  }
+
+  await syncQueue();
+  const activeRes = await query(
+    "select slug, target_decks, decks_generated from topics where status <> 'complete' order by queue_position"
+  );
+  if (activeRes.rows.length === 0) {
+    return { status: "all-complete", message: "all queued topics are complete" };
+  }
+
+  const state = { calls: 0, totalTokens: 0 };
+  const results = [];
+
+  for (const t of activeRes.rows) {
+    if (state.calls >= DAILY_CALL_LIMIT) {
+      results.push({ status: "skipped", topic_slug: t.slug, reason: "daily DeepSeek call limit reached" });
+      continue;
+    }
+
+    const topicId = (await query("select id from topics where slug = $1", [t.slug])).rows[0].id;
+    const deckIndex = t.decks_generated;
+
+    const covRes = await query(
+      "select concept_label from covered_concepts where topic_id = $1 order by covered_at",
+      [topicId]
+    );
+    const coveredConcepts = covRes.rows.map((r) => r.concept_label);
+
+    const titlesRes = await query(
+      `select c.title from cards c
+         join decks d on d.id = c.deck_id
+        where d.topic_id = $1
+        order by d.deck_index, c.order_index`,
+      [topicId]
+    );
+    const priorTitles = titlesRes.rows.map((r) => r.title);
+
+    const sources = await loadSources(t.slug);
+    console.log(`[generate] daily job: topic=${t.slug} deck=${deckIndex} (${t.decks_generated}/${t.target_decks})`);
+
+    if (dryRun) {
+      results.push({
+        status: "dry-run",
+        topic_slug: t.slug,
+        deck_index: deckIndex,
+        mode: sources.length > 0 ? "grounded" : "self-knowledge",
+      });
+      continue;
+    }
+
+    const result = await generateOneDeck(
+      { topicSlug: t.slug, topicId, deckIndex, coveredConcepts, priorTitles, sources, targetDeckCount: t.target_decks },
+      state
+    );
+    results.push(result);
+  }
+
+  return { status: "success", results };
 }

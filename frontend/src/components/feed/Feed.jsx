@@ -13,7 +13,17 @@ import { useActiveCardIndex } from "../../hooks/useActiveCardIndex";
 // the active card approaches the end of what is loaded, the next chunk
 // is fetched ahead of time (prefetch rule in SKILL_frontend.md). Once
 // every chunk is loaded, an end card marks a deliberate stopping point.
-export function Feed({ topicSlug, onBack, onDeckComplete, onSurprise }) {
+//
+// revisionDeckIndex re-reads a specific already-completed deck (revise
+// mode) instead of the next deck; in that mode reaching the end does not
+// reset the 24h cooldown.
+export function Feed({
+  topicSlug,
+  onBack,
+  onDeckComplete,
+  onSurprise,
+  revisionDeckIndex = null,
+}) {
   const scrollRef = useRef(null);
 
   const [cards, setCards] = useState([]);
@@ -32,7 +42,7 @@ export function Feed({ topicSlug, onBack, onDeckComplete, onSurprise }) {
       setLoading(true);
       try {
         const { cards: chunk, hasMore: more, total, difficulty, deckIndex } =
-          await fetchDeckChunk(topicSlug, 0, offset);
+          await fetchDeckChunk(topicSlug, revisionDeckIndex, offset);
         setCards((prev) => [...prev, ...chunk]);
         setHasMore(more);
         if (offset === 0) setMeta({ total, difficulty, deckIndex });
@@ -42,7 +52,7 @@ export function Feed({ topicSlug, onBack, onDeckComplete, onSurprise }) {
         setLoading(false);
       }
     },
-    [topicSlug]
+    [topicSlug, revisionDeckIndex]
   );
 
   // Load the first chunk whenever the topic changes.
@@ -63,13 +73,15 @@ export function Feed({ topicSlug, onBack, onDeckComplete, onSurprise }) {
   }, [activeIndex, cards, hasMore, loading, loadChunk]);
 
   // Mark the deck complete once the end card becomes the active snap.
+  // Skipped in revision mode so re-reading does not reset the cooldown.
   const endCardIndex = hasMore ? -1 : cards.length;
   useEffect(() => {
+    if (revisionDeckIndex != null) return;
     if (endCardIndex !== -1 && activeIndex === endCardIndex && !completedRef.current) {
       completedRef.current = true;
       onDeckComplete(meta.deckIndex);
     }
-  }, [activeIndex, endCardIndex, meta.deckIndex, onDeckComplete]);
+  }, [activeIndex, endCardIndex, meta.deckIndex, onDeckComplete, revisionDeckIndex]);
 
   if (cards.length === 0 && loading) {
     return <StatusScreen label="loading deck" title={topic.name} accent={topic.accent} />;

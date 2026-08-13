@@ -28,6 +28,48 @@ feedRouter.get("/", async (req, res) => {
     }
     const topic = topicRes.rows[0];
 
+    // Revision mode: serve a specific already-published deck (for
+    // example the one the user just finished) regardless of the 24h
+    // cooldown, so a user can re-read a completed deck.
+    const rawDeckIndex = req.query.deck_index;
+    const revisionIndex =
+      rawDeckIndex !== undefined && rawDeckIndex !== ""
+        ? Number(rawDeckIndex)
+        : null;
+    if (Number.isInteger(revisionIndex)) {
+      const revRes = await query(
+        `select d.deck_index, d.difficulty,
+                c.order_index, c.template, c.title, c.body,
+                c.code_snippet, c.diagram_ref, c.concept
+           from decks d
+           join cards c on c.deck_id = d.id
+          where d.topic_id = $1 and d.deck_index = $2 and d.reviewed_at is not null
+          order by c.order_index`,
+        [topicId, revisionIndex]
+      );
+      if (revRes.rows.length === 0) {
+        return res.json({ status: "exhausted", topic, next_deck_index: revisionIndex });
+      }
+      const revCards = revRes.rows.map((r) => ({
+        order_index: r.order_index,
+        template: r.template,
+        title: r.title,
+        body: r.body,
+        code_snippet: r.code_snippet,
+        diagram_ref: r.diagram_ref,
+        concept: r.concept,
+      }));
+      return res.json({
+        status: "ok",
+        topic,
+        deck: {
+          deck_index: revRes.rows[0].deck_index,
+          difficulty: revRes.rows[0].difficulty,
+          cards: revCards,
+        },
+      });
+    }
+
     const progressRes = await query(
       "select last_deck_index_completed, last_completed_at from user_progress where user_id = $1 and topic_id = $2",
       [userId, topicId]

@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
 import { StatusScreen } from "../ui/StatusScreen";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { findNiche, topicPalette } from "../../data/topics";
 import { fetchTopics } from "../../api/feedService";
 import { fetchCooldownMap } from "../../api/progress";
 
 // Topic list for the chosen niche. Topics load through the data
 // service (the seam for GET /api/topics). Each topic carries its
-// accent color and a short blurb. Cooldown state ("come back tomorrow")
-// is read from the backend, the authoritative source, so stale local
-// data can never lock a topic the server considers fresh.
+// accent color and a short blurb. A topic on cooldown (its last deck
+// completed within 24 hours) shows "come back tomorrow", but tapping it
+// offers to revise the completed deck again rather than being locked.
 export function TopicList({ nicheSlug, onPick, onChangeNiche }) {
   const niche = findNiche(nicheSlug);
   const [topicSlugs, setTopicSlugs] = useState(null);
   const [cooldowns, setCooldowns] = useState(new Map());
+  const [pendingRevision, setPendingRevision] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -66,7 +68,7 @@ export function TopicList({ nicheSlug, onPick, onChangeNiche }) {
         </h1>
         <p className="mt-2 max-w-md font-sans text-[15px] leading-relaxed text-muted">
           Pick a topic to open its next deck. A finished deck unlocks again
-          the next day.
+          the next day, and you can always read it again.
         </p>
       </header>
 
@@ -75,18 +77,24 @@ export function TopicList({ nicheSlug, onPick, onChangeNiche }) {
           const t = topicPalette[slug];
           if (!t) return null;
           const accent = `var(--${t.accent})`;
-          const cooldown = Boolean(cooldowns.get(slug)?.is_on_cooldown);
+          const cooldownData = cooldowns.get(slug);
+          const cooldown = Boolean(cooldownData?.is_on_cooldown);
           return (
             <button
               key={slug}
               type="button"
-              onClick={cooldown ? undefined : () => onPick(slug)}
-              aria-disabled={cooldown || undefined}
-              className={`group flex items-start gap-4 rounded-lg border bg-paper px-5 py-4 text-left transition-colors ${
-                cooldown
-                  ? "cursor-not-allowed border-hairline opacity-70"
-                  : "border-hairline hover:border-ink"
-              }`}
+              onClick={() => {
+                if (cooldown) {
+                  setPendingRevision({
+                    slug,
+                    deckIndex: cooldownData.last_deck_index_completed,
+                    name: t.name,
+                  });
+                } else {
+                  onPick(slug);
+                }
+              }}
+              className={`group flex items-start gap-4 rounded-lg border border-hairline bg-paper px-5 py-4 text-left transition-colors hover:border-ink`}
             >
               <span
                 className="mt-1.5 inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]"
@@ -108,11 +116,30 @@ export function TopicList({ nicheSlug, onPick, onChangeNiche }) {
                 <span className="font-sans text-[14px] leading-relaxed text-muted">
                   {t.blurb}
                 </span>
+                {cooldown && (
+                  <span className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                    tap to revise
+                  </span>
+                )}
               </span>
             </button>
           );
         })}
       </div>
+
+      {pendingRevision && (
+        <ConfirmDialog
+          title="Revise this deck?"
+          body={`You already finished the ${pendingRevision.name} deck. Read it again?`}
+          confirmLabel="Revise"
+          cancelLabel="Not now"
+          onConfirm={() => {
+            onPick(pendingRevision.slug, pendingRevision.deckIndex);
+            setPendingRevision(null);
+          }}
+          onCancel={() => setPendingRevision(null)}
+        />
+      )}
     </main>
   );
 }

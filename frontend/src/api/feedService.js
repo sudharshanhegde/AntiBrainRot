@@ -48,9 +48,14 @@ async function apiTopics(nicheSlug) {
 async function apiDeckChunk(topicSlug, deckIndex, offset) {
   const topicId = await getTopicId(topicSlug);
   const userId = getUserId();
-  const res = await fetch(
-    `${API_BASE}/api/feed?topic_id=${topicId}&user_id=${encodeURIComponent(userId)}`
-  );
+  // deckIndex is null for normal play (the backend picks the next deck);
+  // a concrete index means revision mode, where we re-read a specific
+  // already-published deck even if it is on cooldown.
+  let url = `${API_BASE}/api/feed?topic_id=${topicId}&user_id=${encodeURIComponent(userId)}`;
+  if (deckIndex != null && Number.isInteger(deckIndex) && deckIndex >= 0) {
+    url += `&deck_index=${deckIndex}`;
+  }
+  const res = await fetch(url);
   if (!res.ok) throw new Error("could not load the feed from the API");
   const data = await res.json();
 

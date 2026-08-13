@@ -34,6 +34,7 @@ export default function App() {
   const [nicheSlug, setNicheSlug] = useState(() => readStored(STORAGE_KEYS.niche));
   const [topicSlug, setTopicSlug] = useState(() => readStored(STORAGE_KEYS.topic));
   const [view, setView] = useState(() => (nicheSlug ? "topics" : "niche"));
+  const [revisionDeckIndex, setRevisionDeckIndex] = useState(null);
 
   const pickNiche = (slug) => {
     writeStored(STORAGE_KEYS.niche, slug);
@@ -43,13 +44,18 @@ export default function App() {
     setView("topics");
   };
 
-  const pickTopic = (slug) => {
+  // revisionIndex (optional) re-reads a specific completed deck.
+  const pickTopic = (slug, revisionIndex = null) => {
     writeStored(STORAGE_KEYS.topic, slug);
     setTopicSlug(slug);
+    setRevisionDeckIndex(revisionIndex);
     setView("feed");
   };
 
-  const backToTopics = () => setView("topics");
+  const backToTopics = () => {
+    setRevisionDeckIndex(null);
+    setView("topics");
+  };
   const backToNiche = () => setView("niche");
 
   // Called when the user reaches the end card of a deck. Records
@@ -98,6 +104,7 @@ export default function App() {
       onBack={backToTopics}
       onDeckComplete={handleDeckComplete}
       onSurprise={handleSurprise}
+      revisionDeckIndex={revisionDeckIndex}
     />
   );
 }

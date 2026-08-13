@@ -1,9 +1,6 @@
-# Daily automated content generation (SKILL_pipeline.md).
-#
+
 # Runs once every 24 hours and asks the deployed backend to generate one
 # new deck. Using GitHub Actions decouples "when generation fires" from
-# whatever free-tier cron your web host allows. The endpoint is protected
-# by a shared secret stored in the GitHub Actions secret GENERATION_SECRET.
 
 name: daily-generate
 
@@ -17,6 +14,6 @@ jobs:
     steps:
       - name: Trigger generation
         run: |
-          curl -f -X POST https://your-app.example.com/api/generate \
+          curl -f -X POST https://antibrainrot.onrender.com/api/generate \
             -H "Authorization: Bearer ${{ secrets.GENERATION_SECRET }}" \
             -H "Content-Type: application/json"

@@ -75,3 +75,5 @@ You need a Postgres database and a DeepSeek API key.
 To trigger the daily generation locally:
 `curl -X POST http://localhost:4000/api/generate -H "Authorization: Bearer <GENERATION_SECRET>"`
 
+You can access for free here : `https://antibrainrotnobot.vercel.app/`
+

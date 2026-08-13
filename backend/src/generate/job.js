@@ -218,13 +218,16 @@ async function generateOneDeck(
   return { status: "failure", topic_slug: topicSlug, deck_index: deckIndex, reason: lastError, tokens: state.totalTokens };
 }
 
-export async function runDailyJob({ dryRun = false } = {}) {
+export async function runDailyJob({ dryRun = false, force = false } = {}) {
   // Daily guard: one run per day (idempotent for the cron trigger).
-  const lastRun = await query(
-    "select ran_at from generation_runs order by ran_at desc limit 1"
-  );
-  if (lastRun.rows[0] && sameUtcDay(new Date(lastRun.rows[0].ran_at), new Date())) {
-    return { status: "already-ran", message: "a generation run already happened today" };
+  // force=1 bypasses it for on-demand runs (still requires the secret).
+  if (!force) {
+    const lastRun = await query(
+      "select ran_at from generation_runs order by ran_at desc limit 1"
+    );
+    if (lastRun.rows[0] && sameUtcDay(new Date(lastRun.rows[0].ran_at), new Date())) {
+      return { status: "already-ran", message: "a generation run already happened today" };
+    }
   }
 
   await syncQueue();

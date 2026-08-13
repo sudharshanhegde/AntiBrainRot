@@ -19,7 +19,8 @@ generateRouter.post("/", async (req, res) => {
 
   try {
     const dryRun = req.query.dry_run === "1";
-    const result = await runDailyJob({ dryRun });
+    const force = req.query.force === "1";
+    const result = await runDailyJob({ dryRun, force });
     if (result.status === "already-ran") {
       return res.status(429).json(result);
     }

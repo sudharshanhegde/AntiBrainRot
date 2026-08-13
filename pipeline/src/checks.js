@@ -92,8 +92,8 @@ export function checkDeck(deck) {
         } else {
           errors.push(...checkString(card.code_snippet, at("code_snippet")));
         }
-      } else if (card.code_snippet != null) {
-        errors.push(`${at("code_snippet")}: should be null for non-code templates`);
+      } else if (card.code_snippet != null && String(card.code_snippet).trim() !== "") {
+        errors.push(`${at("code_snippet")}: should be null or empty for non-code templates`);
       }
 
       if (card.template === "text_diagram") {
@@ -102,8 +102,8 @@ export function checkDeck(deck) {
         } else {
           errors.push(...checkString(card.diagram_ref, at("diagram_ref")));
         }
-      } else if (card.diagram_ref != null) {
-        errors.push(`${at("diagram_ref")}: should be null for non-diagram templates`);
+      } else if (card.diagram_ref != null && String(card.diagram_ref).trim() !== "") {
+        errors.push(`${at("diagram_ref")}: should be null or empty for non-diagram templates`);
       }
     }
 

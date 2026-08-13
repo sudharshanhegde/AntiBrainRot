@@ -1,0 +1,86 @@
+import { findNiche } from "../data/topics";
+import { deckStore } from "../data/decks";
+import { API_BASE, USE_MOCK } from "./config";
+import { getTopicId, getUserId } from "./client";
+
+// Feed data service. Default mode talks to the Express API
+// (GET /api/topics, GET /api/feed). With VITE_USE_MOCK=true it serves
+// local placeholder decks instead, which is useful when the backend is
+// not running.
+
+export const CHUNK_SIZE = 5;
+
+const MOCK_LATENCY = 220;
+const mockDelay = () => new Promise((resolve) => setTimeout(resolve, MOCK_LATENCY));
+
+async function mockTopics(nicheSlug) {
+  await mockDelay();
+  const niche = findNiche(nicheSlug);
+  return niche ? niche.topics : [];
+}
+
+async function mockDeckChunk(topicSlug, deckIndex, offset) {
+  await mockDelay();
+  const all = deckStore[topicSlug] || [];
+  const slice = all.slice(offset, offset + CHUNK_SIZE);
+  return {
+    cards: slice,
+    hasMore: offset + slice.length < all.length,
+    total: all.length,
+    difficulty: "fundamentals",
+    deckIndex,
+  };
+}
+
+async function apiTopics(nicheSlug) {
+  const niche = findNiche(nicheSlug);
+  if (!niche) return [];
+  // Warm the topic cache so the first feed call does not pay a second
+  // topics request. Errors surface when the feed loads.
+  try {
+    await getTopicId(niche.topics[0]);
+  } catch {
+    // handled when the feed loads
+  }
+  return niche.topics;
+}
+
+async function apiDeckChunk(topicSlug, deckIndex, offset) {
+  const topicId = await getTopicId(topicSlug);
+  const userId = getUserId();
+  const res = await fetch(
+    `${API_BASE}/api/feed?topic_id=${topicId}&user_id=${encodeURIComponent(userId)}`
+  );
+  if (!res.ok) throw new Error("could not load the feed from the API");
+  const data = await res.json();
+
+  if (data.status === "cooldown") {
+    throw new Error(
+      `this topic is on cooldown for ${data.cooldown_remaining_hours}h`
+    );
+  }
+  if (data.status !== "ok") {
+    // exhausted: no reviewed decks exist for this topic yet
+    return { cards: [], hasMore: false, total: 0, difficulty: "fundamentals", deckIndex };
+  }
+
+  const all = data.deck.cards || [];
+  const slice = all.slice(offset, offset + CHUNK_SIZE);
+  return {
+    cards: slice,
+    hasMore: offset + slice.length < all.length,
+    total: all.length,
+    difficulty: data.deck.difficulty,
+    deckIndex: data.deck.deck_index,
+  };
+}
+
+export async function fetchTopics(nicheSlug) {
+  return USE_MOCK ? mockTopics(nicheSlug) : apiTopics(nicheSlug);
+}
+
+export async function fetchDeckChunk(topicSlug, deckIndex, offset) {
+  return USE_MOCK
+    ? mockDeckChunk(topicSlug, deckIndex, offset)
+    : apiDeckChunk(topicSlug, deckIndex, offset);
+}

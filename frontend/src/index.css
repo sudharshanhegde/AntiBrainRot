@@ -1,0 +1,117 @@
+@import "@fontsource-variable/inter";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/500.css";
+@import "tailwindcss";
+@import "./styles/tokens.css";
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overscroll-behavior-y: none;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  /* Structural typeface for metadata lives on a mono utility,
+     applied in components. Nothing to add globally here. */
+}
+
+@layer components {
+  /* ---------------- feed scroll mechanics ---------------- */
+  .feed-scroll {
+    height: 100dvh;
+    overflow-y: scroll;
+    scroll-snap-type: y mandatory;
+    overscroll-behavior-y: none;
+    scrollbar-width: none;
+  }
+  .feed-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .feed-card {
+    height: 100dvh;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  /* ---------------- panels: fixed sizes, zero layout shift ---------------- */
+  .panel {
+    background: var(--color-panel);
+    border: 1px solid var(--color-hairline);
+    border-radius: 6px;
+  }
+
+  .code-panel {
+    min-height: 0;
+  }
+  .code-panel pre {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.65;
+    white-space: pre;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .code-panel pre::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Diagram area has a reserved fixed height so the card never
+     shifts when a diagram mounts. Diagram SVGs fill this box. */
+  .diagram-panel {
+    height: 210px;
+    display: grid;
+    place-items: center;
+  }
+  @media (min-width: 640px) {
+    .diagram-panel {
+      height: 230px;
+    }
+  }
+
+  /* ---------------- one fade-in moment, under 200ms ---------------- */
+  /* Class is added by JS when a card becomes the dominant snap
+     target, so below-fold cards animate only as they settle in. */
+  .card-body.enter {
+    animation: card-in 180ms ease-out both;
+  }
+  @keyframes card-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .card-body.enter {
+      animation: none;
+    }
+  }
+
+  /* Non-feed screens (onboarding, topic list, status) reuse the same
+     single fade-in moment on mount. */
+  .screen-in {
+    animation: card-in 180ms ease-out both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .screen-in {
+      animation: none;
+    }
+  }
+}

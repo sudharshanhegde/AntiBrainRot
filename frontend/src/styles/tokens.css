@@ -1,0 +1,48 @@
+/* ============================================================
+   AntiBrainRot design tokens
+   ------------------------------------------------------------
+   Layout concept: "register ledger / man page".
+   Each card is a full-height ledger page: a monospace metadata
+   header (topic, difficulty, index register like 03 / 10), a
+   hairline rule, a humanist sans body panel, a reserved
+   structural area for code or diagram, and a quiet footer.
+   The scroll axis is the binding, snapping page to page.
+
+   Locked before any component code. Do not introduce ad-hoc
+   colors or typefaces. Extend this file, not the components.
+   ============================================================ */
+@theme {
+  /* --- base palette (5 named colors) --- */
+  --color-paper: #F3F2EC; /* aged terminal paper, the app background */
+  --color-ink: #1B1E23; /* near-black, cool slate, primary text */
+  --color-muted: #666B72; /* secondary text, metadata */
+  --color-hairline: #DCDAD2; /* rule color, panel borders */
+  --color-panel: #E9E7DE; /* code and diagram panel fills */
+
+  /* --- topic accents, one per topic, used sparingly --- */
+  --color-accent-os: #B4470B; /* burnt oxide, kernel content */
+  --color-accent-net: #1E5A8A; /* signal blue, networking */
+  --color-accent-dsa: #5B3A8E; /* deep violet, data structures */
+  --color-accent-sys: #1F6F63; /* deep teal, system design */
+  --color-accent-db: #2E6B34; /* deep green, databases */
+
+  /* --- typefaces ---
+     mono is structural (metadata, index, code, diagram labels)
+     sans is the reading face for card bodies */
+  --font-sans: "Inter Variable", system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+    Consolas, "Liberation Mono", monospace;
+}
+
+/* Exposed as plain custom properties so components can apply a topic
+   accent via inline style. Component code references these by name
+   (e.g. accent="accent-os" resolves to var(--accent-os)); no dynamic
+   Tailwind class names are constructed at runtime. */
+:root {
+  --accent-os: #b4470b;
+  --accent-net: #1e5a8a;
+  --accent-dsa: #5b3a8e;
+  --accent-sys: #1f6f63;
+  --accent-db: #2e6b34;
+}

@@ -1,0 +1,18 @@
+{
+  "name": "antibrainrot-pipeline",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Offline content generation and validation for AntiBrainRot. Grounded in curated sources, tracked by a per-topic coverage registry, generated with the DeepSeek API.",
+  "scripts": {
+    "generate": "node src/generate.js",
+    "validate": "node src/validate.js",
+    "worker": "node src/worker.js",
+    "worker:once": "node src/worker.js --once",
+    "worker:dry": "node src/worker.js --once --dry-run --budget=1"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "openai": "^4.77.0"
+  }
+}

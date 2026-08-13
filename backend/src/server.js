@@ -10,7 +10,29 @@ import { syncQueue } from "./generate/job.js";
 
 const app = express();
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || true }));
+// CORS: allow the configured frontend origin(s). Values are normalized
+// (trailing slashes stripped) because a value like
+// https://app.vercel.app/ would otherwise never match the browser origin.
+// Comma-separated origins are supported. When CORS_ORIGIN is unset,
+// every origin is allowed (development convenience).
+function normalizeOrigin(value) {
+  return String(value).replace(/\/+$/, "").trim();
+}
+
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN
+      ? (origin, callback) => {
+          const allowed = process.env.CORS_ORIGIN.split(",").map(normalizeOrigin);
+          if (!origin || allowed.includes(origin)) {
+            callback(null, true);
+          } else {
+            callback(null, false);
+          }
+        }
+      : true,
+  })
+);
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => res.json({ ok: true }));

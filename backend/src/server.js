@@ -6,6 +6,7 @@ import { feedRouter } from "./routes/feed.js";
 import { progressRouter } from "./routes/progress.js";
 import { decksRouter } from "./routes/decks.js";
 import { generateRouter } from "./routes/generate.js";
+import { syncQueue } from "./generate/job.js";
 
 const app = express();
 
@@ -23,4 +24,10 @@ const port = Number(process.env.PORT) || 4000;
 
 app.listen(port, () => {
   console.log(`AntiBrainRot API listening on http://localhost:${port}`);
+  // Populate the topics table from the queue file on startup, so
+  // /api/topics has data immediately after a fresh deploy instead of
+  // waiting for the first daily generation run.
+  syncQueue()
+    .then(() => console.log("[topics] queue synced"))
+    .catch((err) => console.warn("[topics] startup sync failed:", err.message));
 });

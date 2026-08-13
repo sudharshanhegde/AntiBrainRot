@@ -65,7 +65,7 @@ async function logRun({ topicId, topicSlug, deckIndex, status, reason, tokens })
 // Syncs the queue file into the topics table. New slugs are inserted as
 // pending with target_decks and their line position; existing topics
 // only get their line position refreshed so progress is preserved.
-async function syncQueue() {
+export async function syncQueue() {
   let lines = [];
   try {
     lines = (await readFile(QUEUE_FILE, "utf8"))

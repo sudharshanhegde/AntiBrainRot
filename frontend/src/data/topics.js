@@ -39,6 +39,13 @@ export const topicPalette = {
     blurb:
       "Storage, indexing, and transactions under the hood.",
   },
+  "computer-organization-and-architecture": {
+    name: "Computer Organization and Architecture",
+    short: "COA",
+    accent: "accent-coa",
+    blurb:
+      "How a CPU works: gates, registers, caches, and the fetch-execute cycle.",
+  },
 };
 
 // A niche decides which topics appear on the topic list. The content
@@ -54,6 +61,7 @@ export const niches = [
       "data-structures",
       "system-design",
       "databases",
+      "computer-organization-and-architecture",
     ],
   },
   {
@@ -65,6 +73,7 @@ export const niches = [
       "computer-networks",
       "databases",
       "system-design",
+      "computer-organization-and-architecture",
     ],
   },
   {
@@ -77,7 +86,12 @@ export const niches = [
     slug: "app-dev",
     name: "App developer",
     description: "DSA and databases first, with networking for the wire.",
-    topics: ["data-structures", "databases", "computer-networks"],
+    topics: [
+      "data-structures",
+      "databases",
+      "computer-networks",
+      "computer-organization-and-architecture",
+    ],
   },
 ];
 

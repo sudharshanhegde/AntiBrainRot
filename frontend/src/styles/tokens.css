@@ -25,6 +25,7 @@
   --color-accent-dsa: #5B3A8E; /* deep violet, data structures */
   --color-accent-sys: #1F6F63; /* deep teal, system design */
   --color-accent-db: #2E6B34; /* deep green, databases */
+  --color-accent-coa: #BE185D; /* deep pink, computer organization */
 
   /* --- typefaces ---
      mono is structural (metadata, index, code, diagram labels)
@@ -45,4 +46,5 @@
   --accent-dsa: #5b3a8e;
   --accent-sys: #1f6f63;
   --accent-db: #2e6b34;
+  --accent-coa: #be185d;
 }

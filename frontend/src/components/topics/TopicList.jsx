@@ -5,11 +5,10 @@ import { findNiche, topicPalette } from "../../data/topics";
 import { fetchTopics } from "../../api/feedService";
 import { fetchCooldownMap } from "../../api/progress";
 
-// Topic list for the chosen niche. Topics load through the data
-// service (the seam for GET /api/topics). Each topic carries its
-// accent color and a short blurb. A topic on cooldown (its last deck
-// completed within 24 hours) shows "come back tomorrow", but tapping it
-// offers to revise the completed deck again rather than being locked.
+// Topic list for the chosen niche. Tapping a topic opens its feed
+// directly; previous days are reached from the feed's hamburger. A topic
+// on cooldown (its last day completed recently) shows the remaining time
+// and, when tapped, asks whether to revise the completed day.
 export function TopicList({ nicheSlug, onPick, onChangeNiche }) {
   const niche = findNiche(nicheSlug);
   const [topicSlugs, setTopicSlugs] = useState(null);
@@ -67,8 +66,8 @@ export function TopicList({ nicheSlug, onPick, onChangeNiche }) {
           {niche.name}
         </h1>
         <p className="mt-2 max-w-md font-sans text-[15px] leading-relaxed text-muted">
-          Pick a topic to open its next deck. A finished deck unlocks again
-          the next day, and you can always read it again.
+          Pick a topic to open its feed. One day per deck, and the next day
+          unlocks after a short cooldown.
         </p>
       </header>
 
@@ -77,8 +76,8 @@ export function TopicList({ nicheSlug, onPick, onChangeNiche }) {
           const t = topicPalette[slug];
           if (!t) return null;
           const accent = `var(--${t.accent})`;
-          const cooldownData = cooldowns.get(slug);
-          const cooldown = Boolean(cooldownData?.is_on_cooldown);
+          const cd = cooldowns.get(slug);
+          const cooldown = Boolean(cd?.is_on_cooldown);
           return (
             <button
               key={slug}
@@ -87,14 +86,14 @@ export function TopicList({ nicheSlug, onPick, onChangeNiche }) {
                 if (cooldown) {
                   setPendingRevision({
                     slug,
-                    deckIndex: cooldownData.last_deck_index_completed,
+                    deckIndex: cd.last_deck_index_completed,
                     name: t.name,
                   });
                 } else {
                   onPick(slug);
                 }
               }}
-              className={`group flex items-start gap-4 rounded-lg border border-hairline bg-paper px-5 py-4 text-left transition-colors hover:border-ink`}
+              className="group flex items-start gap-4 rounded-lg border border-hairline bg-paper px-5 py-4 text-left transition-colors hover:border-ink"
             >
               <span
                 className="mt-1.5 inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]"
@@ -110,17 +109,14 @@ export function TopicList({ nicheSlug, onPick, onChangeNiche }) {
                     {t.name}
                   </span>
                   <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                    {cooldown ? "come back tomorrow" : "deck 0"}
+                    {cooldown
+                      ? `come back in ${cd.cooldown_remaining_hours}h`
+                      : "day 0"}
                   </span>
                 </span>
                 <span className="font-sans text-[14px] leading-relaxed text-muted">
                   {t.blurb}
                 </span>
-                {cooldown && (
-                  <span className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                    tap to revise
-                  </span>
-                )}
               </span>
             </button>
           );
@@ -129,8 +125,8 @@ export function TopicList({ nicheSlug, onPick, onChangeNiche }) {
 
       {pendingRevision && (
         <ConfirmDialog
-          title="Revise this deck?"
-          body={`You already finished the ${pendingRevision.name} deck. Read it again?`}
+          title="Revise this day?"
+          body={`You already finished the ${pendingRevision.name} day. Read it again?`}
           confirmLabel="Revise"
           cancelLabel="Not now"
           onConfirm={() => {

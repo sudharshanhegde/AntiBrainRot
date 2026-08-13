@@ -10,7 +10,7 @@ export { getUserId };
 // cooldown is a client-side convenience.
 
 const KEY = "antibrainrot:progress";
-const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const COOLDOWN_MS = 12 * 60 * 60 * 1000; // matches backend COOLDOWN_HOURS default
 
 function read() {
   try {

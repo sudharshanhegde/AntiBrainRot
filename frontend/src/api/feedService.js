@@ -80,6 +80,36 @@ async function apiDeckChunk(topicSlug, deckIndex, offset) {
   };
 }
 
+async function apiDays(topicSlug) {
+  const topicId = await getTopicId(topicSlug);
+  const userId = getUserId();
+  const res = await fetch(
+    `${API_BASE}/api/days?topic_id=${topicId}&user_id=${encodeURIComponent(userId)}`
+  );
+  if (!res.ok) throw new Error("could not load days from the API");
+  return res.json();
+}
+
+async function mockDays(topicSlug) {
+  await mockDelay();
+  const all = deckStore[topicSlug] || [];
+  return {
+    topic: { slug: topicSlug },
+    days: all.map((_, i) => ({
+      day: i,
+      deck_index: i,
+      difficulty: "fundamentals",
+      status: "available",
+      cooldown_remaining_hours: 0,
+    })),
+  };
+}
+
+// Day-by-day progression for a topic (Day 0, Day 1, ...).
+export async function fetchDays(topicSlug) {
+  return USE_MOCK ? mockDays(topicSlug) : apiDays(topicSlug);
+}
+
 export async function fetchTopics(nicheSlug) {
   return USE_MOCK ? mockTopics(nicheSlug) : apiTopics(nicheSlug);
 }

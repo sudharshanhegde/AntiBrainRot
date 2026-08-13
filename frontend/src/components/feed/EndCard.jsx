@@ -47,8 +47,8 @@ export function EndCard({ topic, difficulty, onExplore, onSurprise }) {
           You're all caught up here.
         </h2>
         <p className="max-w-sm font-sans text-[16px] leading-relaxed text-muted">
-          You finished the {difficulty} deck for {topic.name}. The next deck
-          unlocks tomorrow.
+          You finished the {difficulty} day for {topic.name}. The next day
+          unlocks soon.
         </p>
         <div className="mt-2 flex flex-col items-center gap-3">
           <button

@@ -3,7 +3,8 @@ import { query } from "../db.js";
 
 export const progressRouter = Router();
 
-const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const COOLDOWN_HOURS = Number(process.env.COOLDOWN_HOURS || 12);
+const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
 
 // GET /api/progress?user_id=...
 // Returns the user's progress per topic with the computed cooldown

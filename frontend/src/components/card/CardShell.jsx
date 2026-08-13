@@ -15,6 +15,7 @@ export function CardShell({
   children,
   footer,
   onBack,
+  topBar,
 }) {
   const bodyRef = useRef(null);
   useCardEnter(bodyRef);
@@ -27,7 +28,9 @@ export function CardShell({
       aria-label={`Card ${index + 1} of ${total}, ${topic.name}, ${difficulty}`}
     >
       <header className="shrink-0 px-5 pt-[max(1rem,env(safe-area-inset-top))]">
-        {onBack && (
+        {topBar ? (
+          topBar
+        ) : onBack ? (
           <div className="mb-3 flex items-center justify-between">
             <button
               type="button"
@@ -37,7 +40,7 @@ export function CardShell({
               back to topics
             </button>
           </div>
-        )}
+        ) : null}
         <div className="flex items-baseline justify-between gap-4 font-mono text-[11px] uppercase tracking-[0.14em]">
           <div className="flex items-baseline gap-3">
             <span className="flex items-center gap-2" style={{ color: accentVar }}>

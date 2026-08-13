@@ -3,7 +3,8 @@ import { query } from "../db.js";
 
 export const feedRouter = Router();
 
-const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const COOLDOWN_HOURS = Number(process.env.COOLDOWN_HOURS || 12);
+const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
 
 // GET /api/feed?topic_id=1&user_id=anon-1
 //

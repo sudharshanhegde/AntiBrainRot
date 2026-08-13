@@ -3,29 +3,42 @@ import { CardShell } from "../card/CardShell";
 import { TemplateRenderer } from "../card/TemplateRenderer";
 import { StatusScreen } from "../ui/StatusScreen";
 import { EndCard } from "./EndCard";
+import { DaysDrawer } from "./DaysDrawer";
 import { topicPalette } from "../../data/topics";
-import { fetchDeckChunk } from "../../api/feedService";
+import { fetchDeckChunk, fetchDays } from "../../api/feedService";
 import { useActiveCardIndex } from "../../hooks/useActiveCardIndex";
 
-// The vertical scroll-snap feed. Native CSS scroll-snap does the
-// physics; no JS touch handling. Each card is a full-viewport snap
-// target. The deck loads in chunks: the first chunk renders, and when
-// the active card approaches the end of what is loaded, the next chunk
-// is fetched ahead of time (prefetch rule in SKILL_frontend.md). Once
-// every chunk is loaded, an end card marks a deliberate stopping point.
+function HamburgerIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
+// The vertical scroll-snap feed. This is the single surface that opens
+// for a topic. Native CSS scroll-snap does the physics; no JS touch
+// handling. Each card is a full-viewport snap target.
 //
-// revisionDeckIndex re-reads a specific already-completed deck (revise
-// mode) instead of the next deck; in that mode reaching the end does not
-// reset the 24h cooldown.
+// A hamburger in the card header opens a drawer listing the topic's days
+// (Day 0, Day 1, ...), so the user can jump to previous days or see what
+// is locked. revisionDeckIndex (optional) opens a specific completed day
+// (e.g. when a topic on cooldown is tapped); in revision mode reaching
+// the end does not reset the cooldown.
 export function Feed({
   topicSlug,
   onBack,
+  onExplore,
   onDeckComplete,
   onSurprise,
   revisionDeckIndex = null,
 }) {
   const scrollRef = useRef(null);
-
+  const [deckTarget, setDeckTarget] = useState(revisionDeckIndex); // null = next deck, number = specific day
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [days, setDays] = useState({ days: [] });
   const [cards, setCards] = useState([]);
   const [meta, setMeta] = useState({ total: 0, difficulty: "fundamentals", deckIndex: 0 });
   const [hasMore, setHasMore] = useState(true);
@@ -36,13 +49,33 @@ export function Feed({
   const activeIndex = useActiveCardIndex(scrollRef, cards.length + (hasMore ? 0 : 1));
   const topic = topicPalette[topicSlug] || topicPalette["operating-systems"];
 
+  // Reset to the initial day whenever the topic (re)opens.
+  useEffect(() => {
+    setDeckTarget(revisionDeckIndex);
+  }, [revisionDeckIndex, topicSlug]);
+
+  // Load the day list for the drawer.
+  useEffect(() => {
+    let active = true;
+    fetchDays(topicSlug)
+      .then((d) => {
+        if (active) setDays(d);
+      })
+      .catch(() => {
+        if (active) setDays({ days: [] });
+      });
+    return () => {
+      active = false;
+    };
+  }, [topicSlug]);
+
   const loadChunk = useCallback(
     async (offset) => {
       setError(null);
       setLoading(true);
       try {
         const { cards: chunk, hasMore: more, total, difficulty, deckIndex } =
-          await fetchDeckChunk(topicSlug, revisionDeckIndex, offset);
+          await fetchDeckChunk(topicSlug, deckTarget, offset);
         setCards((prev) => [...prev, ...chunk]);
         setHasMore(more);
         if (offset === 0) setMeta({ total, difficulty, deckIndex });
@@ -52,10 +85,10 @@ export function Feed({
         setLoading(false);
       }
     },
-    [topicSlug, revisionDeckIndex]
+    [topicSlug, deckTarget]
   );
 
-  // Load the first chunk whenever the topic changes.
+  // Load the first chunk whenever the topic or target day changes.
   useEffect(() => {
     setCards([]);
     setHasMore(true);
@@ -73,15 +106,22 @@ export function Feed({
   }, [activeIndex, cards, hasMore, loading, loadChunk]);
 
   // Mark the deck complete once the end card becomes the active snap.
-  // Skipped in revision mode so re-reading does not reset the cooldown.
+  // Skipped in revision mode (deckTarget set) so re-reading does not
+  // reset the cooldown.
   const endCardIndex = hasMore ? -1 : cards.length;
   useEffect(() => {
-    if (revisionDeckIndex != null) return;
+    if (deckTarget != null) return;
     if (endCardIndex !== -1 && activeIndex === endCardIndex && !completedRef.current) {
       completedRef.current = true;
       onDeckComplete(meta.deckIndex);
     }
-  }, [activeIndex, endCardIndex, meta.deckIndex, onDeckComplete, revisionDeckIndex]);
+  }, [activeIndex, endCardIndex, meta.deckIndex, onDeckComplete, deckTarget]);
+
+  const handleSelectDay = (day) => {
+    // available -> play the next deck; completed -> re-read that day
+    setDeckTarget(day.status === "completed" ? day.deck_index : null);
+    setDrawerOpen(false);
+  };
 
   if (cards.length === 0 && loading) {
     return <StatusScreen label="loading deck" title={topic.name} accent={topic.accent} />;
@@ -114,38 +154,69 @@ export function Feed({
   const atEnd = showEndCard && activeIndex >= cards.length;
 
   return (
-    <div
-      ref={scrollRef}
-      className="feed-scroll"
-      role="region"
-      aria-label={
-        atEnd
-          ? `End of deck, ${topic.name}`
-          : `${topic.name}, card ${Math.min(activeIndex, total - 1) + 1} of ${total}`
-      }
-    >
-      {cards.map((card) => (
-        <CardShell
-          key={card.order_index}
-          topic={topic}
-          difficulty={meta.difficulty}
-          deckIndex={meta.deckIndex}
-          index={card.order_index}
-          total={total}
-          onBack={onBack}
-        >
-          <TemplateRenderer card={card} accent={topic.accent} />
-        </CardShell>
-      ))}
+    <>
+      <div
+        ref={scrollRef}
+        className="feed-scroll"
+        role="region"
+        aria-label={
+          atEnd
+            ? `End of deck, ${topic.name}`
+            : `${topic.name}, card ${Math.min(activeIndex, total - 1) + 1} of ${total}`
+        }
+      >
+        {cards.map((card) => (
+          <CardShell
+            key={card.order_index}
+            topic={topic}
+            difficulty={meta.difficulty}
+            deckIndex={meta.deckIndex}
+            index={card.order_index}
+            total={total}
+            topBar={
+              <div className="mb-3 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setDrawerOpen(true)}
+                  className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+                  aria-label="Open days"
+                >
+                  <HamburgerIcon />
+                  days
+                </button>
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+                >
+                  topics
+                </button>
+              </div>
+            }
+          >
+            <TemplateRenderer card={card} accent={topic.accent} />
+          </CardShell>
+        ))}
 
-      {showEndCard && (
-        <EndCard
-          topic={topic}
-          difficulty={meta.difficulty}
-          onExplore={onBack}
-          onSurprise={onSurprise}
+        {showEndCard && (
+          <EndCard
+            topic={topic}
+            difficulty={meta.difficulty}
+            onExplore={onExplore || onBack}
+            onSurprise={onSurprise}
+          />
+        )}
+      </div>
+
+      {drawerOpen && (
+        <DaysDrawer
+          topicSlug={topicSlug}
+          days={days.days}
+          onSelect={handleSelectDay}
+          onClose={() => setDrawerOpen(false)}
+          onBackToTopics={onBack}
         />
       )}
-    </div>
+    </>
   );
 }

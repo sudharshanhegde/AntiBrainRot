@@ -27,9 +27,10 @@ function writeStored(key, value) {
   }
 }
 
-// Navigation is a small state machine, not a router: v1 has exactly
-// three screens. The niche and last topic persist so a returning user
-// skips onboarding. No auth in v1, so identity is local only.
+// Navigation is a small state machine, not a router: niche -> topics ->
+// feed. The feed is the single surface that opens for a topic; previous
+// days are reached from the feed's hamburger drawer. The niche and last
+// topic persist so a returning user skips onboarding.
 export default function App() {
   const [nicheSlug, setNicheSlug] = useState(() => readStored(STORAGE_KEYS.niche));
   const [topicSlug, setTopicSlug] = useState(() => readStored(STORAGE_KEYS.topic));
@@ -44,7 +45,8 @@ export default function App() {
     setView("topics");
   };
 
-  // revisionIndex (optional) re-reads a specific completed deck.
+  // revisionIndex (optional) opens a specific completed day, used when a
+  // topic on cooldown is tapped so the user can re-read it.
   const pickTopic = (slug, revisionIndex = null) => {
     writeStored(STORAGE_KEYS.topic, slug);
     setTopicSlug(slug);
@@ -102,6 +104,7 @@ export default function App() {
     <Feed
       topicSlug={topicSlug}
       onBack={backToTopics}
+      onExplore={backToTopics}
       onDeckComplete={handleDeckComplete}
       onSurprise={handleSurprise}
       revisionDeckIndex={revisionDeckIndex}

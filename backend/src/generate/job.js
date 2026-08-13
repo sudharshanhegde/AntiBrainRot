@@ -29,6 +29,22 @@ const MAX_ATTEMPTS = 2; // one generation + one retry, hard cap
 const DAILY_CALL_LIMIT = Number(process.env.DAILY_CALL_LIMIT || 30);
 const DEFAULT_TARGET_DECKS = Number(process.env.DEFAULT_TARGET_DECKS || 18);
 
+// Per-topic deck targets. Deep topics need far more than a few days, so
+// each topic gets a target sized to how long it takes to cover properly.
+// A topic is marked complete only once it reaches its target. Tune these
+// freely; DEFAULT_TARGET_DECKS is the fallback for unknown slugs.
+const TARGET_BY_SLUG = {
+  "data-structures": 200,
+  "operating-systems": 150,
+  "computer-networks": 120,
+  databases: 120,
+  "system-design": 120,
+};
+
+function targetFor(slug) {
+  return TARGET_BY_SLUG[slug] || DEFAULT_TARGET_DECKS;
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const QUEUE_FILE = join(__dirname, "..", "..", "..", "pipeline", "topics_queue.md");
 
@@ -81,17 +97,19 @@ export async function syncQueue() {
       "select count(*)::int as n from decks d join topics t on t.id = d.topic_id where t.slug = $1",
       [slug]
     );
-    // Reconcile decks_generated against the actual deck count on every
-    // run so the counter never drifts from what is live. A topic whose
-    // count reached its target is marked complete.
+    // Reconcile decks_generated against the actual deck count and the
+    // target on every run so the counter never drifts from what is live.
+    // A topic whose count reached its target is marked complete.
+    const target = targetFor(slug);
     await query(
       `insert into topics (slug, name, queue_position, status, decks_generated, target_decks)
        values ($1, $1, $2, 'pending', $3, $4)
        on conflict (slug) do update set
          queue_position = $2,
          decks_generated = $3,
-         status = case when $3 >= topics.target_decks then 'complete' else topics.status end`,
-      [slug, i, deckCount.rows[0].n, DEFAULT_TARGET_DECKS]
+         target_decks = $4,
+         status = case when $3 >= $4 then 'complete' else topics.status end`,
+      [slug, i, deckCount.rows[0].n, target]
     );
   }
 }

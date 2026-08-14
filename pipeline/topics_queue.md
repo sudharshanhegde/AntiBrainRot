@@ -15,3 +15,4 @@ operating-systems
 system-design
 databases
 computer-organization-and-architecture
+artificial-intelligence

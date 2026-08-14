@@ -26,6 +26,7 @@
   --color-accent-sys: #1F6F63; /* deep teal, system design */
   --color-accent-db: #2E6B34; /* deep green, databases */
   --color-accent-coa: #BE185D; /* deep pink, computer organization */
+  --color-accent-ai: #D97706; /* amber, artificial intelligence */
 
   /* --- typefaces ---
      mono is structural (metadata, index, code, diagram labels)
@@ -47,4 +48,5 @@
   --accent-sys: #1f6f63;
   --accent-db: #2e6b34;
   --accent-coa: #be185d;
+  --accent-ai: #d97706;
 }

@@ -46,6 +46,13 @@ export const topicPalette = {
     blurb:
       "How a CPU works: gates, registers, caches, and the fetch-execute cycle.",
   },
+  "artificial-intelligence": {
+    name: "Artificial Intelligence",
+    short: "AI",
+    accent: "accent-ai",
+    blurb:
+      "Search, learning, and how models are trained and evaluated.",
+  },
 };
 
 // A niche decides which topics appear on the topic list. The content
@@ -62,6 +69,7 @@ export const niches = [
       "system-design",
       "databases",
       "computer-organization-and-architecture",
+      "artificial-intelligence",
     ],
   },
   {
@@ -80,7 +88,12 @@ export const niches = [
     slug: "data",
     name: "Data engineer",
     description: "Databases and system design first, with DSA for the shape of data.",
-    topics: ["databases", "system-design", "data-structures"],
+    topics: [
+      "databases",
+      "system-design",
+      "data-structures",
+      "artificial-intelligence",
+    ],
   },
   {
     slug: "app-dev",
@@ -91,6 +104,7 @@ export const niches = [
       "databases",
       "computer-networks",
       "computer-organization-and-architecture",
+      "artificial-intelligence",
     ],
   },
 ];

@@ -31,33 +31,50 @@ export async function insertReviewedDeck(topicSlug, deck) {
     const deckId = deckRes.rows[0].id;
 
     for (const card of deck.cards) {
+      // SKILL_quiz.md: quiz cards use the quiz columns and leave the
+      // concept-only fields empty; concept cards keep the existing
+      // template/title/body layout. options is serialized so the jsonb
+      // column is fed a JSON string.
+      const isQuiz = card.type === "quiz";
       await client.query(
         `insert into cards
-           (deck_id, order_index, template, title, body, code_snippet, diagram_ref, concept)
-         values ($1, $2, $3, $4, $5, $6, $7, $8)
+           (deck_id, order_index, type, template, title, body, code_snippet, diagram_ref, concept,
+            question, options, correct_option_id, tests_card_id)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          on conflict (deck_id, order_index) do update set
+           type = excluded.type,
            template = excluded.template,
            title = excluded.title,
            body = excluded.body,
            code_snippet = excluded.code_snippet,
            diagram_ref = excluded.diagram_ref,
-           concept = excluded.concept`,
+           concept = excluded.concept,
+           question = excluded.question,
+           options = excluded.options,
+           correct_option_id = excluded.correct_option_id,
+           tests_card_id = excluded.tests_card_id`,
         [
           deckId,
           card.order_index,
-          card.template,
-          card.title,
-          card.body,
-          card.code_snippet,
-          card.diagram_ref,
-          card.concept,
+          isQuiz ? "quiz" : "concept",
+          isQuiz ? "" : card.template,
+          isQuiz ? "" : card.title,
+          isQuiz ? "" : card.body,
+          isQuiz ? null : card.code_snippet,
+          isQuiz ? null : card.diagram_ref,
+          isQuiz ? null : card.concept,
+          isQuiz ? card.question : null,
+          isQuiz ? JSON.stringify(card.options) : null,
+          isQuiz ? card.correct_option_id : null,
+          isQuiz ? card.tests_card_id : null,
         ]
       );
     }
 
-    // Concept-level coverage, same transaction as the deck/cards.
+    // Concept-level coverage, same transaction as the deck/cards. Only
+    // concept cards register coverage; quiz cards never do.
     for (const card of deck.cards) {
-      if (card.concept) {
+      if (card.type !== "quiz" && card.concept) {
         await client.query(
           `insert into covered_concepts (topic_id, concept_label, deck_id)
            values ($1, $2, $3)

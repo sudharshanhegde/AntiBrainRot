@@ -7,6 +7,7 @@ import { progressRouter } from "./routes/progress.js";
 import { decksRouter } from "./routes/decks.js";
 import { generateRouter } from "./routes/generate.js";
 import { daysRouter } from "./routes/days.js";
+import { quizzesRouter } from "./routes/quizzes.js";
 import { syncQueue } from "./generate/job.js";
 
 const app = express();
@@ -43,6 +44,7 @@ app.use("/api/progress", progressRouter);
 app.use("/api/decks", decksRouter);
 app.use("/api/generate", generateRouter);
 app.use("/api/days", daysRouter);
+app.use("/api/quizzes", quizzesRouter);
 
 const port = Number(process.env.PORT) || 4000;
 

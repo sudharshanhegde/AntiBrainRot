@@ -1,13 +1,37 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCardEnter } from "../../hooks/useCardEnter";
+import { fetchQuizScore } from "../../api/quizzes";
 
 // The deliberate stopping point at the end of a deck. States what was
 // just finished and offers one clear next action (explore another
 // topic), with a quiet "surprise me" alternative. Same token system as
 // the content cards; no gamification, per SKILL_frontend.md.
-export function EndCard({ topic, difficulty, onExplore, onSurprise }) {
+//
+// SKILL_quiz.md: one extra line reports how many of the deck's quiz
+// questions were answered correctly (e.g. "8 / 10"), in the same
+// register-style numeric treatment used for deck position, computed
+// fresh from quiz_answers when this screen renders rather than from a
+// stored running score.
+export function EndCard({ topic, difficulty, onExplore, onSurprise, quizCardIds = [] }) {
   const bodyRef = useRef(null);
   useCardEnter(bodyRef);
+
+  const [score, setScore] = useState(null);
+
+  useEffect(() => {
+    if (!quizCardIds || quizCardIds.length === 0) return;
+    let active = true;
+    fetchQuizScore(quizCardIds)
+      .then((s) => {
+        if (active) setScore(s);
+      })
+      .catch(() => {
+        // scoring is best-effort; the end card still renders
+      });
+    return () => {
+      active = false;
+    };
+  }, [quizCardIds]);
 
   const accentVar = `var(--${topic.accent})`;
 
@@ -50,6 +74,14 @@ export function EndCard({ topic, difficulty, onExplore, onSurprise }) {
           You finished the {difficulty} day for {topic.name}. The next day
           unlocks soon.
         </p>
+        {score != null && (
+          <div className="flex items-baseline gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+            <span>quiz</span>
+            <span className="text-ink tabular-nums">
+              {score.correct} / {score.total}
+            </span>
+          </div>
+        )}
         <div className="mt-2 flex flex-col items-center gap-3">
           <button
             type="button"

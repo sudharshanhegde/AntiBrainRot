@@ -8,6 +8,10 @@
 //
 // In both modes the already-covered concepts (from covered_concepts)
 // and prior deck titles are included so the model never repeats itself.
+//
+// SKILL_quiz.md: every concept card is immediately followed by a quiz
+// card that tests it. A deck is 20 cards: concept, quiz, concept, quiz,
+// repeated.
 
 export function difficultyForDeckIndex(index) {
   if (index <= 0) return "fundamentals";
@@ -24,6 +28,19 @@ const COMMON_RULES = `Hard writing rules, non-negotiable:
 - Every technical term is either common knowledge for a CS major or explained inline on first use.
 - Do not repeat any concept in the "already covered concepts" list. Those concepts already exist in live decks, and the user must never feel they are seeing the same topic again.
 
+Deck structure, non-negotiable:
+- The deck has exactly 20 cards: 10 concept cards and 10 quiz cards, alternating concept, quiz, concept, quiz. Even order_index values (0, 2, 4, ... 18) are concept cards; odd order_index values (1, 3, 5, ... 19) are quiz cards. Each quiz card immediately follows the concept card it tests.
+- The 10 concept cards are the 10 independent concepts the deck teaches. They must form a coherent progression through the topic.
+
+Quiz card writing rules, non-negotiable:
+- Each quiz card tests only the concept card immediately before it. The user must be able to answer purely from that card's body, never from outside knowledge. If the card did not say it, do not ask it.
+- "question" is exactly one sentence, directly about the preceding card.
+- Exactly 4 options with ids "a", "b", "c", "d". Options are short, a few words each, not full sentences.
+- Exactly one "correct_option_id", one of a/b/c/d. The three other options are plausible distractors: they sound reasonable but are clearly wrong once the card is actually read. Never make a distractor that is really a matter of interpretation.
+- No trick questions, no negation tricks ("which of these is NOT true"), never test a minor detail buried in the middle of the body while ignoring the actual point of the card. Test the core idea the card was teaching.
+- "tests_card_id" must equal the order_index of the immediately preceding concept card.
+- The question and every option must obey the no em dash / no emoji rule.
+
 Reply with ONLY a single JSON object. No markdown fences, no commentary. Schema:
 {
   "deck_index": <integer>,
@@ -31,13 +48,27 @@ Reply with ONLY a single JSON object. No markdown fences, no commentary. Schema:
   "difficulty": "fundamentals | intermediate | advanced",
   "cards": [
     {
-      "order_index": <integer 0-9>,
+      "order_index": 0,
+      "type": "concept",
       "template": "text_only | text_code | text_diagram",
       "title": "string, at most 8 words",
       "body": "string, 110 to 180 words",
       "code_snippet": "string or null",
       "diagram_ref": "string or null",
       "concept": "short noun phrase naming the single concept this card teaches, used for de-duplication across decks"
+    },
+    {
+      "order_index": 1,
+      "type": "quiz",
+      "tests_card_id": 0,
+      "question": "string, one sentence, directly about the preceding card",
+      "options": [
+        { "id": "a", "text": "string" },
+        { "id": "b", "text": "string" },
+        { "id": "c", "text": "string" },
+        { "id": "d", "text": "string" }
+      ],
+      "correct_option_id": "one of a/b/c/d"
     }
   ]
 }
@@ -59,7 +90,26 @@ function bulletList(items, emptyLabel) {
   return items && items.length ? items.map((c) => `  - ${c}`).join("\n") : `  (${emptyLabel})`;
 }
 
-export function buildGenerationMessages(topicSlug, deckIndex, coveredConcepts, priorTitles, sources) {
+// The manual_quizzes map (order_index -> quiz card) is included so the
+// model knows which quiz slots are already hand-written and does not
+// waste tokens inventing them; those slots are replaced as-is after the
+// call regardless of what the model returns.
+function manualQuizBlock(manualQuizzes) {
+  if (!manualQuizzes || manualQuizzes.size === 0) return "";
+  const indexes = [...manualQuizzes.keys()].sort((a, b) => a - b);
+  return `\n\nHand-written quiz cards already exist for order_index values ${indexes.join(
+    ", "
+  )}. Use those as-is, do not generate a question for them, and keep the other quiz cards pointing at the correct concept cards.`;
+}
+
+export function buildGenerationMessages(
+  topicSlug,
+  deckIndex,
+  coveredConcepts,
+  priorTitles,
+  sources,
+  manualQuizzes
+) {
   const difficulty = difficultyForDeckIndex(deckIndex);
   const grounded = sources && sources.length > 0;
   const sourceSection = grounded
@@ -76,7 +126,7 @@ ${bulletList(coveredConcepts, "none yet")}
 Prior deck titles for overlap context:
 ${bulletList(priorTitles, "none yet")}
 
-${sourceSection}`;
+${sourceSection}${manualQuizBlock(manualQuizzes)}`;
 
   return [
     {
@@ -95,8 +145,9 @@ Checklist, judge each card against all of these:
 3. Title is specific, not generic or teaser-style.
 4. Template matches the content needs: text_diagram only when a diagram meaningfully helps, text_code only when a snippet clarifies, otherwise text_only.
 5. The deck reads as a coherent progression, not 10 unrelated facts.
+6. For every quiz card: the correct answer must be derivable entirely from the body of the concept card immediately before it. The three distractors must be plausible-sounding but clearly wrong for someone who actually read that card. Flag any unfair question: a trick question, a negation trick ("which of these is NOT true"), a distractor that is really a matter of interpretation, or a question that tests a minor aside while ignoring the card's main point.
 
-Note: automated checks (no em dashes, no emojis, word count, schema shape) already ran separately and passed. Do not re-check those.
+Note: automated checks (no em dashes, no emojis, word count, 20-card alternating schema shape, exactly one matching correct_option_id, unique option text) already ran separately and passed. Do not re-check those.
 
 Reply with ONLY a single JSON object:
 {
@@ -115,8 +166,9 @@ Checklist:
 3. Flag titles that are generic or teaser-style.
 4. Flag template mismatches (text_diagram or text_code used without genuine need).
 5. Flag a deck that is not a coherent progression.
+6. For every quiz card: the correct answer must be derivable entirely from the body of the concept card immediately before it. The three distractors must be plausible-sounding but clearly wrong for someone who actually read that card. Flag any unfair question: a trick question, a negation trick ("which of these is NOT true"), a distractor that is really a matter of interpretation, or a question that tests a minor aside while ignoring the card's main point.
 
-Note: automated checks (no em dashes, no emojis, word count, schema shape) already ran separately and passed. Do not re-check those.
+Note: automated checks (no em dashes, no emojis, word count, 20-card alternating schema shape, exactly one matching correct_option_id, unique option text) already ran separately and passed. Do not re-check those.
 
 Reply with ONLY a single JSON object:
 {

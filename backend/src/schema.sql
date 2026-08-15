@@ -39,6 +39,32 @@ create table if not exists cards (
   unique (deck_id, order_index)
 );
 
+-- Quiz card columns (SKILL_quiz.md). Concept cards are type 'concept'
+-- (the default) and keep the existing template/title/body layout; quiz
+-- cards are type 'quiz' and carry question/options/correct_option_id.
+-- tests_card_id names the order_index of the concept card the quiz tests
+-- (within the same deck, always the immediately preceding card), which
+-- stays resolvable before any database ids exist.
+alter table cards add column if not exists type text not null default 'concept';
+alter table cards add column if not exists question text;
+alter table cards add column if not exists options jsonb;
+alter table cards add column if not exists correct_option_id text;
+alter table cards add column if not exists tests_card_id text;
+
+-- One row per quiz answer, per user, per card. (user_id, card_id) is
+-- unique so a user who revisits and changes an answer updates the same
+-- row instead of accumulating duplicates; end-of-deck scoring aggregates
+-- fresh from here rather than storing a running score.
+create table if not exists quiz_answers (
+  id serial primary key,
+  user_id text not null,
+  card_id integer not null references cards(id) on delete cascade,
+  selected_option_id text not null,
+  is_correct boolean not null,
+  answered_at timestamptz not null default now(),
+  unique (user_id, card_id)
+);
+
 create table if not exists user_progress (
   user_id text not null,
   topic_id integer not null references topics(id) on delete cascade,

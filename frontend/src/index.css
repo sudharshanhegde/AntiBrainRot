@@ -82,6 +82,74 @@
     }
   }
 
+  /* ---------------- quiz card (SKILL_quiz.md) ---------------- */
+  /* Options are tappable rows using the same panel tokens as the rest
+     of the ledger; the correct option is highlighted with the topic
+     accent only after the user answers. No red flash, no negative
+     styling for a wrong pick. */
+  .quiz-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    text-align: left;
+    padding: 0.7rem 0.9rem;
+    border: 1px solid var(--color-hairline);
+    border-radius: 6px;
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.4;
+    cursor: pointer;
+    transition: border-color 120ms ease, background 120ms ease, opacity 120ms ease;
+  }
+  .quiz-option:not(:disabled):hover {
+    border-color: var(--color-ink);
+  }
+  .quiz-option:not(:disabled):active {
+    background: var(--color-panel);
+  }
+  /* After answering, non-correct options recede quietly. */
+  .quiz-option-dim {
+    opacity: 0.45;
+  }
+
+  /* One-shot correct-answer celebration: petals fall for under a second
+     and do not loop. With prefers-reduced-motion the scene is skipped
+     and FallingPetals shows a static checkmark instead. */
+  .petal-scene {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .petal {
+    position: absolute;
+    top: -14px;
+    border-radius: 2px 50% 2px 50%;
+    animation-name: petal-fall;
+    animation-timing-function: ease-in;
+    animation-fill-mode: forwards;
+    opacity: 0;
+  }
+  @keyframes petal-fall {
+    0% {
+      transform: translateY(0) rotate(0deg);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(130px) rotate(240deg);
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .petal-scene {
+      display: none;
+    }
+  }
+
   /* ---------------- one fade-in moment, under 200ms ---------------- */
   /* Class is added by JS when a card becomes the dominant snap
      target, so below-fold cards animate only as they settle in. */

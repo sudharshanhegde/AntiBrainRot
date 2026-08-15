@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CardShell } from "../card/CardShell";
 import { TemplateRenderer } from "../card/TemplateRenderer";
 import { StatusScreen } from "../ui/StatusScreen";
@@ -123,6 +123,14 @@ export function Feed({
     setDrawerOpen(false);
   };
 
+  // The deck's quiz card ids, used by the end card to fetch the fresh
+  // quiz score for this user and this deck (SKILL_quiz.md). Computed
+  // before the early returns so the hook count stays stable.
+  const quizCardIds = useMemo(
+    () => cards.filter((c) => c.type === "quiz").map((c) => c.card_id),
+    [cards]
+  );
+
   if (cards.length === 0 && loading) {
     return <StatusScreen label="loading deck" title={topic.name} accent={topic.accent} />;
   }
@@ -204,6 +212,7 @@ export function Feed({
             difficulty={meta.difficulty}
             onExplore={onExplore || onBack}
             onSurprise={onSurprise}
+            quizCardIds={quizCardIds}
           />
         )}
       </div>

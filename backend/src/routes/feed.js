@@ -6,6 +6,24 @@ export const feedRouter = Router();
 const COOLDOWN_HOURS = Number(process.env.COOLDOWN_HOURS || 12);
 const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
 
+function toCard(r) {
+  return {
+    card_id: r.card_id,
+    order_index: r.order_index,
+    type: r.type,
+    template: r.template,
+    title: r.title,
+    body: r.body,
+    code_snippet: r.code_snippet,
+    diagram_ref: r.diagram_ref,
+    concept: r.concept,
+    question: r.question,
+    options: r.options,
+    correct_option_id: r.correct_option_id,
+    tests_card_id: r.tests_card_id,
+  };
+}
+
 // GET /api/feed?topic_id=1&user_id=anon-1
 //
 // Serves the next unseen deck for a user on a topic, or a cooldown /
@@ -39,9 +57,10 @@ feedRouter.get("/", async (req, res) => {
         : null;
     if (Number.isInteger(revisionIndex)) {
       const revRes = await query(
-        `select d.deck_index, d.difficulty,
-                c.order_index, c.template, c.title, c.body,
-                c.code_snippet, c.diagram_ref, c.concept
+        `select d.deck_index, d.difficulty, d.id as deck_id,
+                c.id as card_id, c.order_index, c.type, c.template, c.title, c.body,
+                c.code_snippet, c.diagram_ref, c.concept,
+                c.question, c.options, c.correct_option_id, c.tests_card_id
            from decks d
            join cards c on c.deck_id = d.id
           where d.topic_id = $1 and d.deck_index = $2 and d.reviewed_at is not null
@@ -51,22 +70,14 @@ feedRouter.get("/", async (req, res) => {
       if (revRes.rows.length === 0) {
         return res.json({ status: "exhausted", topic, next_deck_index: revisionIndex });
       }
-      const revCards = revRes.rows.map((r) => ({
-        order_index: r.order_index,
-        template: r.template,
-        title: r.title,
-        body: r.body,
-        code_snippet: r.code_snippet,
-        diagram_ref: r.diagram_ref,
-        concept: r.concept,
-      }));
       return res.json({
         status: "ok",
         topic,
         deck: {
+          deck_id: revRes.rows[0].deck_id,
           deck_index: revRes.rows[0].deck_index,
           difficulty: revRes.rows[0].difficulty,
-          cards: revCards,
+          cards: revRes.rows.map(toCard),
         },
       });
     }
@@ -96,9 +107,10 @@ feedRouter.get("/", async (req, res) => {
 
     const nextIndex = progress.last_deck_index_completed + 1;
     const deckRes = await query(
-      `select d.deck_index, d.difficulty,
-              c.order_index, c.template, c.title, c.body,
-              c.code_snippet, c.diagram_ref, c.concept
+      `select d.deck_index, d.difficulty, d.id as deck_id,
+              c.id as card_id, c.order_index, c.type, c.template, c.title, c.body,
+              c.code_snippet, c.diagram_ref, c.concept,
+              c.question, c.options, c.correct_option_id, c.tests_card_id
          from decks d
          join cards c on c.deck_id = d.id
         where d.topic_id = $1 and d.deck_index = $2 and d.reviewed_at is not null
@@ -114,23 +126,14 @@ feedRouter.get("/", async (req, res) => {
       });
     }
 
-    const cards = deckRes.rows.map((r) => ({
-      order_index: r.order_index,
-      template: r.template,
-      title: r.title,
-      body: r.body,
-      code_snippet: r.code_snippet,
-      diagram_ref: r.diagram_ref,
-      concept: r.concept,
-    }));
-
     res.json({
       status: "ok",
       topic,
       deck: {
+        deck_id: deckRes.rows[0].deck_id,
         deck_index: deckRes.rows[0].deck_index,
         difficulty: deckRes.rows[0].difficulty,
-        cards,
+        cards: deckRes.rows.map(toCard),
       },
     });
   } catch (err) {

@@ -13,9 +13,16 @@ you something real, then the next one.
 - You pick a lane, your niche, for example a Computer Science major, and see
   the topics that belong to it.
 - You pick a topic, for example Operating Systems, and get a deck of 10
-  cards.
+  concepts, each followed immediately by a short quiz card that tests
+  it, so a deck is 20 cards in the swipe sequence. A deck therefore
+  takes roughly twice as long to get through; the quiz cards are a one
+  tap to answer and fast to dismiss, so the added length is recall, not
+  friction.
 - You swipe through the deck. A card can be a plain explanation, a short
-  code snippet, or a small diagram.
+  code snippet, or a small diagram. After each concept comes a quiz:
+  pick one of four options, get instant feedback, and move on. At the
+  end of a deck you see how many of its quiz questions you got right
+  (for example 8 / 10).
 - When you finish a deck, the topic locks for 24 hours. Come back tomorrow
   for the next deck, which goes a little deeper.
 - At the end of a deck you get a clear stopping point and one next action.
@@ -30,10 +37,15 @@ Content is made by an automated pipeline, not by hand and not while you
 wait.
 
 - Every day the pipeline reads the topic queue file, picks the next topic,
-  and asks DeepSeek to write one new deck of 10 cards from its own
-  knowledge.
+  and asks DeepSeek to write one new deck: 10 concept cards, each
+  immediately followed by a quiz card that tests it, generated from its
+  own knowledge.
 - The deck goes through a validation pass, a separate model call plus
-  mechanical checks. Only decks that pass every check are published.
+  mechanical checks (including quiz-specific checks: exactly one
+  correct answer that matches an option, unique option text, no em
+  dashes or emojis, and a fair question whose answer is derivable from
+  the concept card it follows). Only decks that pass every check are
+  published.
 - Published decks land in the database and show up in the app. Nothing is
   generated while you use the app, which keeps serving cheap and fast.
 

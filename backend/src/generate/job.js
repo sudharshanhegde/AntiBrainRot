@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { query } from "../db.js";
@@ -49,6 +49,11 @@ function targetFor(slug) {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const QUEUE_FILE = join(__dirname, "..", "..", "..", "pipeline", "topics_queue.md");
+// Manual quiz overrides (SKILL_quiz.md): one file per card at
+// pipeline/manual_quizzes/<topic>/<deck_index>/<card_order_index>.json,
+// same quiz schema. When a file exists, that quiz card is used as-is and
+// no generation happens for it.
+const MANUAL_QUIZ_DIR = join(__dirname, "..", "..", "..", "pipeline", "manual_quizzes");
 
 function sameUtcDay(a, b) {
   return a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
@@ -77,6 +82,59 @@ async function logRun({ topicId, topicSlug, deckIndex, status, reason, tokens })
   } catch (err) {
     console.error("could not log generation run:", err.message);
   }
+}
+
+// Loads hand-written quiz cards for a deck (SKILL_quiz.md). Returns a
+// Map of order_index -> quiz card. A file at
+// manual_quizzes/<topic>/<deck_index>/<order_index>.json is used as-is:
+// the deck's generated quiz at that slot is replaced with it, so that
+// card never depends on the LLM. order_index and tests_card_id are
+// pinned to the slot so the file stays consistent even if hand-typed.
+async function loadManualQuizzes(topicSlug, deckIndex) {
+  const dir = join(MANUAL_QUIZ_DIR, topicSlug, String(deckIndex));
+  let files;
+  try {
+    files = await readdir(dir);
+  } catch {
+    return new Map();
+  }
+  const manual = new Map();
+  for (const file of files) {
+    if (!file.endsWith(".json")) continue;
+    const orderIndex = Number(file.replace(/\.json$/, ""));
+    if (!Number.isInteger(orderIndex)) continue;
+    try {
+      const quiz = JSON.parse(await readFile(join(dir, file), "utf8"));
+      quiz.order_index = orderIndex;
+      quiz.type = "quiz";
+      quiz.tests_card_id = orderIndex - 1; // always the preceding concept
+      manual.set(orderIndex, quiz);
+    } catch (err) {
+      console.warn(`[manual_quiz] could not read ${join(dir, file)}: ${err.message}`);
+    }
+  }
+  return manual;
+}
+
+// Applies the manual quiz overrides to a generated draft and normalizes
+// the alternating concept/quiz layout so order_index matches the array
+// position (0-19), which the automated checks rely on.
+function applyManualQuizzes(draft, manualQuizzes) {
+  for (const card of draft.cards || []) {
+    if (!card.type) card.type = "concept";
+  }
+  if (manualQuizzes && manualQuizzes.size > 0) {
+    for (const [orderIndex, quiz] of manualQuizzes) {
+      const idx = (draft.cards || []).findIndex((c) => c.order_index === orderIndex);
+      if (idx !== -1) {
+        draft.cards[idx] = quiz;
+      } else {
+        draft.cards.splice(orderIndex, 0, quiz);
+      }
+    }
+  }
+  draft.cards.sort((a, b) => a.order_index - b.order_index);
+  return draft;
 }
 
 // Syncs the queue file into the topics table. New slugs are inserted as
@@ -125,6 +183,7 @@ async function generateOneDeck(
 ) {
   let feedback = "";
   let lastError = "unknown failure";
+  const manualQuizzes = await loadManualQuizzes(topicSlug, deckIndex);
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (state.calls >= DAILY_CALL_LIMIT) {
@@ -134,7 +193,9 @@ async function generateOneDeck(
       return { status: "aborted", topic_slug: topicSlug, deck_index: deckIndex, reason };
     }
 
-    const messages = buildGenerationMessages(topicSlug, deckIndex, coveredConcepts, priorTitles, sources);
+    const messages = buildGenerationMessages(
+      topicSlug, deckIndex, coveredConcepts, priorTitles, sources, manualQuizzes
+    );
     if (feedback) {
       messages[1].content += `\n\nA previous attempt at this deck was rejected. Fix these issues:\n${feedback}`;
     }
@@ -149,6 +210,9 @@ async function generateOneDeck(
       draft.deck_index = deckIndex;
       draft.topic = topicSlug;
       draft.difficulty = draft.difficulty || difficultyForDeckIndex(deckIndex);
+      // Hand-written quiz cards override whatever the model produced for
+      // those slots (SKILL_quiz.md manual override path).
+      applyManualQuizzes(draft, manualQuizzes);
     } catch (err) {
       lastError = `generation error: ${err.message}`;
       console.error(`[generate] ${topicSlug} deck ${deckIndex} attempt ${attempt}: ${lastError}`);
@@ -282,10 +346,12 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
     );
     const coveredConcepts = covRes.rows.map((r) => r.concept_label);
 
+    // Prior titles drive concept-overlap prevention, so only concept
+    // cards count; quiz cards (SKILL_quiz.md) carry no title.
     const titlesRes = await query(
       `select c.title from cards c
          join decks d on d.id = c.deck_id
-        where d.topic_id = $1
+        where d.topic_id = $1 and c.type = 'concept'
         order by d.deck_index, c.order_index`,
       [topicId]
     );

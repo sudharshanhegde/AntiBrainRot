@@ -3,10 +3,16 @@
 // fails any of these is never published, no matter what the LLM judge
 // says.
 
+// SKILL_quiz.md: a deck is now concept, quiz, concept, quiz, repeated.
+// 10 concepts plus their 10 quiz cards = 20 cards. Even positions are
+// concept cards, odd positions are the quiz that immediately follows.
+export const DECK_SIZE = 20;
+
 export const EM_DASH_RE = /[\u2013\u2014]/;
 export const EMOJI_RE = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
 
 const TEMPLATES = new Set(["text_only", "text_code", "text_diagram"]);
+const OPTION_IDS = new Set(["a", "b", "c", "d"]);
 
 export function wordCount(text) {
   const trimmed = String(text || "").trim();
@@ -22,6 +28,68 @@ function checkString(text, label) {
   return issues;
 }
 
+// SKILL_quiz.md validation checklist for a quiz card:
+// - exactly one correct_option_id matching one of the four option ids
+// - no duplicate option text among the four choices
+// - question and options pass the em dash / emoji checks
+// The "correct answer is supported by the preceding concept body" check
+// is the LLM validation pass, not machine-checkable.
+function checkQuizCard(card, at, conceptCard, errors) {
+  if (typeof card.question !== "string" || !card.question.trim()) {
+    errors.push(`${at("question")}: required string, one sentence about the preceding card`);
+  } else {
+    errors.push(...checkString(card.question, at("question")));
+  }
+
+  const options = Array.isArray(card.options) ? card.options : [];
+  if (options.length !== 4) {
+    errors.push(`${at("options")}: must have exactly 4 options, got ${options.length}`);
+  } else {
+    const ids = new Set();
+    const texts = new Set();
+    for (const opt of options) {
+      if (!opt || typeof opt !== "object") {
+        errors.push(`${at("options")}: each option must be an object { id, text }`);
+        continue;
+      }
+      if (!OPTION_IDS.has(opt.id)) {
+        errors.push(`${at("options")}: option id "${opt.id}" must be one of a/b/c/d`);
+      } else if (ids.has(opt.id)) {
+        errors.push(`${at("options")}: duplicate option id "${opt.id}"`);
+      } else {
+        ids.add(opt.id);
+      }
+      if (typeof opt.text !== "string" || !opt.text.trim()) {
+        errors.push(`${at("options")}: option ${opt.id}.text required`);
+      } else {
+        const trimmed = opt.text.trim();
+        if (texts.has(trimmed)) {
+          errors.push(`${at("options")}: duplicate option text "${opt.text}"`);
+        } else {
+          texts.add(trimmed);
+        }
+        errors.push(...checkString(opt.text, `${at("options")}.${opt.id}.text`));
+      }
+    }
+  }
+
+  if (typeof card.correct_option_id !== "string" || !card.correct_option_id) {
+    errors.push(`${at("correct_option_id")}: required, exactly one of a/b/c/d`);
+  } else if (!OPTION_IDS.has(card.correct_option_id)) {
+    errors.push(`${at("correct_option_id")}: must be one of a/b/c/d, got "${card.correct_option_id}"`);
+  } else if (options.length === 4 && !options.some((o) => o.id === card.correct_option_id)) {
+    errors.push(`${at("correct_option_id")}: "${card.correct_option_id}" does not match any option id`);
+  }
+
+  if (!conceptCard) {
+    errors.push(`${at("tests_card_id")}: quiz card must be immediately preceded by the concept card it tests`);
+  } else if (card.tests_card_id !== conceptCard.order_index) {
+    errors.push(
+      `${at("tests_card_id")}: must equal the preceding concept card's order_index (${conceptCard.order_index}), got ${card.tests_card_id}`
+    );
+  }
+}
+
 export function checkDeck(deck) {
   const errors = [];
   if (!deck || typeof deck !== "object") {
@@ -30,8 +98,10 @@ export function checkDeck(deck) {
   if (!Number.isInteger(deck.deck_index) || deck.deck_index < 0) {
     errors.push("deck_index must be a non-negative integer");
   }
-  if (!Array.isArray(deck.cards) || deck.cards.length !== 10) {
-    errors.push(`deck must have exactly 10 cards, got ${deck.cards ? deck.cards.length : "none"}`);
+  if (!Array.isArray(deck.cards) || deck.cards.length !== DECK_SIZE) {
+    errors.push(
+      `deck must have exactly ${DECK_SIZE} cards (concept, quiz, repeated), got ${deck.cards ? deck.cards.length : "none"}`
+    );
   }
 
   const seenOrders = new Set();
@@ -46,6 +116,18 @@ export function checkDeck(deck) {
     else if (seenOrders.has(card.order_index)) errors.push(`${at("order_index")}: duplicate`);
     else seenOrders.add(card.order_index);
 
+    // Alternation: even array positions are concept cards, odd are quiz.
+    const expectedType = i % 2 === 0 ? "concept" : "quiz";
+    if (card.type !== expectedType) {
+      errors.push(`${at("type")}: expected "${expectedType}" at array position ${i}, got "${card.type || "undefined"}"`);
+    }
+
+    if (card.type === "quiz") {
+      checkQuizCard(card, at, (deck.cards || [])[i - 1], errors);
+      continue;
+    }
+
+    // Concept card checks (the original card schema).
     if (typeof card.title !== "string" || !card.title.trim()) {
       errors.push(`${at("title")}: required string`);
     } else {

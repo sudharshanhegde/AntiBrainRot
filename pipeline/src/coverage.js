@@ -64,15 +64,19 @@ export function nextDeckIndex(manifest) {
 
 // Records a reviewed deck into the manifest, recomputing depth_reached
 // and the flattened covered-concept list. Returns the updated manifest.
+// Only concept cards register titles and concepts; quiz cards
+// (SKILL_quiz.md) have no title or concept and must not pollute the
+// overlap context or the coverage registry.
 export function recordReviewedDeck(manifest, deck) {
   const decks = (manifest.decks || []).filter(
     (d) => d.deck_index !== deck.deck_index
   );
+  const conceptCards = (deck.cards || []).filter((c) => c.type !== "quiz");
   decks.push({
     deck_index: deck.deck_index,
     difficulty: deck.difficulty,
-    card_titles: deck.cards.map((c) => c.title),
-    concepts: deck.cards.map((c) => c.concept || c.title),
+    card_titles: conceptCards.map((c) => c.title),
+    concepts: conceptCards.map((c) => c.concept || c.title),
     reviewed_at: new Date().toISOString(),
   });
   decks.sort((a, b) => a.deck_index - b.deck_index);

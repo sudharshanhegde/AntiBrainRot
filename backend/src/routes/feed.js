@@ -56,17 +56,34 @@ feedRouter.get("/", async (req, res) => {
         ? Number(rawDeckIndex)
         : null;
     if (Number.isInteger(revisionIndex)) {
-      const revRes = await query(
-        `select d.deck_index, d.difficulty, d.id as deck_id,
-                c.id as card_id, c.order_index, c.type, c.template, c.title, c.body,
-                c.code_snippet, c.diagram_ref, c.concept,
-                c.question, c.options, c.correct_option_id, c.tests_card_id
-           from decks d
-           join cards c on c.deck_id = d.id
-          where d.topic_id = $1 and d.deck_index = $2 and d.reviewed_at is not null
-          order by c.order_index`,
+      const REVISION_SELECT = `select d.deck_index, d.difficulty, d.id as deck_id,
+              c.id as card_id, c.order_index, c.type, c.template, c.title, c.body,
+              c.code_snippet, c.diagram_ref, c.concept,
+              c.question, c.options, c.correct_option_id, c.tests_card_id
+         from decks d
+         join cards c on c.deck_id = d.id
+        where d.topic_id = $1 and d.deck_index = $2`;
+      // First with the normal "published" gate. If that misses, fall
+      // back to serving the deck by index regardless of reviewed_at:
+      // a revision is re-reading a deck the user already completed, so
+      // as long as the deck and its cards exist it should never report
+      // "no content yet" (e.g. rows inserted manually without the review
+      // stamp). Log the mismatch so it can be investigated.
+      let revRes = await query(
+        `${REVISION_SELECT} and d.reviewed_at is not null order by c.order_index`,
         [topicId, revisionIndex]
       );
+      if (revRes.rows.length === 0) {
+        revRes = await query(
+          `${REVISION_SELECT} order by c.order_index`,
+          [topicId, revisionIndex]
+        );
+        if (revRes.rows.length > 0) {
+          console.warn(
+            `[feed] revision deck ${revisionIndex} for topic ${topicId} matched only without reviewed_at; check the deck row`
+          );
+        }
+      }
       if (revRes.rows.length === 0) {
         return res.json({ status: "exhausted", topic, next_deck_index: revisionIndex });
       }

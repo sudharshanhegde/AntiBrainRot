@@ -1,10 +1,11 @@
 import { API_BASE, USE_MOCK } from "./config";
 import { getUserId } from "./client";
 
-// Quiz answers and end-of-deck scoring. Real mode talks to the Express
-// API (POST /api/quizzes/answer, GET /api/quizzes/score), which is the
-// source of truth. Mock mode (no backend) keeps a local mirror keyed by
-// card id so the end card can still show a score.
+// Quiz answer recording. Each quiz card's instant right/wrong feedback is
+// computed client-side from the card's correct_option_id; this module
+// records the answer to the backend (POST /api/quizzes/answer) so the
+// data exists, without any aggregate scoring UI. Mock mode (no backend)
+// keeps a local mirror keyed by card id.
 
 const KEY = "antibrainrot:quiz_answers";
 
@@ -24,70 +25,28 @@ function writeLocal(answers) {
   }
 }
 
-// Every answer submission is chained onto this promise so the end-of-deck
-// score can wait for all in-flight POSTs to land before querying the
-// backend. Without this, the score fetch races the fire-and-forget answer
-// posts and undercounts (the last few answers may not be written yet).
-let pendingSubmissions = Promise.resolve();
-
 // Records one quiz answer. Fire and forget in real mode (the UI must not
 // block on the network); the local mirror is always written so mock mode
-// and offline dev still score. Returns the submission promise, chained so
-// flushQuizAnswers can wait for it.
-export function submitQuizAnswer({ cardId, selectedOptionId, isCorrect }) {
-  if (cardId == null) return pendingSubmissions;
-
-  const submission = (async () => {
-    if (!USE_MOCK) {
-      try {
-        await fetch(`${API_BASE}/api/quizzes/answer`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id: getUserId(),
-            card_id: cardId,
-            selected_option_id: selectedOptionId,
-          }),
-        });
-      } catch (err) {
-        console.warn("quiz answer could not be recorded on the API", err);
-      }
+// and offline dev still have the answer.
+export async function submitQuizAnswer({ cardId, selectedOptionId, isCorrect }) {
+  if (cardId == null) return;
+  if (!USE_MOCK) {
+    try {
+      await fetch(`${API_BASE}/api/quizzes/answer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: getUserId(),
+          card_id: cardId,
+          selected_option_id: selectedOptionId,
+        }),
+      });
+    } catch (err) {
+      console.warn("quiz answer could not be recorded on the API", err);
     }
-
-    const local = readLocal();
-    local[cardId] = { selectedOptionId, isCorrect, answeredAt: Date.now() };
-    writeLocal(local);
-  })();
-
-  pendingSubmissions = pendingSubmissions.then(() => submission);
-  return submission;
-}
-
-// Resolves once every quiz answer submission started so far has finished
-// (or failed). The end-of-deck score awaits this before aggregating so
-// the final answer is always counted.
-export function flushQuizAnswers() {
-  return pendingSubmissions;
-}
-
-// Fresh score for a set of quiz card ids, computed at request time so a
-// revisited-and-changed answer is reflected. Returns { correct, total }.
-export async function fetchQuizScore(cardIds) {
-  if (!cardIds || cardIds.length === 0) {
-    return { correct: 0, total: 0 };
   }
 
-  if (USE_MOCK) {
-    const local = readLocal();
-    const correct = cardIds.filter((id) => local[id] && local[id].isCorrect).length;
-    return { correct, total: cardIds.length };
-  }
-
-  const userId = getUserId();
-  const res = await fetch(
-    `${API_BASE}/api/quizzes/score?user_id=${encodeURIComponent(userId)}&card_ids=${cardIds.join(",")}`
-  );
-  if (!res.ok) return { correct: 0, total: cardIds.length };
-  const data = await res.json();
-  return data.score || { correct: 0, total: cardIds.length };
+  const local = readLocal();
+  local[cardId] = { selectedOptionId, isCorrect, answeredAt: Date.now() };
+  writeLocal(local);
 }

@@ -309,6 +309,81 @@ const databases = [
   },
 ];
 
+const networkProtocols = [
+  {
+    card_id: 701,
+    order_index: 0,
+    type: "concept",
+    template: "text_only",
+    title: "Layers split the network into responsibilities",
+    body: "The network stack is divided into layers so each protocol only worries about its own job. A layer receives data from the layer above, adds the header it needs, and hands the result to the layer below. The most common model has five layers: application, transport, network, link, and physical. Each one solves a different problem, so a protocol can change inside one layer without rewriting the others. HTTP works the same over Ethernet, Wi-Fi, or cellular because it sits above the transport layer and never cares which link carries it. When a packet arrives, each layer strips the header that belongs to it and passes the payload upward, so the application sees exactly the data the remote application sent. This separation is why the internet can evolve, new layers can be added or replaced while the ones above and below keep working unchanged.",
+    code_snippet: null,
+    diagram_ref: null,
+  },
+  {
+    card_id: 702,
+    order_index: 1,
+    type: "quiz",
+    tests_card_id: 0,
+    question: "Why does a layer add a header before sending down?",
+    options: [
+      { id: "a", text: "It carries control data for its own layer" },
+      { id: "b", text: "It makes the packet heavier" },
+      { id: "c", text: "It hides the payload forever" },
+      { id: "d", text: "It encrypts the whole packet" },
+    ],
+    correct_option_id: "a",
+  },
+  {
+    card_id: 703,
+    order_index: 2,
+    type: "concept",
+    template: "text_only",
+    title: "Ethernet frames travel on one link",
+    body: "On a single physical link, data moves in Ethernet frames. A frame wraps the network packet with a header and a trailer: the header carries the destination and source MAC addresses, which identify the network interfaces on that link, and the trailer holds a checksum the receiver uses to detect corruption. An Ethernet switch reads the destination MAC address and forwards the frame only out the port where that address lives, learned by watching which addresses appear on which ports. This is how a frame gets from one machine to another on the same network without copying it everywhere. The frame does not know or care about IP addresses, it only cares about the two interfaces directly connected to that one link. Frames are the unit of travel within a single network segment, and every IP packet ends up inside one or more of them on its way across the internet.",
+    code_snippet: null,
+    diagram_ref: null,
+  },
+  {
+    card_id: 704,
+    order_index: 3,
+    type: "quiz",
+    tests_card_id: 2,
+    question: "What does an Ethernet switch use to forward a frame?",
+    options: [
+      { id: "a", text: "The destination MAC address" },
+      { id: "b", text: "The destination IP address" },
+      { id: "c", text: "The application port" },
+      { id: "d", text: "The frame checksum" },
+    ],
+    correct_option_id: "a",
+  },
+  {
+    card_id: 705,
+    order_index: 4,
+    type: "concept",
+    template: "text_only",
+    title: "IP addresses reach machines across networks",
+    body: "The network layer moves packets between machines that may sit on different networks, and it does that with IP addresses. An IP address is a stable identifier for a machine's network interface, independent of the hardware address it uses on a local link. Every packet carries a source and a destination IP address, and routers use the destination to decide the next hop. A router does not need to know the full path, it only needs to know which neighbor is closer to the destination and forwards the packet there. To find the hardware address for a machine on the local network, a host uses ARP, the Address Resolution Protocol, which broadcasts a query and learns the MAC address of the IP it wants. Because IP addresses are what routers understand, they are what makes a packet survive travel across many different link types between the two end machines.",
+    code_snippet: null,
+    diagram_ref: null,
+  },
+  {
+    card_id: 706,
+    order_index: 5,
+    type: "quiz",
+    tests_card_id: 4,
+    question: "How does a host find the MAC address for a local IP?",
+    options: [
+      { id: "a", text: "It uses ARP to resolve it" },
+      { id: "b", text: "It asks the remote router" },
+      { id: "c", text: "It reads the DNS cache" },
+      { id: "d", text: "It guesses from the IP" },
+    ],
+    correct_option_id: "a",
+  },
+];
+
 const networkSecurity = [
   {
     card_id: 601,
@@ -391,4 +466,5 @@ export const deckStore = {
   "system-design": systemDesign,
   databases,
   "network-security": networkSecurity,
+  "network-protocols": networkProtocols,
 };

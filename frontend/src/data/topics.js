@@ -60,6 +60,13 @@ export const topicPalette = {
     blurb:
       "Threats, cryptography, and how data stays safe on the wire.",
   },
+  "network-protocols": {
+    name: "Network Protocols",
+    short: "PRT",
+    accent: "accent-proto",
+    blurb:
+      "The layered stack behind every packet, frame by frame.",
+  },
 };
 
 // A niche decides which topics appear on the topic list. The content
@@ -72,6 +79,7 @@ export const niches = [
     topics: [
       "operating-systems",
       "computer-networks",
+      "network-protocols",
       "data-structures",
       "system-design",
       "databases",
@@ -87,6 +95,7 @@ export const niches = [
     topics: [
       "operating-systems",
       "computer-networks",
+      "network-protocols",
       "network-security",
       "databases",
       "system-design",
@@ -112,6 +121,7 @@ export const niches = [
       "data-structures",
       "databases",
       "computer-networks",
+      "network-protocols",
       "network-security",
       "computer-organization-and-architecture",
       "artificial-intelligence",

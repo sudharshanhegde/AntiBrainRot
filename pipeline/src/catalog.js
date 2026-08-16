@@ -12,6 +12,7 @@ export const TOPICS = [
   { slug: "system-design", name: "System Design" },
   { slug: "databases", name: "Databases" },
   { slug: "network-security", name: "Network Security" },
+  { slug: "network-protocols", name: "Network Protocols" },
 ];
 
 export const NICHES = [
@@ -21,6 +22,7 @@ export const NICHES = [
     topics: [
       "operating-systems",
       "computer-networks",
+      "network-protocols",
       "data-structures",
       "system-design",
       "databases",
@@ -33,6 +35,7 @@ export const NICHES = [
     topics: [
       "operating-systems",
       "computer-networks",
+      "network-protocols",
       "network-security",
       "databases",
       "system-design",
@@ -46,6 +49,6 @@ export const NICHES = [
   {
     slug: "app-dev",
     name: "App developer",
-    topics: ["data-structures", "databases", "computer-networks", "network-security"],
+    topics: ["data-structures", "databases", "computer-networks", "network-protocols", "network-security"],
   },
 ];

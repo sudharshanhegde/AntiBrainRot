@@ -49,6 +49,12 @@ const TOPICS = [
     accent: "accent-sec",
     blurb: "Threats, cryptography, and how data stays safe on the wire.",
   },
+  {
+    slug: "network-protocols",
+    name: "Network Protocols",
+    accent: "accent-proto",
+    blurb: "The layered stack behind every packet, frame by frame.",
+  },
 ];
 
 async function upsertTopic(t) {

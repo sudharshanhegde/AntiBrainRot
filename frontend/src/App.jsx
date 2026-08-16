@@ -36,12 +36,17 @@ export default function App() {
   const [topicSlug, setTopicSlug] = useState(() => readStored(STORAGE_KEYS.topic));
   const [view, setView] = useState(() => (nicheSlug ? "topics" : "niche"));
   const [revisionDeckIndex, setRevisionDeckIndex] = useState(null);
+  // A short, dismissible note shown on the topics page, set when
+  // "surprise me" cannot find an available topic so the user is told why
+  // instead of being left on a dead-end error screen.
+  const [surpriseNotice, setSurpriseNotice] = useState(null);
 
   const pickNiche = (slug) => {
     writeStored(STORAGE_KEYS.niche, slug);
     setNicheSlug(slug);
     setTopicSlug(null);
     writeStored(STORAGE_KEYS.topic, "");
+    setSurpriseNotice(null);
     setView("topics");
   };
 
@@ -51,6 +56,7 @@ export default function App() {
     writeStored(STORAGE_KEYS.topic, slug);
     setTopicSlug(slug);
     setRevisionDeckIndex(revisionIndex);
+    setSurpriseNotice(null);
     setView("feed");
   };
 
@@ -58,7 +64,10 @@ export default function App() {
     setRevisionDeckIndex(null);
     setView("topics");
   };
-  const backToNiche = () => setView("niche");
+  const backToNiche = () => {
+    setSurpriseNotice(null);
+    setView("niche");
+  };
 
   // Called when the user reaches the end card of a deck. Records
   // progress on the API (fire and forget) and in the local mirror.
@@ -67,23 +76,36 @@ export default function App() {
   };
 
   // "Surprise me" picks a random topic from the niche that is not on
-  // cooldown (read from the backend). If every topic is cooling down,
-  // fall back to the list.
+  // cooldown (read from the backend). If every topic is cooling down, or
+  // availability cannot be determined, it never guesses and never leaves
+  // the user on a dead-end error screen: it goes back to the topics page
+  // with a short note explaining why.
   const handleSurprise = async () => {
     const niche = findNiche(nicheSlug);
-    let available = niche ? [...niche.topics] : [];
+    const all = niche ? [...niche.topics] : [];
+
+    let available = [];
     try {
       const map = await fetchCooldownMap();
-      available = available.filter(
-        (slug) => !(map.get(slug)?.is_on_cooldown)
-      );
+      available = all.filter((slug) => !(map.get(slug)?.is_on_cooldown));
     } catch {
-      // fall through and let the feed surface any cooldown
-    }
-    if (available.length === 0) {
+      // Availability is unknown, so any pick could be on cooldown and
+      // would surface a dead-end error in the feed. Be honest instead.
+      setSurpriseNotice(
+        "Could not check what is available right now. Pick a topic below, or come back after the cooldown."
+      );
       setView("topics");
       return;
     }
+
+    if (available.length === 0) {
+      setSurpriseNotice(
+        "You've completed everything available today. Come back after the cooldown for a fresh day."
+      );
+      setView("topics");
+      return;
+    }
+
     const pick = available[Math.floor(Math.random() * available.length)];
     pickTopic(pick);
   };
@@ -97,6 +119,8 @@ export default function App() {
         nicheSlug={nicheSlug}
         onPick={pickTopic}
         onChangeNiche={backToNiche}
+        notice={surpriseNotice}
+        onDismissNotice={() => setSurpriseNotice(null)}
       />
     );
   }

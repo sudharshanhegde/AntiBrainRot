@@ -24,29 +24,50 @@ function writeLocal(answers) {
   }
 }
 
-// Records one quiz answer. Fire and forget in real mode; the local
-// mirror is always written so mock mode and offline dev still score.
-export async function submitQuizAnswer({ cardId, selectedOptionId, isCorrect }) {
-  if (cardId == null) return;
-  if (!USE_MOCK) {
-    try {
-      await fetch(`${API_BASE}/api/quizzes/answer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: getUserId(),
-          card_id: cardId,
-          selected_option_id: selectedOptionId,
-        }),
-      });
-    } catch (err) {
-      console.warn("quiz answer could not be recorded on the API", err);
-    }
-  }
+// Every answer submission is chained onto this promise so the end-of-deck
+// score can wait for all in-flight POSTs to land before querying the
+// backend. Without this, the score fetch races the fire-and-forget answer
+// posts and undercounts (the last few answers may not be written yet).
+let pendingSubmissions = Promise.resolve();
 
-  const local = readLocal();
-  local[cardId] = { selectedOptionId, isCorrect, answeredAt: Date.now() };
-  writeLocal(local);
+// Records one quiz answer. Fire and forget in real mode (the UI must not
+// block on the network); the local mirror is always written so mock mode
+// and offline dev still score. Returns the submission promise, chained so
+// flushQuizAnswers can wait for it.
+export function submitQuizAnswer({ cardId, selectedOptionId, isCorrect }) {
+  if (cardId == null) return pendingSubmissions;
+
+  const submission = (async () => {
+    if (!USE_MOCK) {
+      try {
+        await fetch(`${API_BASE}/api/quizzes/answer`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: getUserId(),
+            card_id: cardId,
+            selected_option_id: selectedOptionId,
+          }),
+        });
+      } catch (err) {
+        console.warn("quiz answer could not be recorded on the API", err);
+      }
+    }
+
+    const local = readLocal();
+    local[cardId] = { selectedOptionId, isCorrect, answeredAt: Date.now() };
+    writeLocal(local);
+  })();
+
+  pendingSubmissions = pendingSubmissions.then(() => submission);
+  return submission;
+}
+
+// Resolves once every quiz answer submission started so far has finished
+// (or failed). The end-of-deck score awaits this before aggregating so
+// the final answer is always counted.
+export function flushQuizAnswers() {
+  return pendingSubmissions;
 }
 
 // Fresh score for a set of quiz card ids, computed at request time so a

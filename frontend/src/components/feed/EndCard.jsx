@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useCardEnter } from "../../hooks/useCardEnter";
-import { fetchQuizScore } from "../../api/quizzes";
+import { fetchQuizScore, flushQuizAnswers } from "../../api/quizzes";
 
 // The deliberate stopping point at the end of a deck. States what was
 // just finished and offers one clear next action (explore another
@@ -21,13 +21,20 @@ export function EndCard({ topic, difficulty, onExplore, onSurprise, quizCardIds 
   useEffect(() => {
     if (!quizCardIds || quizCardIds.length === 0) return;
     let active = true;
-    fetchQuizScore(quizCardIds)
+
+    // Wait for any in-flight answer submissions to finish first, so the
+    // last answers (especially the ones tapped just before reaching the
+    // end) are written before the score is aggregated. Without this the
+    // score fetch races the fire-and-forget answer POSTs and undercounts.
+    flushQuizAnswers()
+      .then(() => fetchQuizScore(quizCardIds))
       .then((s) => {
         if (active) setScore(s);
       })
       .catch(() => {
         // scoring is best-effort; the end card still renders
       });
+
     return () => {
       active = false;
     };

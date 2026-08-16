@@ -9,7 +9,7 @@ import { fetchCooldownMap } from "../../api/progress";
 // directly; previous days are reached from the feed's hamburger. A topic
 // on cooldown (its last day completed recently) shows the remaining time
 // and, when tapped, asks whether to revise the completed day.
-export function TopicList({ nicheSlug, onPick, onChangeNiche }) {
+export function TopicList({ nicheSlug, onPick, onChangeNiche, notice, onDismissNotice }) {
   const niche = findNiche(nicheSlug);
   const [topicSlugs, setTopicSlugs] = useState(null);
   const [cooldowns, setCooldowns] = useState(new Map());
@@ -70,6 +70,22 @@ export function TopicList({ nicheSlug, onPick, onChangeNiche }) {
           unlocks after a short cooldown.
         </p>
       </header>
+
+      {notice && (
+        <div className="mx-6 mt-4 flex items-start justify-between gap-3 rounded-lg border border-hairline bg-panel px-4 py-3">
+          <p className="font-sans text-[14px] leading-relaxed text-ink/90">
+            {notice}
+          </p>
+          <button
+            type="button"
+            onClick={onDismissNotice}
+            aria-label="Dismiss notice"
+            className="shrink-0 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+          >
+            close
+          </button>
+        </div>
+      )}
 
       <div className="mt-6 flex flex-col gap-3 px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
         {topicSlugs.map((slug) => {

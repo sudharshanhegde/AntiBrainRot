@@ -135,12 +135,17 @@ export function Feed({
     return <StatusScreen label="loading deck" title={topic.name} accent={topic.accent} />;
   }
   if (cards.length === 0 && error) {
+    // A cooldown error means this topic is not playable right now. Offer
+    // a way out (back to topics) instead of a "try again" dead-end that
+    // would loop on the same failure.
+    const isCooldown = /on cooldown/i.test(error);
     return (
       <StatusScreen
         label={error}
         title={topic.name}
         accent={topic.accent}
-        onAction={() => loadChunk(0)}
+        onAction={isCooldown ? onBack : () => loadChunk(0)}
+        actionLabel={isCooldown ? "back to topics" : undefined}
       />
     );
   }

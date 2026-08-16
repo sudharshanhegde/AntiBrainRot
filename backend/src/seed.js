@@ -43,6 +43,12 @@ const TOPICS = [
     accent: "accent-db",
     blurb: "Storage, indexing, and transactions under the hood.",
   },
+  {
+    slug: "network-security",
+    name: "Network Security",
+    accent: "accent-sec",
+    blurb: "Threats, cryptography, and how data stays safe on the wire.",
+  },
 ];
 
 async function upsertTopic(t) {

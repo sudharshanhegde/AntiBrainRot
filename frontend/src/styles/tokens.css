@@ -27,6 +27,7 @@
   --color-accent-db: #2E6B34; /* deep green, databases */
   --color-accent-coa: #BE185D; /* deep pink, computer organization */
   --color-accent-ai: #D97706; /* amber, artificial intelligence */
+  --color-accent-sec: #7A2E3B; /* deep wine, network security */
 
   /* --- typefaces ---
      mono is structural (metadata, index, code, diagram labels)
@@ -49,4 +50,5 @@
   --accent-db: #2e6b34;
   --accent-coa: #be185d;
   --accent-ai: #d97706;
+  --accent-sec: #7a2e3b;
 }

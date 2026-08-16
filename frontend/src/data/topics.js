@@ -53,6 +53,13 @@ export const topicPalette = {
     blurb:
       "Search, learning, and how models are trained and evaluated.",
   },
+  "network-security": {
+    name: "Network Security",
+    short: "SEC",
+    accent: "accent-sec",
+    blurb:
+      "Threats, cryptography, and how data stays safe on the wire.",
+  },
 };
 
 // A niche decides which topics appear on the topic list. The content
@@ -70,6 +77,7 @@ export const niches = [
       "databases",
       "computer-organization-and-architecture",
       "artificial-intelligence",
+      "network-security",
     ],
   },
   {
@@ -79,6 +87,7 @@ export const niches = [
     topics: [
       "operating-systems",
       "computer-networks",
+      "network-security",
       "databases",
       "system-design",
       "computer-organization-and-architecture",
@@ -103,6 +112,7 @@ export const niches = [
       "data-structures",
       "databases",
       "computer-networks",
+      "network-security",
       "computer-organization-and-architecture",
       "artificial-intelligence",
     ],

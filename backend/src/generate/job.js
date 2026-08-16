@@ -41,6 +41,7 @@ const TARGET_BY_SLUG = {
   "system-design": 120,
   "computer-organization-and-architecture": 150,
   "artificial-intelligence": 100,
+  "network-security": 120,
 };
 
 function targetFor(slug) {

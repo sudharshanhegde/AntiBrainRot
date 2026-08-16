@@ -309,10 +309,86 @@ const databases = [
   },
 ];
 
+const networkSecurity = [
+  {
+    card_id: 601,
+    order_index: 0,
+    type: "concept",
+    template: "text_only",
+    title: "Symmetric encryption keeps a shared secret",
+    body: "Symmetric encryption protects data with a single secret key that both the sender and the receiver hold. The sender runs the key and the plaintext through a cipher, producing ciphertext that reveals nothing without the key, and the receiver runs the same key in reverse to recover the plaintext. Because the same key does both jobs, the algorithms are fast and well suited to bulk data. The difficulty is not the cipher, it is the key itself: the two sides must share the secret ahead of time over a channel that keeps it private, and if that key leaks, everything encrypted with it leaks too. This is why symmetric encryption appears inside larger protocols, wrapped by a scheme that solves the key-sharing problem, rather than standing alone.",
+    code_snippet: null,
+    diagram_ref: null,
+  },
+  {
+    card_id: 602,
+    order_index: 1,
+    type: "quiz",
+    tests_card_id: 0,
+    question: "What is the main challenge of symmetric encryption?",
+    options: [
+      { id: "a", text: "Sharing the secret key securely" },
+      { id: "b", text: "The cipher is too fast" },
+      { id: "c", text: "It reveals the plaintext" },
+      { id: "d", text: "It needs no key at all" },
+    ],
+    correct_option_id: "a",
+  },
+  {
+    card_id: 603,
+    order_index: 2,
+    type: "concept",
+    template: "text_only",
+    title: "Asymmetric encryption uses a key pair",
+    body: "Asymmetric encryption, also called public-key encryption, replaces the single shared secret with a pair of keys that work together. One key is public and can be given to anyone, the other is private and stays with its owner. A message encrypted with the public key can only be decrypted with the private key, so anyone can send a message to the owner without ever sharing a secret. This solves the key-distribution problem that symmetric encryption has, but it costs speed, public-key operations are far slower than symmetric ones. Real protocols combine the two: they use the slow asymmetric step just long enough to agree on a fresh symmetric key, then switch to the fast cipher for the actual data.",
+    code_snippet: null,
+    diagram_ref: null,
+  },
+  {
+    card_id: 604,
+    order_index: 3,
+    type: "quiz",
+    tests_card_id: 2,
+    question: "How do real protocols combine both cipher types?",
+    options: [
+      { id: "a", text: "Asymmetric to agree on a symmetric key" },
+      { id: "b", text: "Symmetric to protect the key pair" },
+      { id: "c", text: "They use only one type always" },
+      { id: "d", text: "They encrypt keys with plaintext" },
+    ],
+    correct_option_id: "a",
+  },
+  {
+    card_id: 605,
+    order_index: 4,
+    type: "concept",
+    template: "text_only",
+    title: "TLS protects traffic on the wire",
+    body: "Transport Layer Security, TLS, is the protocol that keeps traffic private as it crosses the network, the lock icon in a browser address bar. Before any application data flows, the client and server perform a handshake: they negotiate a cipher suite, authenticate the server with a certificate, and derive session keys. The handshake uses asymmetric encryption to verify identity and exchange a secret without eavesdroppers learning it, and from then on all records are encrypted with the fast symmetric keys both sides derived. TLS also authenticates the data with message authentication codes, so a receiver can detect if anything was altered in transit. This is why HTTPS, HTTP over TLS, protects both the confidentiality and the integrity of everything a user sends and receives.",
+    code_snippet: null,
+    diagram_ref: null,
+  },
+  {
+    card_id: 606,
+    order_index: 5,
+    type: "quiz",
+    tests_card_id: 4,
+    question: "What does the TLS handshake establish before data flows?",
+    options: [
+      { id: "a", text: "Cipher suite, identity, and session keys" },
+      { id: "b", text: "The plaintext of every message" },
+      { id: "c", text: "The user's password" },
+      { id: "d", text: "Nothing, data flows immediately" },
+    ],
+    correct_option_id: "a",
+  },
+];
+
 export const deckStore = {
   "operating-systems": placeholderDeck.cards,
   "computer-networks": computerNetworks,
   "data-structures": dataStructures,
   "system-design": systemDesign,
   databases,
+  "network-security": networkSecurity,
 };

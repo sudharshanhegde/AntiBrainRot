@@ -1,7 +1,8 @@
 import { findNiche } from "../data/topics";
 import { deckStore } from "../data/decks";
 import { USE_MOCK } from "./config";
-import { apiFetch, getTopicId, getUserId } from "./client";
+import { apiFetch, getTopicId, getUserId, isSignedIn } from "./client";
+import { getLocalNextDeckIndex } from "./progress";
 
 // Feed data service. Default mode talks to the Express API
 // (GET /api/topics, GET /api/feed). With VITE_USE_MOCK=true it serves
@@ -48,14 +49,20 @@ async function apiTopics(nicheSlug) {
 async function apiDeckChunk(topicSlug, deckIndex, offset) {
   const topicId = await getTopicId(topicSlug);
   const userId = getUserId();
-  // deckIndex is null for normal play (the backend picks the next deck);
-  // a concrete index means revision mode, where we re-read a specific
-  // already-published deck even if it is on cooldown. user_id is passed
-  // for the anonymous fallback; signed-in requests also carry a Bearer
-  // token via apiFetch and the backend prefers the token identity.
+  // deckIndex is null for normal play; a concrete index means revision
+  // mode (re-reading a specific published deck) or a guest's next deck.
+  // Signed-in users let the backend pick the next deck from their
+  // account progress; guests have no backend progress row, so their next
+  // deck comes from the local mirror and is passed explicitly. user_id is
+  // passed for the anonymous fallback; signed-in requests also carry a
+  // Bearer token via apiFetch and the backend prefers the token identity.
+  let effectiveIndex = deckIndex;
+  if (effectiveIndex == null && !isSignedIn()) {
+    effectiveIndex = getLocalNextDeckIndex(topicSlug);
+  }
   let path = `/api/feed?topic_id=${topicId}&user_id=${encodeURIComponent(userId)}`;
-  if (deckIndex != null && Number.isInteger(deckIndex) && deckIndex >= 0) {
-    path += `&deck_index=${deckIndex}`;
+  if (effectiveIndex != null && Number.isInteger(effectiveIndex) && effectiveIndex >= 0) {
+    path += `&deck_index=${effectiveIndex}`;
   }
   const res = await apiFetch(path);
   if (!res.ok) throw new Error("could not load the feed from the API");

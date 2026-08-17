@@ -97,13 +97,6 @@ export default function App() {
     );
   }
 
-  // Progress and quiz answers are account-scoped (SKILL_auth.md). When
-  // Supabase is configured, a signed-out user can still browse topics but
-  // must sign in to open a deck. If Supabase is not configured (dev
-  // without the env vars), keep the old anonymous flow so the app still
-  // runs.
-  const authRequired = !user && isSupabaseConfigured;
-
   const pickNiche = (slug) => {
     writeStored(STORAGE_KEYS.niche, slug);
     setNicheSlug(slug);
@@ -114,15 +107,10 @@ export default function App() {
   };
 
   // revisionIndex (optional) opens a specific completed day, used when a
-  // topic on cooldown is tapped so the user can re-read it.
+  // topic on cooldown is tapped so the user can re-read it. Guests can
+  // open any topic too: content is public, and their progress is kept in
+  // the local mirror until they sign in and migrate it to an account.
   const pickTopic = async (slug, revisionIndex = null) => {
-    if (authRequired) {
-      setAuthNotice(
-        "Sign in to start a deck. Progress and quiz answers are saved to your account."
-      );
-      setView("profile");
-      return;
-    }
     writeStored(STORAGE_KEYS.topic, slug);
     setTopicSlug(slug);
     setRevisionDeckIndex(revisionIndex);
@@ -179,13 +167,6 @@ export default function App() {
   // the user on a dead-end error screen: it goes back to the topics page
   // with a short note explaining why.
   const handleSurprise = async () => {
-    if (authRequired) {
-      setAuthNotice(
-        "Sign in to start a deck. Progress and quiz answers are saved to your account."
-      );
-      setView("profile");
-      return;
-    }
     const niche = findNiche(nicheSlug);
     const all = niche ? [...niche.topics] : [];
 

@@ -118,6 +118,16 @@ export async function fetchCooldownMap() {
   return cooldownCache;
 }
 
+// The next deck index for a guest, read from the local mirror. The
+// backend has no progress row for anonymous ids, so without this a guest
+// would always be served deck 0; passing this index lets them advance
+// through decks the same way signed-in users do.
+export function getLocalNextDeckIndex(topicSlug) {
+  const entry = read()[topicSlug];
+  const last = typeof entry?.lastDeckIndex === "number" ? entry.lastDeckIndex : -1;
+  return last + 1;
+}
+
 // The resume position (which card within the current in-progress deck)
 // for a topic. Signed-in users read the account-scoped value from the
 // backend (cached by the topic list); guests read the local mirror.

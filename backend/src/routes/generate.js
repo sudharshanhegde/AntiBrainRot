@@ -28,11 +28,11 @@ generateRouter.post("/", async (req, res) => {
           .filter(Boolean)
       : [];
     const result = await runDailyJob({ dryRun, force, topics });
-    if (result.status === "already-ran") {
-      return res.status(429).json(result);
-    }
-    // Per-topic failures are reported inside `results` with a 200, so
-    // the caller can see each topic's outcome in one response.
+    // "already-ran" and "too-early" are normal states for a once-a-day
+    // job, not client errors, so they are returned with a 200 like every
+    // other status; the body's status field carries the detail. A
+    // scheduled trigger that fires after generation already happened
+    // today must not be reported as a failure.
     res.json(result);
   } catch (err) {
     console.error(err);

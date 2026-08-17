@@ -10,6 +10,11 @@
 # enforces this window (no automatic run before 15:30 IST) and a one-run-
 # per-IST-day guard, so the timing holds even if this cron drifts.
 #
+# If a generation already happened today (e.g. a manual ?force=1 run
+# earlier in the same IST day), the backend replies with status
+# "already-ran". That is a normal, expected outcome for a once-a-day job,
+# so this workflow treats it as success rather than failing the run.
+#
 # To generate on demand (bypassing the time window and the once-a-day
 # guard), call the endpoint manually with ?force=1:
 #   curl -X POST "https://antibrainrot.onrender.com/api/generate?force=1" \
@@ -27,6 +32,16 @@ jobs:
     steps:
       - name: Trigger generation
         run: |
-          curl -f -X POST https://antibrainrot.onrender.com/api/generate \
+          code=$(curl -s -o /tmp/generation_response.json -w "%{http_code}" \
+            -X POST https://antibrainrot.onrender.com/api/generate \
             -H "Authorization: Bearer ${{ secrets.GENERATION_SECRET }}" \
-            -H "Content-Type: application/json"
+            -H "Content-Type: application/json")
+          echo "generation endpoint responded with HTTP $code"
+          # 429 means "a generation already ran today" (once-a-day guard);
+          # normal and expected for a scheduled run, so it is not a
+          # failure. The backend also returns 200 for this after redeploy.
+          if [ "$code" -ne 200 ] && [ "$code" -ne 429 ]; then
+            cat /tmp/generation_response.json
+            exit 1
+          fi
+          cat /tmp/generation_response.json

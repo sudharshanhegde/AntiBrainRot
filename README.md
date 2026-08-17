@@ -153,18 +153,20 @@ Four additions built on top of the auth and progress data:
    position is saved throttled (~1s) as you scroll
    (`last_viewed_card_index` on `user_progress`; guests keep it in local
    storage) and resets to 0 when a deck is completed.
-2. **Day tracker**: each topic row shows a row of day numbers (1 through
-   that topic's `target_decks`). Completed days are sky blue, the
-   in-progress day is marked in a calmer active state, and future days
-   are dimmed. The same sky blue (`--color-accent-complete`) is used for
-   the streak count and the profile's primary action buttons, kept
-   distinct from every topic accent.
-3. **Profile page**: reachable from a persistent hamburger menu in the top
-   chrome (on the topic screen and in the feed). Shows name/avatar, the
-   full-size streak, the leaderboard opt-in toggle, sign out, and
-   destructive **delete account**. Deleting runs the app-data deletes in
-   one transaction and only then removes the Supabase Auth user (requires
-   `SUPABASE_SERVICE_ROLE_KEY` on the backend).
+2. **Day tracking**: completed days are marked in the days drawer (opened
+   from the feed's hamburger menu, "Days") — finished days show a "done"
+   label in the sky-blue completion color (`--color-accent-complete`),
+   available days can be played, and cooldown/locked days show their
+   status. The same sky blue is used for the streak count and the
+   profile's primary action buttons, kept distinct from every topic
+   accent.
+3. **Profile page**: reachable from the hamburger menu in the feed's top
+   chrome ("Profile") and from the profile link on the topic screen.
+   Shows name/avatar, the full-size streak, the leaderboard opt-in
+   toggle, sign out, and destructive **delete account**. Deleting runs
+   the app-data deletes in one transaction and only then removes the
+   Supabase Auth user (requires `SUPABASE_SERVICE_ROLE_KEY` on the
+   backend).
 4. **First-visit gate**: genuinely new browsers (no session, no guest id,
    never seen the gate) get one blocking screen with three equal choices —
    Register, Log in, or Continue without an account. Any choice persists,

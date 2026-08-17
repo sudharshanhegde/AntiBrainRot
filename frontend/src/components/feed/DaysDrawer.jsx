@@ -1,8 +1,11 @@
 import { topicPalette } from "../../data/topics";
 
 // A slide-in drawer listing a topic's days (Day 0, Day 1, ...), opened
-// from the feed's hamburger. Completed and available days can be opened;
-// cooldown and locked days show their status but are not clickable.
+// from the feed's hamburger. This is where completed days are marked
+// (SKILL_profile_progress.md): finished days are shown in the sky-blue
+// completion color with a "done" label, the in-progress day is available
+// to play, and future days show their status. Completed and available
+// days can be opened; cooldown and locked days are not clickable.
 export function DaysDrawer({ topicSlug, days, onSelect, onClose, onBackToTopics }) {
   const topic = topicPalette[topicSlug] || topicPalette["operating-systems"];
   const accent = `var(--${topic.accent})`;
@@ -12,7 +15,7 @@ export function DaysDrawer({ topicSlug, days, onSelect, onClose, onBackToTopics 
       case "available":
         return "play";
       case "completed":
-        return "revise";
+        return "done";
       case "cooldown":
         return `unlocks in ${day.cooldown_remaining_hours}h`;
       default:
@@ -57,6 +60,7 @@ export function DaysDrawer({ topicSlug, days, onSelect, onClose, onBackToTopics 
           <div className="flex flex-col gap-2">
             {days.map((day) => {
               const clickable = day.status === "available" || day.status === "completed";
+              const isDone = day.status === "completed";
               return (
                 <button
                   key={day.deck_index}
@@ -70,14 +74,22 @@ export function DaysDrawer({ topicSlug, days, onSelect, onClose, onBackToTopics 
                   }`}
                 >
                   <span className="flex items-baseline gap-3">
-                    <span className="font-sans text-[15px] font-semibold tracking-tight text-ink">
+                    <span
+                      className={`font-sans text-[15px] font-semibold tracking-tight ${
+                        isDone ? "text-accent-complete" : "text-ink"
+                      }`}
+                    >
                       Day {day.day}
                     </span>
                     <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
                       {day.difficulty}
                     </span>
                   </span>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                  <span
+                    className={`font-mono text-[10px] uppercase tracking-[0.14em] ${
+                      isDone ? "text-accent-complete" : "text-muted"
+                    }`}
+                  >
                     {statusLabel(day)}
                   </span>
                 </button>

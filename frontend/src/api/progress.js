@@ -1,5 +1,6 @@
-import { API_BASE, USE_MOCK } from "./config";
-import { getTopicId, getUserId } from "./client";
+import { USE_MOCK } from "./config";
+import { apiFetch, getTopicId, getUserId } from "./client";
+import { localDateString } from "./auth";
 
 export { getUserId };
 
@@ -30,19 +31,23 @@ function write(progress) {
 
 // Marks a deck completed for a user. Fire and forget; the local mirror
 // is written as well so mock mode and offline dev still show cooldown.
+// The user's local calendar date is sent so the account-level daily
+// streak is counted in their own timezone (SKILL_auth.md).
 export async function markDeckCompleted(topicSlug, deckIndex) {
   if (!USE_MOCK) {
     try {
       const topicId = await getTopicId(topicSlug);
-      await fetch(`${API_BASE}/api/progress`, {
+      const res = await apiFetch("/api/progress", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: getUserId(),
           topic_id: topicId,
           deck_index: deckIndex,
+          local_date: localDateString(),
         }),
       });
+      if (res.status === 401) {
+        console.warn("progress requires sign-in; deck not recorded");
+      }
     } catch (err) {
       console.warn("progress could not be recorded on the API", err);
     }
@@ -72,10 +77,12 @@ export async function fetchCooldownMap() {
     return map;
   }
 
-  const userId = getUserId();
-  const res = await fetch(
-    `${API_BASE}/api/progress?user_id=${encodeURIComponent(userId)}`
-  );
+  const res = await apiFetch("/api/progress");
+  if (res.status === 401) {
+    // Signed out: progress is account-scoped, so there is nothing on
+    // cooldown to report.
+    return new Map();
+  }
   if (!res.ok) throw new Error("could not load progress from the API");
   const { progress } = await res.json();
   return new Map(progress.map((p) => [p.topic_slug, p]));

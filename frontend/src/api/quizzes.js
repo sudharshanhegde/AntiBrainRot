@@ -1,11 +1,12 @@
-import { API_BASE, USE_MOCK } from "./config";
-import { getUserId } from "./client";
+import { USE_MOCK } from "./config";
+import { apiFetch } from "./client";
 
 // Quiz answer recording. Each quiz card's instant right/wrong feedback is
 // computed client-side from the card's correct_option_id; this module
 // records the answer to the backend (POST /api/quizzes/answer) so the
-// data exists, without any aggregate scoring UI. Mock mode (no backend)
-// keeps a local mirror keyed by card id.
+// data exists, without any aggregate scoring UI. The identity comes from
+// the Bearer token attached by apiFetch, never a client-supplied id.
+// Mock mode (no backend) keeps a local mirror keyed by card id.
 
 const KEY = "antibrainrot:quiz_answers";
 
@@ -32,15 +33,16 @@ export async function submitQuizAnswer({ cardId, selectedOptionId, isCorrect }) 
   if (cardId == null) return;
   if (!USE_MOCK) {
     try {
-      await fetch(`${API_BASE}/api/quizzes/answer`, {
+      const res = await apiFetch("/api/quizzes/answer", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: getUserId(),
           card_id: cardId,
           selected_option_id: selectedOptionId,
         }),
       });
+      if (res.status === 401) {
+        console.warn("quiz answers require sign-in; answer not recorded");
+      }
     } catch (err) {
       console.warn("quiz answer could not be recorded on the API", err);
     }

@@ -1,18 +1,21 @@
 import { Router } from "express";
-import { query } from "../db.js";
+import { query, pool } from "../db.js";
+import { requireAuth } from "../auth.js";
+import { updateStreak } from "../streaks.js";
 
 export const progressRouter = Router();
 
 const COOLDOWN_HOURS = Number(process.env.COOLDOWN_HOURS || 12);
 const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
 
-// GET /api/progress?user_id=...
-// Returns the user's progress per topic with the computed cooldown
-// state, so the frontend can show "come back tomorrow" from the
-// authoritative server state instead of client-side storage.
-progressRouter.get("/", async (req, res) => {
+// GET /api/progress
+// Returns the signed-in user's progress per topic with the computed
+// cooldown state, so the frontend can show "come back tomorrow" from the
+// authoritative server state instead of client-side storage. The user id
+// comes from the verified JWT, not a query parameter (SKILL_auth.md).
+progressRouter.get("/", requireAuth, async (req, res) => {
   try {
-    const userId = String(req.query.user_id || "");
+    const userId = req.userId;
     const { rows } = await query(
       `select t.id as topic_id, t.slug,
               coalesce(up.last_deck_index_completed, -1) as last_deck_index_completed,
@@ -53,31 +56,43 @@ progressRouter.get("/", async (req, res) => {
 });
 
 // POST /api/progress
-// body: { user_id, topic_id, deck_index, niche? }
-// Marks a deck as completed for a user. The 24-hour cooldown is derived
-// from last_completed_at by this endpoint and the feed endpoint. No
-// auth in v1, the user_id is an anonymous id kept in localStorage.
-progressRouter.post("/", async (req, res) => {
+// body: { topic_id, deck_index, niche?, local_date? }
+// Marks a deck as completed for the signed-in user. The 24-hour cooldown
+// is derived from last_completed_at by this endpoint and the feed
+// endpoint. Runs as one transaction: the progress write and the
+// account-level streak side effect (SKILL_auth.md) commit together, so a
+// partial failure cannot record one without the other.
+progressRouter.post("/", requireAuth, async (req, res) => {
   try {
-    const { user_id, topic_id, deck_index, niche } = req.body || {};
-    if (!user_id || !Number.isInteger(topic_id) || !Number.isInteger(deck_index)) {
+    const { topic_id, deck_index, niche, local_date } = req.body || {};
+    if (!Number.isInteger(topic_id) || !Number.isInteger(deck_index)) {
       return res
         .status(400)
-        .json({ error: "user_id, topic_id, and deck_index are required" });
+        .json({ error: "topic_id and deck_index are required" });
     }
 
-    await query(
-      `insert into user_progress
-         (user_id, topic_id, last_deck_index_completed, last_completed_at, niche)
-       values ($1, $2, $3, now(), $4)
-       on conflict (user_id, topic_id) do update set
-         last_deck_index_completed = excluded.last_deck_index_completed,
-         last_completed_at = now(),
-         niche = coalesce(excluded.niche, user_progress.niche)`,
-      [user_id, topic_id, deck_index, niche || null]
-    );
-
-    res.json({ ok: true });
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      await client.query(
+        `insert into user_progress
+           (user_id, topic_id, last_deck_index_completed, last_completed_at, niche)
+         values ($1, $2, $3, now(), $4)
+         on conflict (user_id, topic_id) do update set
+           last_deck_index_completed = excluded.last_deck_index_completed,
+           last_completed_at = now(),
+           niche = coalesce(excluded.niche, user_progress.niche)`,
+        [req.userId, topic_id, deck_index, niche || null]
+      );
+      const streak = await updateStreak(client, req.userId, local_date);
+      await client.query("commit");
+      res.json({ ok: true, streak });
+    } catch (err) {
+      await client.query("rollback");
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "could not record progress" });

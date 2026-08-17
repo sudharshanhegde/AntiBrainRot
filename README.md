@@ -73,12 +73,16 @@ moment per card, and it respects reduced motion settings.
 
 ## Running it locally
 
-You need a Postgres database and a DeepSeek API key.
+You need a Postgres database, a DeepSeek API key, and a Supabase project
+for auth.
 
 - Backend: `cd backend`, create `backend/.env` from `backend/.env.example`
-  with `DATABASE_URL`, `DEEPSEEK_API_KEY`, and `GENERATION_SECRET`, then
-  `npm run dev`. It serves on http://localhost:4000.
-- Frontend: `cd frontend`, then `npm run dev`. It serves on
+  with `DATABASE_URL`, `DEEPSEEK_API_KEY`, `GENERATION_SECRET`, and the
+  Supabase `SUPABASE_URL` / `SUPABASE_ANON_KEY`, then `npm run dev`. It
+  serves on http://localhost:4000.
+- Frontend: `cd frontend`, create `frontend/.env` from
+  `frontend/.env.example` with `VITE_SUPABASE_URL` and
+  `VITE_SUPABASE_ANON_KEY`, then `npm run dev`. It serves on
   http://localhost:5173.
 - Database: Postgres. Run it locally in Docker, or use a hosted Postgres
   such as Supabase (free tier). Apply `backend/src/schema.sql` to create
@@ -86,6 +90,46 @@ You need a Postgres database and a DeepSeek API key.
 
 To trigger the daily generation locally:
 `curl -X POST http://localhost:4000/api/generate -H "Authorization: Bearer <GENERATION_SECRET>"`
+
+## Auth, streaks, and the leaderboard
+
+Progress and quiz answers are account-scoped. Sign-in uses Supabase Auth
+with Google as the default provider and email/password as a fallback; the
+backend verifies the Supabase JWT on protected routes instead of trusting
+a client-supplied user id.
+
+### One-time setup
+
+1. **Google Cloud Console**: create an OAuth 2.0 Client ID (Web
+   application) for the app, add the Supabase callback URI
+   `https://<project-ref>.supabase.co/auth/v1/callback` as an authorized
+   redirect URI, then paste the Client ID and Secret into Supabase ->
+   Authentication -> Providers -> Google and enable the provider. Use only
+   the basic email/profile scopes. While the app is in testing mode, only
+   accounts added as test users in the Google OAuth consent screen can
+   sign in — add your own account or logins silently fail.
+2. **Supabase -> Authentication -> Providers -> Email**: enable
+   email/password for the manual login fallback.
+3. Set `SUPABASE_URL` and `SUPABASE_ANON_KEY` in `backend/.env`, and
+   `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `frontend/.env`.
+4. Apply `backend/src/schema.sql`, which now also creates the `users` and
+   `user_streaks` tables.
+
+### What changed
+
+- Protected routes (progress, quiz answers, profile settings, migration)
+  require a valid Supabase session; the backend derives `user_id` from
+  the JWT, never from the client.
+- On first sign-in, progress recorded with the old localStorage anonymous
+  id is migrated to the account in a single transaction, then the
+  anonymous id is cleared.
+- Completing a deck updates an account-level daily streak
+  (`user_streaks`), not a per-topic one.
+- The leaderboard shows only users who opted in (`leaderboard_opt_in`,
+  default false), exposing only name/avatar/streak — never emails. A
+  streak indicator and a "Leaderboard" entry sit on the topic selection
+  screen; the profile screen has the full-size streak, the opt-in toggle,
+  and sign in/out.
 
 You can access for free here : `https://antibrainrotnobot.vercel.app/`
 

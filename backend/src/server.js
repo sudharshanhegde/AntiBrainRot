@@ -8,6 +8,8 @@ import { decksRouter } from "./routes/decks.js";
 import { generateRouter } from "./routes/generate.js";
 import { daysRouter } from "./routes/days.js";
 import { quizzesRouter } from "./routes/quizzes.js";
+import { authRouter } from "./routes/auth.js";
+import { leaderboardRouter } from "./routes/leaderboard.js";
 import { syncQueue } from "./generate/job.js";
 
 const app = express();
@@ -45,6 +47,8 @@ app.use("/api/decks", decksRouter);
 app.use("/api/generate", generateRouter);
 app.use("/api/days", daysRouter);
 app.use("/api/quizzes", quizzesRouter);
+app.use("/api/auth", authRouter);
+app.use("/api/leaderboard", leaderboardRouter);
 
 const port = Number(process.env.PORT) || 4000;
 

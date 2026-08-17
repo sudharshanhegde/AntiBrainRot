@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { query } from "../db.js";
+import { optionalUserId } from "../auth.js";
 
 export const feedRouter = Router();
 
@@ -29,11 +30,13 @@ function toCard(r) {
 // Serves the next unseen deck for a user on a topic, or a cooldown /
 // exhausted status. Content is never generated here, this endpoint only
 // reads pre-generated, pre-reviewed rows. A new user (no progress) is
-// served deck 0, which is how existing content gives them context.
-feedRouter.get("/", async (req, res) => {
+// served deck 0, which is how existing content gives them context. The
+// user id is taken from the verified JWT when one is sent, falling back
+// to the anonymous query parameter otherwise (SKILL_auth.md).
+feedRouter.get("/", optionalUserId, async (req, res) => {
   try {
     const topicId = Number(req.query.topic_id);
-    const userId = String(req.query.user_id || "");
+    const userId = req.userId || String(req.query.user_id || "");
     if (!Number.isInteger(topicId)) {
       return res.status(400).json({ error: "topic_id is required" });
     }

@@ -1,4 +1,5 @@
 import { API_BASE } from "./config";
+import { supabase } from "./supabase";
 
 // Shared helpers for talking to the Express API. The API addresses
 // topics by numeric id, while the rest of the app uses slugs, so the
@@ -22,17 +23,66 @@ export async function getTopicId(slug) {
   return topic.id;
 }
 
-// Stable anonymous user id kept in localStorage. No auth in v1, per
-// README.md; this is what identifies a user to the progress API.
+// Auth-aware user id (SKILL_auth.md).
+//
+// When the user is signed in this returns the authenticated Supabase
+// user id (a UUID), kept in a module-level cache that AuthContext
+// updates whenever the session changes. When signed out it returns the
+// anonymous localStorage id, the pre-auth flow, so content routes still
+// work without an account. Because getUserId is called synchronously
+// while building request URLs, the cache (not an async getSession) is
+// the source of truth.
+let currentUserId = null;
+
+export function setCurrentUserId(id) {
+  currentUserId = id || null;
+}
+
 export function getUserId() {
+  if (currentUserId) return currentUserId;
+  return getAnonymousUserId();
+}
+
+// The localStorage anonymous id on its own, regardless of auth state.
+// Used by the one-time anonymous-to-authenticated migration.
+const ANON_KEY = "antibrainrot:user";
+
+export function getAnonymousUserId() {
   try {
-    let id = localStorage.getItem("antibrainrot:user");
+    let id = localStorage.getItem(ANON_KEY);
     if (!id) {
       id = `anon-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-      localStorage.setItem("antibrainrot:user", id);
+      localStorage.setItem(ANON_KEY, id);
     }
     return id;
   } catch {
     return "anon-local";
   }
+}
+
+// Clears the anonymous id after a successful migration so it only runs
+// once; a fresh one is generated the next time the user is signed out.
+export function clearAnonymousUserId() {
+  try {
+    localStorage.removeItem(ANON_KEY);
+  } catch {
+    // storage unavailable; the id is regenerated next time
+  }
+}
+
+// Shared fetch for the Express API. Attaches the Supabase access token
+// as a Bearer header when a session exists, so protected routes
+// (progress, quiz answers, profile, leaderboard opt-in) get the verified
+// identity the backend requires. Anonymous callers simply send no header
+// and the content routes fall back to the user_id query parameter.
+export async function apiFetch(path, options = {}) {
+  const headers = new Headers(options.headers || {});
+  if (options.body != null && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    headers.set("Authorization", `Bearer ${session.access_token}`);
+  }
+  return fetch(`${API_BASE}${path}`, { ...options, headers });
 }

@@ -30,6 +30,13 @@
   --color-accent-sec: #7A2E3B; /* deep wine, network security */
   --color-accent-proto: #0E7490; /* deep cyan, network protocols */
 
+  /* --- streak flame (SKILL_auth.md) ---
+     A dedicated warm accent so the streak indicator reads as one
+     element across the profile and topic screens, and is never
+     confused with a topic accent. Graphic only: no flame emoji
+     characters in any string. */
+  --color-accent-flame: #E8590C; /* ember orange, daily streak */
+
   /* --- typefaces ---
      mono is structural (metadata, index, code, diagram labels)
      sans is the reading face for card bodies */
@@ -53,4 +60,5 @@
   --accent-ai: #d97706;
   --accent-sec: #7a2e3b;
   --accent-proto: #0e7490;
+  --accent-flame: #e8590c;
 }

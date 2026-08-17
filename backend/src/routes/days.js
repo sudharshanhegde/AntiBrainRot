@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { query } from "../db.js";
+import { optionalUserId } from "../auth.js";
 
 export const daysRouter = Router();
 
@@ -17,10 +18,10 @@ const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
 //   completed  - already finished, can be re-read (revision)
 //   cooldown   - the next day, still waiting out its cooldown
 //   locked     - must finish earlier days first
-daysRouter.get("/", async (req, res) => {
+daysRouter.get("/", optionalUserId, async (req, res) => {
   try {
     const topicId = Number(req.query.topic_id);
-    const userId = String(req.query.user_id || "");
+    const userId = req.userId || String(req.query.user_id || "");
     if (!Number.isInteger(topicId)) {
       return res.status(400).json({ error: "topic_id is required" });
     }

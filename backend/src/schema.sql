@@ -96,3 +96,27 @@ create table if not exists generation_runs (
   tokens_used integer,
   ran_at timestamptz not null default now()
 );
+
+-- Authenticated accounts (SKILL_auth.md). id is the Supabase Auth user
+-- id (a UUID), stored as text so it matches the existing user_id columns
+-- on user_progress and quiz_answers. Only the minimal profile fields the
+-- feature needs are kept: email, display name, and avatar. leaderboard_
+-- opt_in defaults false: visibility is opt-in, never opt-out.
+create table if not exists users (
+  id text primary key,
+  email text unique,
+  display_name text,
+  avatar_url text,
+  leaderboard_opt_in boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+-- Account-level daily streak (SKILL_auth.md): did this user complete at
+-- least one deck, on any topic, today. One row per user, keyed by the
+-- same Supabase Auth user id as users.id.
+create table if not exists user_streaks (
+  user_id text primary key references users(id) on delete cascade,
+  current_streak integer not null default 0,
+  longest_streak integer not null default 0,
+  last_active_date date
+);

@@ -1,16 +1,33 @@
 import { useEffect, useState } from "react";
 import { StatusScreen } from "../ui/StatusScreen";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { StreakIndicator } from "../ui/StreakIndicator";
 import { findNiche, topicPalette } from "../../data/topics";
 import { fetchTopics } from "../../api/feedService";
 import { fetchCooldownMap } from "../../api/progress";
+import { useAuth } from "../../auth/AuthContext";
 
-// Topic list for the chosen niche. Tapping a topic opens its feed
-// directly; previous days are reached from the feed's hamburger. A topic
-// on cooldown (its last day completed recently) shows the remaining time
-// and, when tapped, asks whether to revise the completed day.
-export function TopicList({ nicheSlug, onPick, onChangeNiche, notice, onDismissNotice }) {
+// Topic list for the chosen niche (SKILL_auth.md three-zone layout):
+//   left   - the daily streak indicator, smaller than the profile
+//            version, always visible so the user sees it every time they
+//            pick what to learn next,
+//   center - a plain "Leaderboard" text entry that opens the leaderboard
+//            screen on tap (label, not an icon-only trophy),
+//   main   - the topic grid itself, unchanged from before.
+// A topic on cooldown (its last day completed recently) shows the
+// remaining time and, when tapped, asks whether to revise the completed
+// day.
+export function TopicList({
+  nicheSlug,
+  onPick,
+  onChangeNiche,
+  onOpenLeaderboard,
+  onOpenProfile,
+  notice,
+  onDismissNotice,
+}) {
   const niche = findNiche(nicheSlug);
+  const { user, streak, refreshProfile } = useAuth();
   const [topicSlugs, setTopicSlugs] = useState(null);
   const [cooldowns, setCooldowns] = useState(new Map());
   const [pendingRevision, setPendingRevision] = useState(null);
@@ -35,10 +52,15 @@ export function TopicList({ nicheSlug, onPick, onChangeNiche, notice, onDismissN
         if (active) setCooldowns(new Map());
       });
 
+    // Refresh the streak from the backend: the user may have just
+    // finished a deck and navigated back here. Only when signed in —
+    // anonymous browsers have no account-scoped streak to fetch.
+    if (user) refreshProfile();
+
     return () => {
       active = false;
     };
-  }, [nicheSlug]);
+  }, [nicheSlug, refreshProfile, user]);
 
   if (!niche) {
     return <StatusScreen label="unknown niche" title="Nothing to show here" />;
@@ -70,6 +92,26 @@ export function TopicList({ nicheSlug, onPick, onChangeNiche, notice, onDismissN
           unlocks after a short cooldown.
         </p>
       </header>
+
+      {/* Three-zone row: streak (left), leaderboard entry (center),
+          profile (right). The topic grid below is the main area. */}
+      <div className="mx-6 mt-4 flex items-center justify-between gap-4 rounded-lg border border-hairline bg-paper px-4 py-3">
+        <StreakIndicator count={user ? (streak?.current_streak ?? 0) : null} label="day streak" />
+        <button
+          type="button"
+          onClick={onOpenLeaderboard}
+          className="font-sans text-[14px] font-medium tracking-tight text-ink transition-colors hover:text-muted"
+        >
+          Leaderboard
+        </button>
+        <button
+          type="button"
+          onClick={onOpenProfile}
+          className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+        >
+          profile
+        </button>
+      </div>
 
       {notice && (
         <div className="mx-6 mt-4 flex items-start justify-between gap-3 rounded-lg border border-hairline bg-panel px-4 py-3">

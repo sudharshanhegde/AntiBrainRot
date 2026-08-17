@@ -2,8 +2,13 @@ import { useState } from "react";
 import { NichePicker } from "./components/onboarding/NichePicker";
 import { TopicList } from "./components/topics/TopicList";
 import { Feed } from "./components/feed/Feed";
+import { ProfileScreen } from "./components/profile/ProfileScreen";
+import { LeaderboardScreen } from "./components/leaderboard/LeaderboardScreen";
+import { StatusScreen } from "./components/ui/StatusScreen";
 import { findNiche } from "./data/topics";
 import { fetchCooldownMap, markDeckCompleted } from "./api/progress";
+import { useAuth } from "./auth/AuthContext";
+import { isSupabaseConfigured } from "./api/supabase";
 
 const STORAGE_KEYS = {
   niche: "antibrainrot:niche",
@@ -28,10 +33,10 @@ function writeStored(key, value) {
 }
 
 // Navigation is a small state machine, not a router: niche -> topics ->
-// feed. The feed is the single surface that opens for a topic; previous
-// days are reached from the feed's hamburger drawer. The niche and last
-// topic persist so a returning user skips onboarding.
+// feed, plus profile and leaderboard reachable from the topics screen.
+// The niche and last topic persist so a returning user skips onboarding.
 export default function App() {
+  const { user, loading } = useAuth();
   const [nicheSlug, setNicheSlug] = useState(() => readStored(STORAGE_KEYS.niche));
   const [topicSlug, setTopicSlug] = useState(() => readStored(STORAGE_KEYS.topic));
   const [view, setView] = useState(() => (nicheSlug ? "topics" : "niche"));
@@ -40,6 +45,23 @@ export default function App() {
   // "surprise me" cannot find an available topic so the user is told why
   // instead of being left on a dead-end error screen.
   const [surpriseNotice, setSurpriseNotice] = useState(null);
+  // Note shown on the profile screen when a signed-out user tried to open
+  // a topic, explaining why an account is needed.
+  const [authNotice, setAuthNotice] = useState(null);
+
+  // Auth session is still being restored from storage; don't render the
+  // app until the identity (or lack of one) is known, so getUserId and
+  // the auth gate make a final decision instead of a transient one.
+  if (loading) {
+    return <StatusScreen label="loading" title="antibrainrot" />;
+  }
+
+  // Progress and quiz answers are account-scoped (SKILL_auth.md). When
+  // Supabase is configured, a signed-out user can still browse topics but
+  // must sign in to open a deck. If Supabase is not configured (dev
+  // without the env vars), keep the old anonymous flow so the app still
+  // runs.
+  const authRequired = !user && isSupabaseConfigured;
 
   const pickNiche = (slug) => {
     writeStored(STORAGE_KEYS.niche, slug);
@@ -53,6 +75,13 @@ export default function App() {
   // revisionIndex (optional) opens a specific completed day, used when a
   // topic on cooldown is tapped so the user can re-read it.
   const pickTopic = (slug, revisionIndex = null) => {
+    if (authRequired) {
+      setAuthNotice(
+        "Sign in to start a deck. Progress and quiz answers are saved to your account."
+      );
+      setView("profile");
+      return;
+    }
     writeStored(STORAGE_KEYS.topic, slug);
     setTopicSlug(slug);
     setRevisionDeckIndex(revisionIndex);
@@ -68,6 +97,13 @@ export default function App() {
     setSurpriseNotice(null);
     setView("niche");
   };
+  const openProfile = () => {
+    setAuthNotice(null);
+    setView("profile");
+  };
+  const openLeaderboard = () => {
+    setView("leaderboard");
+  };
 
   // Called when the user reaches the end card of a deck. Records
   // progress on the API (fire and forget) and in the local mirror.
@@ -81,6 +117,13 @@ export default function App() {
   // the user on a dead-end error screen: it goes back to the topics page
   // with a short note explaining why.
   const handleSurprise = async () => {
+    if (authRequired) {
+      setAuthNotice(
+        "Sign in to start a deck. Progress and quiz answers are saved to your account."
+      );
+      setView("profile");
+      return;
+    }
     const niche = findNiche(nicheSlug);
     const all = niche ? [...niche.topics] : [];
 
@@ -113,12 +156,20 @@ export default function App() {
   if (view === "niche") {
     return <NichePicker onPick={pickNiche} />;
   }
+  if (view === "profile") {
+    return <ProfileScreen onBack={backToTopics} initialNotice={authNotice} />;
+  }
+  if (view === "leaderboard") {
+    return <LeaderboardScreen onBack={backToTopics} />;
+  }
   if (view === "topics") {
     return (
       <TopicList
         nicheSlug={nicheSlug}
         onPick={pickTopic}
         onChangeNiche={backToNiche}
+        onOpenLeaderboard={openLeaderboard}
+        onOpenProfile={openProfile}
         notice={surpriseNotice}
         onDismissNotice={() => setSurpriseNotice(null)}
       />

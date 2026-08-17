@@ -1,7 +1,7 @@
 import { findNiche } from "../data/topics";
 import { deckStore } from "../data/decks";
-import { API_BASE, USE_MOCK } from "./config";
-import { getTopicId, getUserId } from "./client";
+import { USE_MOCK } from "./config";
+import { apiFetch, getTopicId, getUserId } from "./client";
 
 // Feed data service. Default mode talks to the Express API
 // (GET /api/topics, GET /api/feed). With VITE_USE_MOCK=true it serves
@@ -50,12 +50,14 @@ async function apiDeckChunk(topicSlug, deckIndex, offset) {
   const userId = getUserId();
   // deckIndex is null for normal play (the backend picks the next deck);
   // a concrete index means revision mode, where we re-read a specific
-  // already-published deck even if it is on cooldown.
-  let url = `${API_BASE}/api/feed?topic_id=${topicId}&user_id=${encodeURIComponent(userId)}`;
+  // already-published deck even if it is on cooldown. user_id is passed
+  // for the anonymous fallback; signed-in requests also carry a Bearer
+  // token via apiFetch and the backend prefers the token identity.
+  let path = `/api/feed?topic_id=${topicId}&user_id=${encodeURIComponent(userId)}`;
   if (deckIndex != null && Number.isInteger(deckIndex) && deckIndex >= 0) {
-    url += `&deck_index=${deckIndex}`;
+    path += `&deck_index=${deckIndex}`;
   }
-  const res = await fetch(url);
+  const res = await apiFetch(path);
   if (!res.ok) throw new Error("could not load the feed from the API");
   const data = await res.json();
 
@@ -83,8 +85,8 @@ async function apiDeckChunk(topicSlug, deckIndex, offset) {
 async function apiDays(topicSlug) {
   const topicId = await getTopicId(topicSlug);
   const userId = getUserId();
-  const res = await fetch(
-    `${API_BASE}/api/days?topic_id=${topicId}&user_id=${encodeURIComponent(userId)}`
+  const res = await apiFetch(
+    `/api/days?topic_id=${topicId}&user_id=${encodeURIComponent(userId)}`
   );
   if (!res.ok) throw new Error("could not load days from the API");
   return res.json();

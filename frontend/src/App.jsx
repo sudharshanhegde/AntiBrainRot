@@ -1,12 +1,18 @@
 import { useState } from "react";
 import { NichePicker } from "./components/onboarding/NichePicker";
+import { WelcomeGate } from "./components/onboarding/WelcomeGate";
 import { TopicList } from "./components/topics/TopicList";
 import { Feed } from "./components/feed/Feed";
 import { ProfileScreen } from "./components/profile/ProfileScreen";
 import { LeaderboardScreen } from "./components/leaderboard/LeaderboardScreen";
 import { StatusScreen } from "./components/ui/StatusScreen";
 import { findNiche } from "./data/topics";
-import { fetchCooldownMap, markDeckCompleted } from "./api/progress";
+import {
+  fetchCooldownMap,
+  markDeckCompleted,
+  getResumeCardIndex,
+} from "./api/progress";
+import { hasGuestId, hasVisited, markVisited, resetToGuest } from "./api/client";
 import { useAuth } from "./auth/AuthContext";
 import { isSupabaseConfigured } from "./api/supabase";
 
@@ -33,7 +39,7 @@ function writeStored(key, value) {
 }
 
 // Navigation is a small state machine, not a router: niche -> topics ->
-// feed, plus profile and leaderboard reachable from the topics screen.
+// feed, plus profile and leaderboard reachable from the hamburger menu.
 // The niche and last topic persist so a returning user skips onboarding.
 export default function App() {
   const { user, loading } = useAuth();
@@ -41,6 +47,11 @@ export default function App() {
   const [topicSlug, setTopicSlug] = useState(() => readStored(STORAGE_KEYS.topic));
   const [view, setView] = useState(() => (nicheSlug ? "topics" : "niche"));
   const [revisionDeckIndex, setRevisionDeckIndex] = useState(null);
+  // Which card within the deck to resume at (0 = start of deck).
+  const [initialCardIndex, setInitialCardIndex] = useState(0);
+  // Forces the first-visit gate off once a choice is made, before the
+  // persisted "visited" marker is what keeps it off on later loads.
+  const [gateChosen, setGateChosen] = useState(false);
   // A short, dismissible note shown on the topics page, set when
   // "surprise me" cannot find an available topic so the user is told why
   // instead of being left on a dead-end error screen.
@@ -50,10 +61,40 @@ export default function App() {
   const [authNotice, setAuthNotice] = useState(null);
 
   // Auth session is still being restored from storage; don't render the
-  // app until the identity (or lack of one) is known, so getUserId and
-  // the auth gate make a final decision instead of a transient one.
+  // app until the identity (or lack of one) is known.
   if (loading) {
     return <StatusScreen label="loading" title="antibrainrot" />;
+  }
+
+  // First-visit gate (SKILL_profile_progress.md): only for genuinely new
+  // browsers (no session, no guest id, never seen the gate). Content does
+  // not load until a choice is made; any choice marks the browser as
+  // visited so the gate never re-shows for it.
+  const firstVisit =
+    isSupabaseConfigured && !user && !gateChosen && !hasGuestId() && !hasVisited();
+  if (firstVisit) {
+    return (
+      <WelcomeGate
+        onRegister={() => {
+          markVisited();
+          setGateChosen(true);
+          setAuthNotice(null);
+          setView("profile");
+        }}
+        onLogin={() => {
+          markVisited();
+          setGateChosen(true);
+          setAuthNotice(null);
+          setView("profile");
+        }}
+        onGuest={() => {
+          resetToGuest();
+          markVisited();
+          setGateChosen(true);
+          setView(nicheSlug ? "topics" : "niche");
+        }}
+      />
+    );
   }
 
   // Progress and quiz answers are account-scoped (SKILL_auth.md). When
@@ -74,7 +115,7 @@ export default function App() {
 
   // revisionIndex (optional) opens a specific completed day, used when a
   // topic on cooldown is tapped so the user can re-read it.
-  const pickTopic = (slug, revisionIndex = null) => {
+  const pickTopic = async (slug, revisionIndex = null) => {
     if (authRequired) {
       setAuthNotice(
         "Sign in to start a deck. Progress and quiz answers are saved to your account."
@@ -86,6 +127,18 @@ export default function App() {
     setTopicSlug(slug);
     setRevisionDeckIndex(revisionIndex);
     setSurpriseNotice(null);
+    // Resume: opening a topic lands in the current in-progress deck at
+    // the card the user was last on (SKILL_profile_progress.md). Revision
+    // reads start fresh at card 0.
+    let resume = 0;
+    if (revisionIndex == null) {
+      try {
+        resume = await getResumeCardIndex(slug);
+      } catch {
+        resume = 0;
+      }
+    }
+    setInitialCardIndex(revisionIndex != null ? 0 : resume);
     setView("feed");
   };
 
@@ -103,6 +156,15 @@ export default function App() {
   };
   const openLeaderboard = () => {
     setView("leaderboard");
+  };
+  // After account deletion: back to a clean guest start.
+  const handleDeleted = () => {
+    setNicheSlug(null);
+    setTopicSlug(null);
+    setRevisionDeckIndex(null);
+    writeStored(STORAGE_KEYS.niche, "");
+    writeStored(STORAGE_KEYS.topic, "");
+    setView("niche");
   };
 
   // Called when the user reaches the end card of a deck. Records
@@ -157,7 +219,13 @@ export default function App() {
     return <NichePicker onPick={pickNiche} />;
   }
   if (view === "profile") {
-    return <ProfileScreen onBack={backToTopics} initialNotice={authNotice} />;
+    return (
+      <ProfileScreen
+        onBack={backToTopics}
+        onDeleted={handleDeleted}
+        initialNotice={authNotice}
+      />
+    );
   }
   if (view === "leaderboard") {
     return <LeaderboardScreen onBack={backToTopics} />;
@@ -182,7 +250,9 @@ export default function App() {
       onExplore={backToTopics}
       onDeckComplete={handleDeckComplete}
       onSurprise={handleSurprise}
+      onOpenProfile={openProfile}
       revisionDeckIndex={revisionDeckIndex}
+      initialCardIndex={initialCardIndex}
     />
   );
 }

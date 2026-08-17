@@ -35,7 +35,7 @@ export function StreakIndicator({ count, size = "sm", label = "day streak" }) {
       </svg>
       <span
         className={`font-mono ${textSize} tracking-tight ${
-          num > 0 ? "text-ink" : "text-muted"
+          num > 0 ? "text-accent-complete" : "text-muted"
         }`}
       >
         {num}

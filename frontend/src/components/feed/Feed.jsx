@@ -1,39 +1,35 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { CardShell } from "../card/CardShell";
 import { TemplateRenderer } from "../card/TemplateRenderer";
 import { StatusScreen } from "../ui/StatusScreen";
 import { EndCard } from "./EndCard";
 import { DaysDrawer } from "./DaysDrawer";
+import { AppMenu } from "../ui/AppMenu";
 import { topicPalette } from "../../data/topics";
 import { fetchDeckChunk, fetchDays } from "../../api/feedService";
+import { saveViewedCardIndex } from "../../api/progress";
 import { useActiveCardIndex } from "../../hooks/useActiveCardIndex";
-
-function HamburgerIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-      <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" strokeWidth="1.5" />
-      <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="1.5" />
-      <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
-  );
-}
 
 // The vertical scroll-snap feed. This is the single surface that opens
 // for a topic. Native CSS scroll-snap does the physics; no JS touch
 // handling. Each card is a full-viewport snap target.
 //
-// A hamburger in the card header opens a drawer listing the topic's days
-// (Day 0, Day 1, ...), so the user can jump to previous days or see what
-// is locked. revisionDeckIndex (optional) opens a specific completed day
-// (e.g. when a topic on cooldown is tapped); in revision mode reaching
-// the end does not reset the cooldown.
+// Resume behavior (SKILL_profile_progress.md): opening a topic resumes
+// in the current in-progress deck (the backend already serves the next
+// deck from last_deck_index_completed) and scrolls straight to the card
+// the user was last on, before first paint. As the user scrolls, the
+// position is saved throttled (~1s), reset to 0 automatically when the
+// deck is completed. A hamburger menu in the top chrome opens the days
+// drawer and the profile page.
 export function Feed({
   topicSlug,
   onBack,
   onExplore,
   onDeckComplete,
   onSurprise,
+  onOpenProfile = () => {},
   revisionDeckIndex = null,
+  initialCardIndex = 0,
 }) {
   const scrollRef = useRef(null);
   const [deckTarget, setDeckTarget] = useState(revisionDeckIndex); // null = next deck, number = specific day
@@ -45,6 +41,12 @@ export function Feed({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const completedRef = useRef(false);
+  // Whether the initial card position has been restored for this open.
+  const restoredRef = useRef(false);
+  // Debounced resume-position write: one per second at most, flushed on
+  // unmount. Only meaningful in normal play (deckTarget is null) and
+  // never on the end card or after completion.
+  const pendingSave = useRef({ timer: null, index: -1, slug: null });
 
   const activeIndex = useActiveCardIndex(scrollRef, cards.length + (hasMore ? 0 : 1));
   const topic = topicPalette[topicSlug] || topicPalette["operating-systems"];
@@ -93,8 +95,22 @@ export function Feed({
     setCards([]);
     setHasMore(true);
     completedRef.current = false;
+    restoredRef.current = false;
     loadChunk(0);
   }, [loadChunk]);
+
+  // Restore the resume position before first paint, once the first chunk
+  // of cards exists. Skips if the position is the start or out of range
+  // (clamped to the loaded cards; the prefetch loads the rest).
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller || cards.length === 0 || restoredRef.current) return;
+    const target = Number.isInteger(initialCardIndex) ? initialCardIndex : 0;
+    if (target <= 0) return;
+    restoredRef.current = true;
+    const clamp = Math.min(target, cards.length - 1);
+    scroller.scrollTop = clamp * scroller.clientHeight;
+  }, [cards.length, initialCardIndex]);
 
   // Prefetch: fetch the next chunk well before the user runs out of
   // loaded cards, so the next 3-5 cards are already in memory.
@@ -116,6 +132,32 @@ export function Feed({
       onDeckComplete(meta.deckIndex);
     }
   }, [activeIndex, endCardIndex, meta.deckIndex, onDeckComplete, deckTarget]);
+
+  // Debounced resume-position save (~1s). Not on the end card, not after
+  // completion, not in revision mode.
+  useEffect(() => {
+    if (deckTarget != null || cards.length === 0 || completedRef.current) return;
+    if (endCardIndex !== -1 && activeIndex >= endCardIndex) return;
+    const st = pendingSave.current;
+    st.index = activeIndex;
+    st.slug = topicSlug;
+    if (st.timer) clearTimeout(st.timer);
+    st.timer = setTimeout(() => {
+      saveViewedCardIndex(st.slug, st.index);
+      st.timer = null;
+    }, 1000);
+  }, [activeIndex, deckTarget, endCardIndex, cards.length, topicSlug]);
+
+  // Flush the pending position on unmount so leaving mid-deck is saved.
+  useEffect(() => {
+    return () => {
+      const st = pendingSave.current;
+      if (st.timer) clearTimeout(st.timer);
+      if (st.index >= 0 && !completedRef.current) {
+        saveViewedCardIndex(st.slug, st.index);
+      }
+    };
+  }, []);
 
   const handleSelectDay = (day) => {
     // available -> play the next deck; completed -> re-read that day
@@ -180,15 +222,12 @@ export function Feed({
             total={total}
             topBar={
               <div className="mb-3 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setDrawerOpen(true)}
-                  className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
-                  aria-label="Open days"
-                >
-                  <HamburgerIcon />
-                  days
-                </button>
+                <AppMenu
+                  entries={[
+                    { label: "Days", onSelect: () => setDrawerOpen(true) },
+                    { label: "Profile", onSelect: onOpenProfile },
+                  ]}
+                />
                 <button
                   type="button"
                   onClick={onBack}

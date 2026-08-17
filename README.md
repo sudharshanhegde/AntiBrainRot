@@ -88,8 +88,20 @@ for auth.
   such as Supabase (free tier). Apply `backend/src/schema.sql` to create
   the tables.
 
-To trigger the daily generation locally:
-`curl -X POST http://localhost:4000/api/generate -H "Authorization: Bearer <GENERATION_SECRET>"`
+### Daily generation schedule
+
+The automatic pipeline runs **once a day, after 3:30 PM IST** (10:30 UTC =
+4:00 PM IST via the GitHub Actions cron), deliberately outside the morning
+(06:30-09:30 IST) and afternoon (11:30-15:30 IST) usage peaks so fresh
+decks are ready for the next morning. The backend enforces both halves of
+this server-side: no automatic run starts before 15:30 IST, and only one
+run per IST day is allowed. A manual run that passes `?force=1` bypasses
+both and can run at any time.
+
+To trigger the daily generation locally (or force an on-demand run):
+`curl -X POST "http://localhost:4000/api/generate?force=1" -H "Authorization: Bearer <GENERATION_SECRET>"`
+For the deployed backend, point the URL at
+`https://antibrainrot.onrender.com/api/generate` with the same header.
 
 ## Auth, streaks, and the leaderboard
 
@@ -130,6 +142,42 @@ a client-supplied user id.
   streak indicator and a "Leaderboard" entry sit on the topic selection
   screen; the profile screen has the full-size streak, the opt-in toggle,
   and sign in/out.
+
+## Resume, day tracking, profile, and the first-visit gate
+
+Four additions built on top of the auth and progress data:
+
+1. **Resume at your last position**: opening a topic lands in the current
+   in-progress deck (the next one after `last_deck_index_completed`) at
+   the exact card you were last on, restored before first paint. The
+   position is saved throttled (~1s) as you scroll
+   (`last_viewed_card_index` on `user_progress`; guests keep it in local
+   storage) and resets to 0 when a deck is completed.
+2. **Day tracker**: each topic row shows a row of day numbers (1 through
+   that topic's `target_decks`). Completed days are sky blue, the
+   in-progress day is marked in a calmer active state, and future days
+   are dimmed. The same sky blue (`--color-accent-complete`) is used for
+   the streak count and the profile's primary action buttons, kept
+   distinct from every topic accent.
+3. **Profile page**: reachable from a persistent hamburger menu in the top
+   chrome (on the topic screen and in the feed). Shows name/avatar, the
+   full-size streak, the leaderboard opt-in toggle, sign out, and
+   destructive **delete account**. Deleting runs the app-data deletes in
+   one transaction and only then removes the Supabase Auth user (requires
+   `SUPABASE_SERVICE_ROLE_KEY` on the backend).
+4. **First-visit gate**: genuinely new browsers (no session, no guest id,
+   never seen the gate) get one blocking screen with three equal choices —
+   Register, Log in, or Continue without an account. Any choice persists,
+   so the gate never re-appears for that browser unless local storage is
+   cleared.
+
+### Migration
+
+Re-apply `backend/src/schema.sql` — it is idempotent and adds the
+`last_viewed_card_index` column to `user_progress` alongside the existing
+tables. For account deletion to remove the Supabase Auth user, set
+`SUPABASE_SERVICE_ROLE_KEY` in `backend/.env` / Render (a secret, never
+exposed to the frontend).
 
 You can access for free here : `https://antibrainrotnobot.vercel.app/`
 

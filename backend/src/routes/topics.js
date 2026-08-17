@@ -10,7 +10,7 @@ export const topicsRouter = Router();
 topicsRouter.get("/", async (_req, res) => {
   try {
     const { rows } = await query(
-      "select id, name, slug, accent, blurb from topics order by id"
+      "select id, name, slug, accent, blurb, target_decks from topics order by id"
     );
     res.json({ topics: rows });
   } catch (err) {

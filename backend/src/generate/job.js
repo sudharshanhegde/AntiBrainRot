@@ -57,8 +57,28 @@ const QUEUE_FILE = join(__dirname, "..", "..", "..", "pipeline", "topics_queue.m
 // no generation happens for it.
 const MANUAL_QUIZ_DIR = join(__dirname, "..", "..", "..", "pipeline", "manual_quizzes");
 
-function sameUtcDay(a, b) {
-  return a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
+// Scheduling is anchored to Indian Standard Time (UTC+5:30, no DST), so
+// the offset is fixed and can be derived from UTC deterministically. The
+// "once a day" guard and the automatic-run window below both use IST so
+// they match the product's timezone rather than the server's.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+// Automatic generation may only start after 15:30 IST, i.e. after the
+// afternoon usage peak (SKILL scheduling requirement). Manual force runs
+// bypass this window entirely.
+const IST_AUTO_START_MIN = 15 * 60 + 30;
+
+function istDateString(ms) {
+  return new Date(ms + IST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function sameIstDay(aMs, bMs) {
+  return istDateString(aMs) === istDateString(bMs);
+}
+
+// Minutes since midnight on the IST clock.
+function istMinutes(ms) {
+  const d = new Date(ms + IST_OFFSET_MS);
+  return d.getUTCHours() * 60 + d.getUTCMinutes();
 }
 
 function sendFailureAlert(payload) {
@@ -305,13 +325,22 @@ async function generateOneDeck(
 }
 
 export async function runDailyJob({ dryRun = false, force = false, topics = [] } = {}) {
-  // Daily guard: one run per day (idempotent for the cron trigger).
-  // force=1 bypasses it for on-demand runs (still requires the secret).
+  const now = Date.now();
   if (!force) {
+    // Automatic-run window: the pipeline only generates after 15:30 IST,
+    // keeping it out of the morning and afternoon usage peaks. Manual
+    // runs pass ?force=1 to bypass this and the daily guard.
+    if (istMinutes(now) < IST_AUTO_START_MIN) {
+      return {
+        status: "too-early",
+        message: "automatic generation is only allowed after 3:30 PM IST; pass ?force=1 to override",
+      };
+    }
+    // Daily guard: one run per IST day (idempotent for the cron trigger).
     const lastRun = await query(
       "select ran_at from generation_runs order by ran_at desc limit 1"
     );
-    if (lastRun.rows[0] && sameUtcDay(new Date(lastRun.rows[0].ran_at), new Date())) {
+    if (lastRun.rows[0] && sameIstDay(new Date(lastRun.rows[0].ran_at).getTime(), now)) {
       return { status: "already-ran", message: "a generation run already happened today" };
     }
   }

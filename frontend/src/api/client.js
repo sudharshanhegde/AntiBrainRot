@@ -43,6 +43,14 @@ export function getUserId() {
   return getAnonymousUserId();
 }
 
+// True when an authenticated session is active (currentUserId is only
+// set by AuthContext on a real Supabase session). Used to decide whether
+// progress writes belong on the account (backend) or in the local mirror
+// (guest).
+export function isSignedIn() {
+  return Boolean(currentUserId);
+}
+
 // The localStorage anonymous id on its own, regardless of auth state.
 // Used by the one-time anonymous-to-authenticated migration.
 const ANON_KEY = "antibrainrot:user";
@@ -67,6 +75,56 @@ export function clearAnonymousUserId() {
     localStorage.removeItem(ANON_KEY);
   } catch {
     // storage unavailable; the id is regenerated next time
+  }
+}
+
+// Read-only check for an existing guest id, used by the first-visit gate
+// (SKILL_profile_progress.md): if neither a session nor a guest id
+// exists, this is a genuine first visit. Deliberately does not create an
+// id, unlike getAnonymousUserId.
+export function hasGuestId() {
+  try {
+    return Boolean(localStorage.getItem(ANON_KEY));
+  } catch {
+    return false;
+  }
+}
+
+// Clears the guest identity and local progress/quiz mirrors, then
+// generates a fresh guest id. Used after account deletion so the browser
+// continues as a brand-new guest rather than keeping the deleted user's
+// local state.
+export function resetToGuest() {
+  try {
+    localStorage.removeItem(ANON_KEY);
+    localStorage.removeItem("antibrainrot:progress");
+    localStorage.removeItem("antibrainrot:quiz_answers");
+  } catch {
+    // storage unavailable; nothing to clear
+  }
+  return getAnonymousUserId();
+}
+
+// Persisted marker that this browser has already seen the first-visit
+// gate and made a choice. Without it, a returning account user who signs
+// out (no session, and the guest id was consumed by migration) would be
+// wrongly shown the "first visit" gate again. Lives in localStorage, so
+// clearing storage resets it, which matches the intended behavior.
+const VISITED_KEY = "antibrainrot:visited";
+
+export function hasVisited() {
+  try {
+    return Boolean(localStorage.getItem(VISITED_KEY));
+  } catch {
+    return false;
+  }
+}
+
+export function markVisited() {
+  try {
+    localStorage.setItem(VISITED_KEY, "1");
+  } catch {
+    // storage unavailable; the gate may re-show, acceptable
   }
 }
 

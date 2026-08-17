@@ -18,6 +18,24 @@ export const supabase = createClient(
   { realtime: { transport: ws } }
 );
 
+// Admin client for the one destructive operation, account deletion
+// (SKILL_profile_progress.md): it calls supabase.auth.admin.deleteUser to
+// remove the underlying Supabase Auth user after the app-data rows are
+// gone. Requires the service-role key; without it, deletion of the auth
+// account is unavailable (the app-data delete is still performed but the
+// endpoint refuses rather than half-delete). Nothing else uses this
+// client, so it stays inert unless the key is configured.
+export const supabaseAdmin = createClient(
+  process.env.SUPABASE_URL || "https://placeholder.supabase.co",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "placeholder",
+  {
+    realtime: { transport: ws },
+    auth: { autoRefreshToken: false, persistSession: false },
+  }
+);
+
+export const isAdminConfigured = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+
 function extractToken(req) {
   const header = req.headers.authorization || "";
   if (header.startsWith("Bearer ")) return header.slice(7).trim();

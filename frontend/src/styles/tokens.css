@@ -37,6 +37,16 @@
      characters in any string. */
   --color-accent-flame: #E8590C; /* ember orange, daily streak */
 
+  /* --- completion / primary action (SKILL_profile_progress.md) ---
+     A sky blue that reads clearly as "done" against the aged-paper
+     palette, deliberately distinct from every topic accent (some
+     topics are blue) so a topic whose accent is blue never makes its
+     days look permanently complete. Used consistently everywhere
+     completion or an important action is shown: completed days in the
+     day tracker, the streak count, and primary buttons on the profile
+     screen. */
+  --color-accent-complete: #1E88E5; /* sky blue, done / primary action */
+
   /* --- typefaces ---
      mono is structural (metadata, index, code, diagram labels)
      sans is the reading face for card bodies */
@@ -61,4 +71,5 @@
   --accent-sec: #7a2e3b;
   --accent-proto: #0e7490;
   --accent-flame: #e8590c;
+  --accent-complete: #1e88e5;
 }

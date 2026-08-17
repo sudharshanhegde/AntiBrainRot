@@ -74,6 +74,13 @@ create table if not exists user_progress (
   primary key (user_id, topic_id)
 );
 
+-- Resume position within the current in-progress deck (SKILL_profile_
+-- progress.md). The card the user was on, updated throttled as they
+-- scroll and reset to 0 the moment a deck is completed, so the next deck
+-- starts clean. Exists for both signed-in users and guests (guests keep
+-- it in the local mirror instead).
+alter table user_progress add column if not exists last_viewed_card_index integer not null default 0;
+
 -- Concept-level coverage tracking for the automated pipeline. One row
 -- per covered concept per topic, so generation never repeats a concept.
 create table if not exists covered_concepts (

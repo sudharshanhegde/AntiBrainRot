@@ -1,12 +1,25 @@
 
-# Runs once every 24 hours and asks the deployed backend to generate one
-# new deck. Using GitHub Actions decouples "when generation fires" from
+# Runs once every day and asks the deployed backend to generate one new
+# deck per pending topic. Using GitHub Actions decouples "when generation
+# fires" from the backend's request path.
+#
+# Schedule: 10:30 UTC every day = 16:00 IST (4:00 PM), deliberately after
+# the morning (06:30-09:30 IST) and afternoon (11:30-15:30 IST) usage
+# peaks, so generation never competes with the busiest browsing hours and
+# fresh decks are ready for the next morning. The backend independently
+# enforces this window (no automatic run before 15:30 IST) and a one-run-
+# per-IST-day guard, so the timing holds even if this cron drifts.
+#
+# To generate on demand (bypassing the time window and the once-a-day
+# guard), call the endpoint manually with ?force=1:
+#   curl -X POST "https://antibrainrot.onrender.com/api/generate?force=1" \
+#     -H "Authorization: Bearer <GENERATION_SECRET>"
 
 name: daily-generate
 
 on:
   schedule:
-    - cron: "0 3 * * *" # daily, UTC; adjust as needed
+    - cron: "30 10 * * *" # daily at 10:30 UTC = 16:00 IST, after the peaks
 
 jobs:
   generate:

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { query, pool } from "../db.js";
-import { requireAuth } from "../auth.js";
+import { requireAuth, supabaseAdmin, isAdminConfigured } from "../auth.js";
 
 export const authRouter = Router();
 
@@ -143,4 +143,52 @@ authRouter.post("/migrate", requireAuth, async (req, res) => {
   } finally {
     client.release();
   }
+});
+
+// DELETE /api/auth/me
+//
+// Permanently deletes the account: quiz answers, progress, the streak,
+// and the users row in a single transaction, and only then removes the
+// Supabase Auth user via the service-role admin API. The ordering matters
+// (SKILL_profile_progress.md): if the app-data deletes fail, the auth
+// account is left untouched; the admin delete runs only after they have
+// committed, so a failure partway cannot leave an orphaned auth account
+// with no app data or app data with no auth account behind it.
+authRouter.delete("/me", requireAuth, async (req, res) => {
+  const userId = req.userId;
+
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    await client.query("delete from quiz_answers where user_id = $1", [userId]);
+    await client.query("delete from user_progress where user_id = $1", [userId]);
+    await client.query("delete from user_streaks where user_id = $1", [userId]);
+    await client.query("delete from users where id = $1", [userId]);
+    await client.query("commit");
+  } catch (err) {
+    await client.query("rollback");
+    console.error(err);
+    client.release();
+    return res.status(500).json({ error: "could not delete account data" });
+  }
+  client.release();
+
+  if (!isAdminConfigured) {
+    console.warn(
+      `[auth] account ${userId} app data deleted but SUPABASE_SERVICE_ROLE_KEY is not set; auth user not removed`
+    );
+    return res
+      .status(500)
+      .json({ error: "account data deleted, but the auth account could not be removed" });
+  }
+
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+  if (error) {
+    console.error("[auth] failed to delete Supabase auth user:", error.message);
+    return res
+      .status(500)
+      .json({ error: "account data deleted, but the auth account could not be removed" });
+  }
+
+  res.json({ ok: true });
 });

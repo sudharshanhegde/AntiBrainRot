@@ -1,16 +1,31 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { isSupabaseConfigured } from "../../api/supabase";
-import { signInWithGoogle, signInWithEmail, signUpWithEmail, signOut } from "../../api/auth";
+import {
+  signInWithGoogle,
+  signInWithEmail,
+  signUpWithEmail,
+  signOut,
+  deleteAccount,
+} from "../../api/auth";
+import { resetToGuest } from "../../api/client";
 import { StreakIndicator } from "../ui/StreakIndicator";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 
-// The profile screen: streak indicator (permanent, SKILL_auth.md),
-// account settings (leaderboard opt-in, default off), and sign in/out.
-// Google is the default sign-in; email/password is the fallback for
-// people who do not want Google. Signing in routes through Supabase
-// Auth; the AuthContext listener then registers the profile with the
-// backend and runs the one-time anonymous progress migration.
-export function ProfileScreen({ onBack, initialNotice = null }) {
+// Primary action button: sky blue, the completion/action color
+// (SKILL_profile_progress.md), so interactive actions on this page read
+// as buttons, never as plain text links.
+const PRIMARY_BTN =
+  "w-full rounded-lg border border-accent-complete bg-accent-complete px-6 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-paper transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
+
+// The profile screen (SKILL_auth.md + SKILL_profile_progress.md): the
+// full-size streak indicator, account info, the leaderboard opt-in
+// toggle (default off), log out, and destructive account deletion behind
+// a real confirmation. Google is the default sign-in; email/password is
+// the fallback. Signing in routes through Supabase Auth; the AuthContext
+// listener then registers the profile with the backend and runs the
+// one-time anonymous progress migration.
+export function ProfileScreen({ onBack, onDeleted, initialNotice = null }) {
   const { user, profile, streak, refreshProfile, setLeaderboardOptIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,6 +33,8 @@ export function ProfileScreen({ onBack, initialNotice = null }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(initialNotice);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // A gate notice (e.g. "sign in to start a deck") is context for the
   // sign-in form; once a session exists there is nothing to gate, so
@@ -89,6 +106,20 @@ export function ProfileScreen({ onBack, initialNotice = null }) {
       await setLeaderboardOptIn(checked);
     } catch (err) {
       setError(err.message || "could not update settings");
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteAccount();
+      await signOut();
+      resetToGuest();
+      if (onDeleted) onDeleted();
+    } catch (err) {
+      setError(err.message || "could not delete account");
+      setDeleting(false);
     }
   };
 
@@ -192,7 +223,7 @@ export function ProfileScreen({ onBack, initialNotice = null }) {
                   onClick={() => handleToggleOptIn(!profile?.leaderboard_opt_in)}
                   className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors ${
                     profile?.leaderboard_opt_in
-                      ? "border-ink bg-ink"
+                      ? "border-accent-complete bg-accent-complete"
                       : "border-hairline bg-panel"
                   }`}
                 >
@@ -207,9 +238,30 @@ export function ProfileScreen({ onBack, initialNotice = null }) {
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="mt-6 w-full rounded-lg border border-ink bg-paper py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-ink transition-colors hover:bg-ink hover:text-paper"
+                className={`${PRIMARY_BTN} mt-6`}
               >
                 sign out
+              </button>
+            </section>
+
+            {/* Destructive action, separated lower on the page, still the
+                same blue action color; the confirmation step is what makes
+                it safe, not a jarring red. */}
+            <section className="rounded-lg border border-hairline bg-paper px-5 py-4">
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                danger zone
+              </p>
+              <p className="mt-2 font-sans text-[13px] leading-relaxed text-muted">
+                Deleting your account removes your progress, streak, and
+                quiz history permanently.
+              </p>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                disabled={deleting}
+                className={`${PRIMARY_BTN} mt-4`}
+              >
+                {deleting ? "deleting…" : "delete account"}
               </button>
             </section>
           </>
@@ -233,7 +285,7 @@ export function ProfileScreen({ onBack, initialNotice = null }) {
                 type="button"
                 onClick={handleOAuth}
                 disabled={busy || !isSupabaseConfigured}
-                className="mt-4 w-full rounded-lg border border-ink bg-paper py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-ink transition-colors hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-50"
+                className={`${PRIMARY_BTN} mt-4`}
               >
                 continue with google
               </button>
@@ -274,7 +326,7 @@ export function ProfileScreen({ onBack, initialNotice = null }) {
                 <button
                   type="submit"
                   disabled={busy || !isSupabaseConfigured}
-                  className="mt-1 w-full rounded-lg border border-ink bg-paper py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-ink transition-colors hover:bg-ink hover:text-paper disabled:cursor-not-allowed disabled:opacity-50"
+                  className={`${PRIMARY_BTN} mt-1`}
                 >
                   {busy ? "working…" : mode === "signup" ? "create account" : "sign in"}
                 </button>
@@ -297,6 +349,17 @@ export function ProfileScreen({ onBack, initialNotice = null }) {
           </div>
         )}
       </div>
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title="Delete your account?"
+          body="This permanently deletes your account, all progress, your streak, and every quiz answer. It cannot be undone."
+          confirmLabel="Delete account"
+          cancelLabel="Cancel"
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      )}
     </main>
   );
 }

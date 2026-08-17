@@ -2,19 +2,22 @@ import { useEffect, useState } from "react";
 import { StatusScreen } from "../ui/StatusScreen";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { StreakIndicator } from "../ui/StreakIndicator";
+import { DayTracker } from "../ui/DayTracker";
+import { AppMenu } from "../ui/AppMenu";
 import { findNiche, topicPalette } from "../../data/topics";
 import { fetchTopics } from "../../api/feedService";
 import { fetchCooldownMap } from "../../api/progress";
+import { getTopics } from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
 
 // Topic list for the chosen niche (SKILL_auth.md three-zone layout):
-//   left   - the daily streak indicator, smaller than the profile
-//            version, always visible so the user sees it every time they
-//            pick what to learn next,
-//   center - a plain "Leaderboard" text entry that opens the leaderboard
-//            screen on tap (label, not an icon-only trophy),
-//   main   - the topic grid itself, unchanged from before.
-// A topic on cooldown (its last day completed recently) shows the
+//   left   - the daily streak indicator, smaller than the profile version,
+//   center - a plain "Leaderboard" text entry that opens the leaderboard,
+//   main   - the topic grid itself.
+// The top chrome has a persistent hamburger menu with Profile and
+// Leaderboard (SKILL_profile_progress.md). Each topic row carries a day
+// tracker (1..target_decks) marking completed days in blue and the
+// in-progress day in a calmer active state. A topic on cooldown shows the
 // remaining time and, when tapped, asks whether to revise the completed
 // day.
 export function TopicList({
@@ -30,6 +33,7 @@ export function TopicList({
   const { user, streak, refreshProfile } = useAuth();
   const [topicSlugs, setTopicSlugs] = useState(null);
   const [cooldowns, setCooldowns] = useState(new Map());
+  const [targetDecks, setTargetDecks] = useState(new Map());
   const [pendingRevision, setPendingRevision] = useState(null);
 
   useEffect(() => {
@@ -51,6 +55,17 @@ export function TopicList({
       .catch(() => {
         if (active) setCooldowns(new Map());
       });
+
+    // The day tracker needs each topic's target deck count, which the
+    // topics API exposes.
+    getTopics()
+      .then((topics) => {
+        if (!active) return;
+        const map = new Map();
+        for (const [slug, t] of topics) map.set(slug, t.target_decks || 18);
+        setTargetDecks(map);
+      })
+      .catch(() => {});
 
     // Refresh the streak from the backend: the user may have just
     // finished a deck and navigated back here. Only when signed in —
@@ -76,13 +91,21 @@ export function TopicList({
           <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
             antibrainrot
           </p>
-          <button
-            type="button"
-            onClick={onChangeNiche}
-            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
-          >
-            change niche
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={onChangeNiche}
+              className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            >
+              change niche
+            </button>
+            <AppMenu
+              entries={[
+                { label: "Profile", onSelect: onOpenProfile },
+                { label: "Leaderboard", onSelect: onOpenLeaderboard },
+              ]}
+            />
+          </div>
         </div>
         <h1 className="mt-3 font-sans text-2xl font-semibold tracking-tight sm:text-3xl">
           {niche.name}
@@ -93,8 +116,8 @@ export function TopicList({
         </p>
       </header>
 
-      {/* Three-zone row: streak (left), leaderboard entry (center),
-          profile (right). The topic grid below is the main area. */}
+      {/* Three-zone row: streak (left), leaderboard entry (center/right).
+          The topic grid below is the main area. */}
       <div className="mx-6 mt-4 flex items-center justify-between gap-4 rounded-lg border border-hairline bg-paper px-4 py-3">
         <StreakIndicator count={user ? (streak?.current_streak ?? 0) : null} label="day streak" />
         <button
@@ -103,13 +126,6 @@ export function TopicList({
           className="font-sans text-[14px] font-medium tracking-tight text-ink transition-colors hover:text-muted"
         >
           Leaderboard
-        </button>
-        <button
-          type="button"
-          onClick={onOpenProfile}
-          className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
-        >
-          profile
         </button>
       </div>
 
@@ -158,7 +174,7 @@ export function TopicList({
                 style={{ backgroundColor: accent }}
                 aria-hidden="true"
               />
-              <span className="flex flex-col gap-1">
+              <span className="flex min-w-0 flex-col gap-1">
                 <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <span
                     className="font-sans text-[17px] font-semibold tracking-tight"
@@ -169,11 +185,17 @@ export function TopicList({
                   <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
                     {cooldown
                       ? `come back in ${cd.cooldown_remaining_hours}h`
-                      : "day 0"}
+                      : `${Math.max((cd?.last_deck_index_completed ?? -1) + 1, 0)} decks in`}
                   </span>
                 </span>
                 <span className="font-sans text-[14px] leading-relaxed text-muted">
                   {t.blurb}
+                </span>
+                <span className="mt-1.5">
+                  <DayTracker
+                    targetDecks={targetDecks.get(slug) || 18}
+                    lastCompletedIndex={cd?.last_deck_index_completed ?? -1}
+                  />
                 </span>
               </span>
             </button>

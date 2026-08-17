@@ -54,6 +54,19 @@ export async function updateLeaderboardOptIn(leaderboardOptIn) {
   return res.json();
 }
 
+// Permanently deletes the account (SKILL_profile_progress.md). The
+// backend removes quiz answers, progress, the streak, and the users row
+// in one transaction, then the Supabase Auth user. The frontend then
+// signs out and resets to guest state.
+export async function deleteAccount() {
+  const res = await apiFetch("/api/auth/me", { method: "DELETE" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || "could not delete account");
+  }
+  return res.json();
+}
+
 // --- Anonymous progress migration -----------------------------------------
 
 // One-time migration: reassigns the user's anonymous progress rows to

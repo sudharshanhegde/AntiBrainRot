@@ -1,11 +1,10 @@
 // Placeholder deck for the Operating Systems topic.
 //
-// This mirrors the shape that the content pipeline (SKILL.md +
-// SKILL_quiz.md) will emit: a deck with 10 concept cards, each
-// immediately followed by a quiz card that tests it, for 20 cards
-// total. Every card is tagged with a template (concept) or type
-// (quiz). Bodies sit in the 100-200 word band, and no em dashes or
-// emojis appear anywhere, matching the hard rule in SKILL_frontend.md.
+// This mirrors the shape the content pipeline will emit: a deck with 10
+// concept cards, each immediately followed by a quiz card that tests it,
+// for 20 cards total. Every card is tagged with a template (concept) or
+// type (quiz). Bodies sit in the 100-200 word band, and no em dashes or
+// emojis appear anywhere.
 // card_id is a stable mock id so quiz answers and the end-of-deck score
 // work without a backend.
 

@@ -14,7 +14,7 @@ import { useActiveCardIndex } from "../../hooks/useActiveCardIndex";
 // for a topic. Native CSS scroll-snap does the physics; no JS touch
 // handling. Each card is a full-viewport snap target.
 //
-// Resume behavior (SKILL_profile_progress.md): opening a topic resumes
+// Resume behavior: opening a topic resumes
 // in the current in-progress deck (the backend already serves the next
 // deck from last_deck_index_completed) and scrolls straight to the card
 // the user was last on, before first paint. As the user scrolls, the

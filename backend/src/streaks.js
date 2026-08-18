@@ -1,8 +1,8 @@
 import "./env.js";
 
-// Account-level daily streak (SKILL_auth.md): did this user complete at
-// least one deck, on any topic, today. Runs as a side effect of the
-// deck-completion write, not a separate cron.
+// Account-level daily streak: did this user complete at least one deck,
+// on any topic, today. Runs as a side effect of the deck-completion write,
+// not a separate cron.
 
 function dateString(date) {
   const y = date.getFullYear();

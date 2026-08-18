@@ -1,9 +1,9 @@
 // Deck store keyed by topic slug. The operating-systems deck is the
 // full 20-card placeholder from placeholderDeck.js. The other topics
 // carry short stand-in decks (3 concept cards, each followed by a quiz
-// card, per SKILL_quiz.md) so every topic in the picker leads to a
-// working feed; the content pipeline (SKILL.md) will replace these with
-// reviewed, difficulty-ordered decks. No em dashes or emojis anywhere.
+// card) so every topic in the picker leads to a working feed; the
+// content pipeline will replace these with reviewed, difficulty-ordered
+// decks. No em dashes or emojis anywhere.
 // card_id is a stable mock id so quiz answers and the end-of-deck score
 // work without a backend.
 

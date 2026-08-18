@@ -9,8 +9,8 @@ create table if not exists topics (
   blurb text
 );
 
--- Topic queue columns (SKILL_topic_queue.md): status, progress toward a
--- deck target, and the line position in pipeline/topics_queue.md.
+-- Topic queue columns: status (pending/complete), progress toward a deck
+-- target, and the line position in pipeline/topics_queue.md.
 alter table topics add column if not exists status text not null default 'pending';
 alter table topics add column if not exists decks_generated integer not null default 0;
 alter table topics add column if not exists target_decks integer not null default 18;
@@ -39,7 +39,7 @@ create table if not exists cards (
   unique (deck_id, order_index)
 );
 
--- Quiz card columns (SKILL_quiz.md). Concept cards are type 'concept'
+-- Quiz card columns. Concept cards are type 'concept'
 -- (the default) and keep the existing template/title/body layout; quiz
 -- cards are type 'quiz' and carry question/options/correct_option_id.
 -- tests_card_id names the order_index of the concept card the quiz tests
@@ -74,11 +74,10 @@ create table if not exists user_progress (
   primary key (user_id, topic_id)
 );
 
--- Resume position within the current in-progress deck (SKILL_profile_
--- progress.md). The card the user was on, updated throttled as they
--- scroll and reset to 0 the moment a deck is completed, so the next deck
--- starts clean. Exists for both signed-in users and guests (guests keep
--- it in the local mirror instead).
+-- Resume position within the current in-progress deck: the card the user
+-- was on, saved throttled as they scroll and reset to 0 when a deck is
+-- completed, so the next deck starts clean. Exists for both signed-in
+-- users and guests (guests keep it in the local mirror instead).
 alter table user_progress add column if not exists last_viewed_card_index integer not null default 0;
 
 -- Concept-level coverage tracking for the automated pipeline. One row
@@ -104,9 +103,9 @@ create table if not exists generation_runs (
   ran_at timestamptz not null default now()
 );
 
--- Authenticated accounts (SKILL_auth.md). id is the Supabase Auth user
--- id (a UUID), stored as text so it matches the existing user_id columns
--- on user_progress and quiz_answers. Only the minimal profile fields the
+-- Authenticated accounts. id is the Supabase Auth user id (a UUID),
+-- stored as text so it matches the existing user_id columns on
+-- user_progress and quiz_answers. Only the minimal profile fields the
 -- feature needs are kept: email, display name, and avatar. leaderboard_
 -- opt_in defaults false: visibility is opt-in, never opt-out.
 create table if not exists users (
@@ -118,8 +117,8 @@ create table if not exists users (
   created_at timestamptz not null default now()
 );
 
--- Account-level daily streak (SKILL_auth.md): did this user complete at
--- least one deck, on any topic, today. One row per user, keyed by the
+-- Account-level daily streak: did this user complete at least one deck,
+-- on any topic, today. One row per user, keyed by the
 -- same Supabase Auth user id as users.id.
 create table if not exists user_streaks (
   user_id text primary key references users(id) on delete cascade,

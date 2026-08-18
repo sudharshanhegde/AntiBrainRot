@@ -32,7 +32,7 @@ function toCard(r) {
 // reads pre-generated, pre-reviewed rows. A new user (no progress) is
 // served deck 0, which is how existing content gives them context. The
 // user id is taken from the verified JWT when one is sent, falling back
-// to the anonymous query parameter otherwise (SKILL_auth.md).
+// to the anonymous query parameter otherwise.
 feedRouter.get("/", optionalUserId, async (req, res) => {
   try {
     const topicId = Number(req.query.topic_id);

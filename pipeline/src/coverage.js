@@ -64,8 +64,8 @@ export function nextDeckIndex(manifest) {
 
 // Records a reviewed deck into the manifest, recomputing depth_reached
 // and the flattened covered-concept list. Returns the updated manifest.
-// Only concept cards register titles and concepts; quiz cards
-// (SKILL_quiz.md) have no title or concept and must not pollute the
+// Only concept cards register titles and concepts; quiz cards have no
+// title or concept and must not pollute the
 // overlap context or the coverage registry.
 export function recordReviewedDeck(manifest, deck) {
   const decks = (manifest.decks || []).filter(

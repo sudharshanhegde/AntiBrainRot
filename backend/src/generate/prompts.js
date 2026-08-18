@@ -1,6 +1,6 @@
 // Prompt builders for the automated generation job.
 //
-// Two modes (SKILL_topic_queue.md): when curated sources exist for a
+// Two modes: when curated sources exist for a
 // topic, generation is grounded on them and validation checks claims
 // against them. When no sources exist, generation uses DeepSeek's own
 // knowledge and validation is a self-check that flags any claim the
@@ -9,7 +9,7 @@
 // In both modes the already-covered concepts (from covered_concepts)
 // and prior deck titles are included so the model never repeats itself.
 //
-// SKILL_quiz.md: every concept card is immediately followed by a quiz
+// Every concept card is immediately followed by a quiz
 // card that tests it. A deck is 20 cards: concept, quiz, concept, quiz,
 // repeated.
 

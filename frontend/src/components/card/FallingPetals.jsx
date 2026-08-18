@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-// One-shot correct-answer celebration (SKILL_quiz.md). A brief burst of
+// One-shot correct-answer celebration. A brief burst of
 // falling petals, under roughly a second, plays once and does not loop.
 // When prefers-reduced-motion is set, the motion is skipped entirely and
 // a simple static checkmark is shown instead. The component has no

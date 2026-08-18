@@ -6,7 +6,7 @@ export function difficultyForDeckIndex(index) {
   return "advanced";
 }
 
-// SKILL_quiz.md: a deck is 20 cards, concept, quiz, concept, quiz,
+// A deck is 20 cards, concept, quiz, concept, quiz,
 // repeated. Even order_index (0, 2, ... 18) are concept cards; odd
 // (1, 3, ... 19) are quiz cards that test the concept immediately
 // before them.
@@ -125,7 +125,7 @@ ${sourceBlock(sources)}${manualQuizBlock(manualQuizzes)}`;
   ];
 }
 
-// SKILL_quiz.md adds quiz-specific judging to the checklist. The
+// Quiz-specific judging is added to the checklist. The
 // automated checks (schema shape, one matching correct_option_id,
 // unique options, em dash/emoji, word count) already ran separately.
 const VALIDATION_SYSTEM = `You are the validation pass for a content pipeline. Your job is to judge a draft deck, not to rewrite it. Given the draft, the same source material used in generation, and the list of prior deck titles, output pass/fail per card with a short reason.

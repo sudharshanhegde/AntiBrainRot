@@ -31,7 +31,7 @@ export async function insertReviewedDeck(topicSlug, deck) {
     const deckId = deckRes.rows[0].id;
 
     for (const card of deck.cards) {
-      // SKILL_quiz.md: quiz cards use the quiz columns and leave the
+      // Quiz cards use the quiz columns and leave the
       // concept-only fields empty; concept cards keep the existing
       // template/title/body layout. options is serialized so the jsonb
       // column is fed a JSON string.

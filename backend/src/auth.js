@@ -18,8 +18,8 @@ export const supabase = createClient(
   { realtime: { transport: ws } }
 );
 
-// Admin client for the one destructive operation, account deletion
-// (SKILL_profile_progress.md): it calls supabase.auth.admin.deleteUser to
+// Admin client for the one destructive operation, account deletion:
+// it calls supabase.auth.admin.deleteUser to
 // remove the underlying Supabase Auth user after the app-data rows are
 // gone. Requires the service-role key; without it, deletion of the auth
 // account is unavailable (the app-data delete is still performed but the

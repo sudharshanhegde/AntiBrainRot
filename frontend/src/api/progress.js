@@ -39,10 +39,10 @@ function write(progress) {
 // Marks a deck completed for a user. Fire and forget; the local mirror
 // is written as well so mock mode and offline dev still show cooldown.
 // The user's local calendar date is sent so the account-level daily
-// streak is counted in their own timezone (SKILL_auth.md). Completing a
+// streak is counted in their own timezone. Completing a
 // deck resets the resume position: the mirror entry is replaced without
 // a lastViewedCardIndex and the backend cache is dropped so the next
-// open starts at card 0 (SKILL_profile_progress.md).
+// open starts at card 0.
 export async function markDeckCompleted(topicSlug, deckIndex) {
   if (!USE_MOCK) {
     try {

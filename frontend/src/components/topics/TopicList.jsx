@@ -7,7 +7,7 @@ import { fetchTopics } from "../../api/feedService";
 import { fetchCooldownMap } from "../../api/progress";
 import { useAuth } from "../../auth/AuthContext";
 
-// Topic list for the chosen niche (SKILL_auth.md three-zone layout):
+// Topic list for the chosen niche (three-zone layout):
 //   left   - the daily streak indicator, smaller than the profile
 //            version, always visible so the user sees it every time they
 //            pick what to learn next,

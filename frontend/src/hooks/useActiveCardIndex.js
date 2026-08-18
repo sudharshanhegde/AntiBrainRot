@@ -8,8 +8,7 @@ import { useEffect, useState } from "react";
 //
 // This hook is also the seam where feed-API prefetching attaches: when
 // activeIndex approaches the last loaded card, the next deck chunk is
-// fetched well before the user reaches the boundary (SKILL_frontend.md,
-// motion and interaction rules).
+// fetched well before the user reaches the boundary.
 export function useActiveCardIndex(scrollRef, cardCount) {
   const [activeIndex, setActiveIndex] = useState(0);
 

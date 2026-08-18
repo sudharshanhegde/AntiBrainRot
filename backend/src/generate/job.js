@@ -51,7 +51,7 @@ function targetFor(slug) {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const QUEUE_FILE = join(__dirname, "..", "..", "..", "pipeline", "topics_queue.md");
-// Manual quiz overrides (SKILL_quiz.md): one file per card at
+// Manual quiz overrides: one file per card at
 // pipeline/manual_quizzes/<topic>/<deck_index>/<card_order_index>.json,
 // same quiz schema. When a file exists, that quiz card is used as-is and
 // no generation happens for it.
@@ -63,7 +63,7 @@ const MANUAL_QUIZ_DIR = join(__dirname, "..", "..", "..", "pipeline", "manual_qu
 // they match the product's timezone rather than the server's.
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 // Automatic generation may only start after 15:30 IST, i.e. after the
-// afternoon usage peak (SKILL scheduling requirement). Manual force runs
+// afternoon usage peak. Manual force runs
 // bypass this window entirely.
 const IST_AUTO_START_MIN = 15 * 60 + 30;
 
@@ -106,7 +106,7 @@ async function logRun({ topicId, topicSlug, deckIndex, status, reason, tokens })
   }
 }
 
-// Loads hand-written quiz cards for a deck (SKILL_quiz.md). Returns a
+// Loads hand-written quiz cards for a deck. Returns a
 // Map of order_index -> quiz card. A file at
 // manual_quizzes/<topic>/<deck_index>/<order_index>.json is used as-is:
 // the deck's generated quiz at that slot is replaced with it, so that
@@ -233,7 +233,7 @@ async function generateOneDeck(
       draft.topic = topicSlug;
       draft.difficulty = draft.difficulty || difficultyForDeckIndex(deckIndex);
       // Hand-written quiz cards override whatever the model produced for
-      // those slots (SKILL_quiz.md manual override path).
+      // those slots (manual override path).
       applyManualQuizzes(draft, manualQuizzes);
     } catch (err) {
       lastError = `generation error: ${err.message}`;
@@ -378,7 +378,7 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
     const coveredConcepts = covRes.rows.map((r) => r.concept_label);
 
     // Prior titles drive concept-overlap prevention, so only concept
-    // cards count; quiz cards (SKILL_quiz.md) carry no title.
+    // cards count; quiz cards carry no title.
     const titlesRes = await query(
       `select c.title from cards c
          join decks d on d.id = c.deck_id

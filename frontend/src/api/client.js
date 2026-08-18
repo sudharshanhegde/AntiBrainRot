@@ -23,7 +23,7 @@ export async function getTopicId(slug) {
   return topic.id;
 }
 
-// Auth-aware user id (SKILL_auth.md).
+// Auth-aware user id.
 //
 // When the user is signed in this returns the authenticated Supabase
 // user id (a UUID), kept in a module-level cache that AuthContext
@@ -78,8 +78,8 @@ export function clearAnonymousUserId() {
   }
 }
 
-// Read-only check for an existing guest id, used by the first-visit gate
-// (SKILL_profile_progress.md): if neither a session nor a guest id
+// Read-only check for an existing guest id, used by the first-visit gate:
+// if neither a session nor a guest id
 // exists, this is a genuine first visit. Deliberately does not create an
 // id, unlike getAnonymousUserId.
 export function hasGuestId() {

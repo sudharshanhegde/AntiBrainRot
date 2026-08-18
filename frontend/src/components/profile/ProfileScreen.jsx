@@ -12,13 +12,13 @@ import { resetToGuest } from "../../api/client";
 import { StreakIndicator } from "../ui/StreakIndicator";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 
-// Primary action button: sky blue, the completion/action color
-// (SKILL_profile_progress.md), so interactive actions on this page read
+// Primary action button: sky blue, the completion/action color, so
+// interactive actions on this page read
 // as buttons, never as plain text links.
 const PRIMARY_BTN =
   "w-full rounded-lg border border-accent-complete bg-accent-complete px-6 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-paper transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
 
-// The profile screen (SKILL_auth.md + SKILL_profile_progress.md): the
+// The profile screen: the
 // full-size streak indicator, account info, the leaderboard opt-in
 // toggle (default off), log out, and destructive account deletion behind
 // a real confirmation. Google is the default sign-in; email/password is

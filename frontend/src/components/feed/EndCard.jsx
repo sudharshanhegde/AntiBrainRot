@@ -4,7 +4,7 @@ import { useCardEnter } from "../../hooks/useCardEnter";
 // The deliberate stopping point at the end of a deck. States what was
 // just finished and offers one clear next action (explore another
 // topic), with a quiet "surprise me" alternative. Same token system as
-// the content cards; no gamification, per SKILL_frontend.md.
+// the content cards; no gamification.
 //
 // No aggregate quiz score is shown here: every quiz card already gives
 // instant right/wrong feedback, so an end-of-deck sum adds nothing and

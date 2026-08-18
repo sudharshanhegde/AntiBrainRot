@@ -12,7 +12,7 @@ const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
 // Returns the signed-in user's progress per topic with the computed
 // cooldown state, so the frontend can show "come back tomorrow" from the
 // authoritative server state instead of client-side storage. The user id
-// comes from the verified JWT, not a query parameter (SKILL_auth.md).
+// comes from the verified JWT, never a query parameter.
 progressRouter.get("/", requireAuth, async (req, res) => {
   try {
     const userId = req.userId;
@@ -62,7 +62,7 @@ progressRouter.get("/", requireAuth, async (req, res) => {
 // Marks a deck as completed for the signed-in user. The 24-hour cooldown
 // is derived from last_completed_at by this endpoint and the feed
 // endpoint. Runs as one transaction: the progress write and the
-// account-level streak side effect (SKILL_auth.md) commit together, so a
+// account-level streak side effect commit together, so a
 // partial failure cannot record one without the other.
 progressRouter.post("/", requireAuth, async (req, res) => {
   try {
@@ -84,8 +84,7 @@ progressRouter.post("/", requireAuth, async (req, res) => {
            last_deck_index_completed = excluded.last_deck_index_completed,
            last_completed_at = now(),
            niche = coalesce(excluded.niche, user_progress.niche),
-           -- Reset the resume position: the next deck starts at card 0
-           -- (SKILL_profile_progress.md).
+           -- Reset the resume position: the next deck starts at card 0.
            last_viewed_card_index = 0`,
         [req.userId, topic_id, deck_index, niche || null]
       );

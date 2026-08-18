@@ -1,4 +1,4 @@
-// The daily-streak indicator (SKILL_auth.md): a flame glyph paired with
+// The daily-streak indicator: a flame glyph paired with
 // the day count, register-style monospace like every other number in the
 // app. The flame is a graphic SVG element in the token system (warm
 // accent), deliberately not an emoji character — text content stays

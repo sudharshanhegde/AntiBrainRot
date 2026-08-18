@@ -1,8 +1,8 @@
 import { topicPalette } from "../../data/topics";
 
 // A slide-in drawer listing a topic's days (Day 0, Day 1, ...), opened
-// from the feed's hamburger. This is where completed days are marked
-// (SKILL_profile_progress.md): finished days are shown in the sky-blue
+// from the feed's hamburger. This is where completed days are marked:
+// finished days are shown in the sky-blue
 // completion color with a "done" label, the in-progress day is available
 // to play, and future days show their status. Completed and available
 // days can be opened; cooldown and locked days are not clickable.

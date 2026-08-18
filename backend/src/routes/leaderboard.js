@@ -8,7 +8,7 @@ export const leaderboardRouter = Router();
 //
 // Ranked by daily streak. Only users who opted in (leaderboard_opt_in)
 // are visible, and only name/avatar/streak are ever exposed, never
-// emails (SKILL_auth.md). current_streak is the primary sort key,
+// emails. current_streak is the primary sort key,
 // longest_streak breaks ties, then name for a stable order. Users who
 // opted in but have never completed a deck are omitted rather than
 // filling the list with zeros.

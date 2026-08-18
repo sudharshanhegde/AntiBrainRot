@@ -66,8 +66,8 @@ export default function App() {
     return <StatusScreen label="loading" title="antibrainrot" />;
   }
 
-  // First-visit gate (SKILL_profile_progress.md): only for genuinely new
-  // browsers (no session, no guest id, never seen the gate). Content does
+  // First-visit gate: only for genuinely new browsers (no session, no
+  // guest id, never seen the gate). Content does
   // not load until a choice is made; any choice marks the browser as
   // visited so the gate never re-shows for it.
   const firstVisit =
@@ -116,7 +116,7 @@ export default function App() {
     setRevisionDeckIndex(revisionIndex);
     setSurpriseNotice(null);
     // Resume: opening a topic lands in the current in-progress deck at
-    // the card the user was last on (SKILL_profile_progress.md). Revision
+    // the card the user was last on. Revision
     // reads start fresh at card 0.
     let resume = 0;
     if (revisionIndex == null) {

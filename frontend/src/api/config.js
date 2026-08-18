@@ -1,7 +1,7 @@
 // Frontend API configuration.
 //
 // The frontend talks to the Express backend for content and progress, and
-// to Supabase Auth directly for sign-in (SKILL_auth.md). Set VITE_API_URL
+// to Supabase Auth directly for sign-in. Set VITE_API_URL
 // in frontend/.env (copy .env.example) when the API is not on
 // localhost:4000, and VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY for
 // auth. The anon key is a public value; it is safe to ship in the bundle.

@@ -1,9 +1,9 @@
-// Automated, machine-checkable validation rules from SKILL.md and
-// SKILL_frontend.md. These run on every generated string before a deck
+// Automated, machine-checkable validation rules. These run on every
+// generated string before a deck
 // can be accepted. Anything failing here is rejected and sent back for
 // regeneration, never manually patched.
 
-// SKILL_quiz.md: a deck is now concept, quiz, concept, quiz, repeated.
+// A deck alternates concept, quiz, concept, quiz, repeated.
 // 10 concepts plus their 10 quiz cards = 20 cards. Even positions are
 // concept cards, odd positions are the quiz that immediately follows.
 export const DECK_SIZE = 20;
@@ -32,7 +32,7 @@ function checkString(text, label) {
   return issues;
 }
 
-// SKILL_quiz.md validation checklist for a quiz card:
+// Validation checklist for a quiz card:
 // - exactly one correct_option_id matching one of the four option ids
 // - no duplicate option text among the four choices
 // - question and options pass the em dash / emoji checks

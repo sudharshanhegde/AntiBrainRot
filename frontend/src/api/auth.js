@@ -54,7 +54,7 @@ export async function updateLeaderboardOptIn(leaderboardOptIn) {
   return res.json();
 }
 
-// Permanently deletes the account (SKILL_profile_progress.md). The
+// Permanently deletes the account. The
 // backend removes quiz answers, progress, the streak, and the users row
 // in one transaction, then the Supabase Auth user. The frontend then
 // signs out and resets to guest state.

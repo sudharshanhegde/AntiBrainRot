@@ -7,7 +7,7 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config";
 // autoRefreshToken stays enabled (the default) and AuthContext mounts an
 // onAuthStateChange listener at the app root, so the access token
 // refreshes in the background and the user stays signed in instead of
-// quietly logging out (SKILL_auth.md).
+// quietly logging out.
 export const supabase = createClient(
   SUPABASE_URL || "https://placeholder.supabase.co",
   SUPABASE_ANON_KEY || "placeholder"

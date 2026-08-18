@@ -1,4 +1,4 @@
-// First-visit gate (SKILL_profile_progress.md): the one deliberate
+// First-visit gate: the one deliberate
 // blocking moment in the app, shown only for genuinely first-time
 // visitors (no active session and no existing guest id). Three equal
 // choices, none visually subordinate: register, log in, or continue as a

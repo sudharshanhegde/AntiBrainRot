@@ -3,7 +3,7 @@ import { fetchLeaderboard } from "../../api/auth";
 import { useAuth } from "../../auth/AuthContext";
 import { StreakIndicator } from "../ui/StreakIndicator";
 
-// The leaderboard (SKILL_auth.md): ranked by daily streak. Only users
+// The leaderboard: ranked by daily streak. Only users
 // who opted in appear, and only name/avatar/streak are shown — never
 // emails. Rows use the same register-style numeric treatment as deck
 // position counters: a name plus a monospace streak number, not a badge

@@ -12,7 +12,7 @@ export const quizzesRouter = Router();
 // the card's stored correct_option_id, never trusted from the client.
 // One row per (user_id, card_id): revisiting a card and changing the
 // answer updates that row, so end-of-deck scoring always reflects the
-// latest answer (SKILL_quiz.md).
+// latest answer.
 quizzesRouter.post("/answer", requireAuth, async (req, res) => {
   try {
     const { card_id, selected_option_id } = req.body || {};

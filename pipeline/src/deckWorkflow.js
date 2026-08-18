@@ -24,7 +24,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCES_DIR = join(ROOT, "sources");
 export const GENERATED_DIR = join(ROOT, "generated");
 export const REVIEWED_DIR = join(ROOT, "reviewed");
-// Manual quiz overrides (SKILL_quiz.md): one file per card at
+// Manual quiz overrides: one file per card at
 // manual_quizzes/<topic>/<deck_index>/<card_order_index>.json, same
 // quiz schema. When a file exists, that quiz card is used as-is and no
 // generation happens for it.
@@ -52,7 +52,7 @@ export async function loadSources(topicSlug) {
   return sources;
 }
 
-// Loads hand-written quiz cards for a deck (SKILL_quiz.md). Returns a
+// Loads hand-written quiz cards for a deck. Returns a
 // Map of order_index -> quiz card. A file at
 // manual_quizzes/<topic>/<deck_index>/<order_index>.json is used as-is:
 // the deck's generated quiz at that slot is replaced with it, so that
@@ -122,7 +122,7 @@ export async function generateDeck(topicSlug, deckIndex, { dryRun = false, feedb
   if (!manifest) manifest = createManifest(topicSlug);
 
   // Hand-written quiz cards override whatever the model would produce for
-  // those slots (SKILL_quiz.md manual override path).
+  // those slots (manual override path).
   const manualQuizzes = await loadManualQuizzes(topicSlug, deckIndex);
 
   const messages = buildGenerationMessages(topicSlug, deckIndex, sources, manifest, manualQuizzes);

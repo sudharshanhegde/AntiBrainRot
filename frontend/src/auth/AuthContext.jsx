@@ -10,7 +10,7 @@ import {
 
 const AuthContext = createContext(null);
 
-// Wraps the whole app. Responsibilities (SKILL_auth.md):
+// Wraps the whole app. Responsibilities:
 // - restore the persisted Supabase session on load,
 // - mount a single onAuthStateChange listener at the root so the access
 //   token refreshes in the background (autoRefreshToken stays enabled)

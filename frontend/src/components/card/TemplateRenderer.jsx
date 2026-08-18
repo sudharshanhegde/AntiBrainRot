@@ -5,7 +5,7 @@ import { QuizCard } from "./QuizCard";
 
 // Dispatches a card to its component. Concept cards go by their template
 // tag that the content pipeline assigned during generation; quiz cards
-// (SKILL_quiz.md) render the interactive QuizCard regardless of template.
+// render the interactive QuizCard regardless of template.
 export function TemplateRenderer({ card, accent }) {
   if (card.type === "quiz") {
     return <QuizCard card={card} accent={accent} />;

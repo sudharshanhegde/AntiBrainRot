@@ -2,7 +2,7 @@ import { useState } from "react";
 import { submitQuizAnswer } from "../../api/quizzes";
 import { FallingPetals } from "./FallingPetals";
 
-// quiz template (SKILL_quiz.md): one question, four tappable options,
+// quiz template: one question, four tappable options,
 // one tap to answer, no typing, no multi-step interaction. The correct
 // answer is evaluated against the card's correct_option_id.
 //

@@ -10,8 +10,8 @@ function HamburgerIcon() {
   );
 }
 
-// Persistent hamburger menu in the app's top chrome (SKILL_profile_
-// progress.md): a single icon button that opens a slide-in sheet with a
+// Persistent hamburger menu in the app's top chrome: a single icon
+// button that opens a slide-in sheet with a
 // list of entries, at minimum "Profile". Reused across screens so the
 // chrome stays consistent; the sheet is styled like the days drawer, not
 // a new visual language. The menu closes before an entry's action runs.

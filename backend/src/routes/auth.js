@@ -5,8 +5,8 @@ import { requireAuth, supabaseAdmin, isAdminConfigured } from "../auth.js";
 export const authRouter = Router();
 
 // Maps a verified Supabase Auth user to the minimal profile we store:
-// email, display name, avatar. Nothing beyond name/avatar/email is pulled
-// (SKILL_auth.md). Google's provider puts full_name/avatar_url in
+// email, display name, avatar. Nothing beyond name/avatar/email is pulled.
+// Google's provider puts full_name/avatar_url in
 // user_metadata; email/password puts name in user_metadata too.
 function profileFromUser(u) {
   const meta = u.user_metadata || {};
@@ -73,7 +73,7 @@ authRouter.get("/me", requireAuth, async (req, res) => {
 // body: { leaderboard_opt_in: boolean }
 // The account-settings toggle. Leaderboard visibility is opt-in, default
 // false, so a user who just wants to save progress is never public by
-// default (SKILL_auth.md).
+// default.
 authRouter.patch("/me", requireAuth, async (req, res) => {
   try {
     const value = req.body?.leaderboard_opt_in;
@@ -108,8 +108,8 @@ authRouter.patch("/me", requireAuth, async (req, res) => {
 // One-time migration of anonymous progress: reassigns every row in
 // user_progress and quiz_answers from the old localStorage-generated id
 // to the authenticated user id. Runs in a single transaction so a
-// partial failure cannot leave progress split across two ids
-// (SKILL_auth.md). The frontend clears localStorage's anonymous id only
+// partial failure cannot leave progress split across two ids. The
+// frontend clears localStorage's anonymous id only
 // after this succeeds.
 authRouter.post("/migrate", requireAuth, async (req, res) => {
   const localUserId = String(req.body?.local_user_id || "").trim();
@@ -149,8 +149,8 @@ authRouter.post("/migrate", requireAuth, async (req, res) => {
 //
 // Permanently deletes the account: quiz answers, progress, the streak,
 // and the users row in a single transaction, and only then removes the
-// Supabase Auth user via the service-role admin API. The ordering matters
-// (SKILL_profile_progress.md): if the app-data deletes fail, the auth
+// Supabase Auth user via the service-role admin API. The ordering matters:
+// if the app-data deletes fail, the auth
 // account is left untouched; the admin delete runs only after they have
 // committed, so a failure partway cannot leave an orphaned auth account
 // with no app data or app data with no auth account behind it.

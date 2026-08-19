@@ -28,6 +28,13 @@ import { loadSources } from "./sources.js";
 const MAX_ATTEMPTS = 2; // one generation + one retry, hard cap
 const DAILY_CALL_LIMIT = Number(process.env.DAILY_CALL_LIMIT || 30);
 const DEFAULT_TARGET_DECKS = Number(process.env.DEFAULT_TARGET_DECKS || 18);
+// Max decks attempted per daily run across all topics. Bounds daily
+// spend regardless of how many topics are pending: each deck costs two
+// LLM calls (generate + validate), plus a possible retry, so a budget of
+// N means roughly 2N-4N calls per day. The queue order decides which
+// topics advance first. Lower this to cut cost; raise it to ship content
+// faster.
+const DAILY_DECK_BUDGET = Number(process.env.DAILY_DECK_BUDGET || 6);
 
 // Per-topic deck targets. Deep topics need far more than a few days, so
 // each topic gets a target sized to how long it takes to cover properly.
@@ -363,8 +370,13 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
 
   const state = { calls: 0, totalTokens: 0 };
   const results = [];
+  let decksAttempted = 0;
 
   for (const t of activeRows) {
+    if (decksAttempted >= DAILY_DECK_BUDGET) {
+      results.push({ status: "skipped", topic_slug: t.slug, reason: "daily deck budget reached" });
+      continue;
+    }
     if (state.calls >= DAILY_CALL_LIMIT) {
       results.push({ status: "skipped", topic_slug: t.slug, reason: "daily DeepSeek call limit reached" });
       continue;
@@ -408,6 +420,7 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
       state
     );
     results.push(result);
+    decksAttempted += 1;
   }
 
   return { status: "success", results };

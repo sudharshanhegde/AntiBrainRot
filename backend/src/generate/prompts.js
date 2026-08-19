@@ -90,6 +90,26 @@ function bulletList(items, emptyLabel) {
   return items && items.length ? items.map((c) => `  - ${c}`).join("\n") : `  (${emptyLabel})`;
 }
 
+// Cost control: the "already covered" context is capped to the most
+// recent entries. Overlap-prevention only needs the decks closest to the
+// one being generated, and the covered_concepts unique constraint in the
+// database is the hard guard against real duplicates. Sending the entire
+// history would grow the prompt on every call as a topic deepens, which
+// steadily raises input-token cost.
+const MAX_COVERED_CONCEPTS = 40;
+const MAX_PRIOR_TITLES = 30;
+
+function recent(items, max) {
+  if (!items || items.length === 0) return [];
+  return items.slice(-max);
+}
+
+// Labels a section with how many entries are shown when the full list is
+// longer, so the model knows the context was trimmed.
+function contextHeading(label, shown, total) {
+  return total > shown ? `${label} (most recent ${shown} of ${total})` : label;
+}
+
 // The manual_quizzes map (order_index -> quiz card) is included so the
 // model knows which quiz slots are already hand-written and does not
 // waste tokens inventing them; those slots are replaced as-is after the
@@ -120,11 +140,11 @@ export function buildGenerationMessages(
 Deck index: ${deckIndex}
 Difficulty: ${difficulty} (assumes all lower decks are already known to the reader)
 
-Already covered concepts (do not repeat these):
-${bulletList(coveredConcepts, "none yet")}
+${contextHeading("Already covered concepts (do not repeat these)", MAX_COVERED_CONCEPTS, (coveredConcepts || []).length)}:
+${bulletList(recent(coveredConcepts, MAX_COVERED_CONCEPTS), "none yet")}
 
-Prior deck titles for overlap context:
-${bulletList(priorTitles, "none yet")}
+${contextHeading("Prior deck titles for overlap context", MAX_PRIOR_TITLES, (priorTitles || []).length)}:
+${bulletList(recent(priorTitles, MAX_PRIOR_TITLES), "none yet")}
 
 ${sourceSection}${manualQuizBlock(manualQuizzes)}`;
 
@@ -184,11 +204,11 @@ export function buildValidationMessages(topicSlug, deckIndex, draft, coveredConc
   const user = `Topic: ${topicSlug}
 Deck index: ${deckIndex}
 
-Already covered concepts for this topic:
-${bulletList(coveredConcepts, "none yet")}
+${contextHeading("Already covered concepts for this topic", MAX_COVERED_CONCEPTS, (coveredConcepts || []).length)}:
+${bulletList(recent(coveredConcepts, MAX_COVERED_CONCEPTS), "none yet")}
 
-Prior deck titles for this topic:
-${bulletList(priorTitles, "none yet")}
+${contextHeading("Prior deck titles for this topic", MAX_PRIOR_TITLES, (priorTitles || []).length)}:
+${bulletList(recent(priorTitles, MAX_PRIOR_TITLES), "none yet")}
 
 ${grounded ? `Source material:\n${sourceBlock(sources)}` : "No source material was provided; validate against your own knowledge and flag anything you are not confident about."}
 

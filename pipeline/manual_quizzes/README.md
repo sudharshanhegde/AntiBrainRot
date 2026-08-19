@@ -1,4 +1,4 @@
-# Manual quiz overrides (SKILL_quiz.md)
+# Manual quiz overrides
 
 Hand-written quiz cards live in this directory and are used as-is during
 generation, skipping the DeepSeek call for that card entirely.

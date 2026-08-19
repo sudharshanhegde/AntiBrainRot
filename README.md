@@ -146,7 +146,15 @@ npm run worker:dry     # print the prompts without calling DeepSeek
 npm run worker:once    # generate, validate, and publish one cycle
 ```
 
-See [`SKILL_pipeline.md`](SKILL_pipeline.md) for details.
+The pipeline generates and validates decks in two separate passes:
+
+- `npm run generate -- <topic> <deck-index>` — pass 1, writes a draft to
+  `pipeline/generated/`.
+- `npm run validate -- <topic> <deck-index>` — pass 2, validates a draft
+  and, on success, promotes it to `pipeline/reviewed/`.
+- `npm run worker:once` — a full cycle (generate + validate + publish to
+  the backend via `POST /api/decks`).
+- `npm run worker` — loop on a schedule (default 24h).
 
 ## Auth setup (one-time)
 
@@ -180,16 +188,12 @@ email/password as a fallback. One-time configuration:
 
 ## Contributing
 
-The internal agent skills in the repository root (`SKILL.md`,
-`SKILL_*.md`) document how the content pipeline and features are built.
-They are gitignored and intended as development references, not shipped
-documentation.
-
 When contributing:
 
-- Keep card content within the rules in `SKILL.md`: 100-200 word bodies,
-  no em dashes, no emojis.
-- Keep UI copy consistent with the frontend skill.
+- Keep concept-card bodies to 100-200 words, each immediately followed by
+  a quiz card that tests it.
+- No em dashes and no emojis in card content or UI copy.
+- Keep the deck shape consistent (20 cards, alternating concept and quiz).
 - Document any change that affects how the pipeline or features work.
 
 ## License

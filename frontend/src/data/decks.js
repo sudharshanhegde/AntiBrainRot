@@ -459,6 +459,81 @@ const networkSecurity = [
   },
 ];
 
+const quantitativeAptitude = [
+  {
+    card_id: 801,
+    order_index: 0,
+    type: "concept",
+    template: "text_only",
+    title: "Percent change uses the new base each time",
+    body: "Percent change measures a ratio scaled to 100, and the base matters at every step. A 10 percent rise means multiply the current value by 1.10. A 10 percent fall means multiply by 0.90. Apply both in sequence and the result is 0.99 times the original, not 1.00, because each step acts on a different base: the rise uses the original value, while the fall uses the larger risen value. This is the classic trap in interview problems, and the fix is to always ask 'percent of what'. Working in factors of the base instead of adding and subtracting percentage points makes compounding cases correct, like successive discounts or interest. A 20 percent discount followed by another 10 percent is 0.80 times 0.90, which is 0.72, a total of 28 percent off, not 30 percent. Keep the base explicit and the arithmetic stays honest.",
+    code_snippet: null,
+    diagram_ref: null,
+  },
+  {
+    card_id: 802,
+    order_index: 1,
+    type: "quiz",
+    tests_card_id: 0,
+    question: "Why does a 10% rise followed by a 10% fall not return to the starting value?",
+    options: [
+      { id: "a", text: "Each step is computed on a different base" },
+      { id: "b", text: "Percentages ignore the starting value" },
+      { id: "c", text: "The rise and the fall always cancel" },
+      { id: "d", text: "Only the second step uses a base" },
+    ],
+    correct_option_id: "a",
+  },
+  {
+    card_id: 803,
+    order_index: 2,
+    type: "concept",
+    template: "text_only",
+    title: "Speed equals distance divided by time",
+    body: "Speed is the ratio of distance to time, written as distance divided by time, and the units of the answer depend on the units you used. A car that covers 120 kilometers in 2 hours travels at 60 kilometers per hour. The same idea works with meters and seconds, so converting between units is what trips people up. One kilometer per hour is 1000 meters per 3600 seconds, which is 5 over 18 meters per second. Converting km/h to m/s therefore means dividing by 3.6, and converting back means multiplying by 3.6. Interview questions usually mix units on purpose, a distance in meters and a time in minutes, so convert everything to a common pair before dividing. Keep track of the units and the formula stays a single multiplication or division instead of a memorized special case.",
+    code_snippet: null,
+    diagram_ref: null,
+  },
+  {
+    card_id: 804,
+    order_index: 3,
+    type: "quiz",
+    tests_card_id: 2,
+    question: "How do you convert a speed from km/h to m/s?",
+    options: [
+      { id: "a", text: "Divide by 3.6" },
+      { id: "b", text: "Multiply by 3.6" },
+      { id: "c", text: "Divide by 60" },
+      { id: "d", text: "Subtract 3.6" },
+    ],
+    correct_option_id: "a",
+  },
+  {
+    card_id: 805,
+    order_index: 4,
+    type: "concept",
+    template: "text_only",
+    title: "Work rates add when people work together",
+    body: "Work problems describe how long a task takes, and the useful quantity is the rate, the fraction of the task finished per unit of time. If one worker can finish a job in 6 hours, their rate is one sixth of the job per hour. A second worker who finishes the same job in 3 hours has a rate of one third per hour. Working together, the two rates add: one sixth plus one third is one half of the job per hour, so the shared job takes 2 hours. This is why you invert the times, add the rates, then invert the sum. A common mistake is adding the times directly, which only gives the right answer when the times are equal. When one person joins partway, the rates add for the overlapping stretch and the completed portions must be accounted for separately. Express every quantity as a rate and the problem reduces to adding fractions.",
+    code_snippet: null,
+    diagram_ref: null,
+  },
+  {
+    card_id: 806,
+    order_index: 5,
+    type: "quiz",
+    tests_card_id: 4,
+    question: "When two workers work together, how do their individual rates combine?",
+    options: [
+      { id: "a", text: "Their rates add" },
+      { id: "b", text: "Their times add" },
+      { id: "c", text: "The faster rate dominates" },
+      { id: "d", text: "The rates multiply" },
+    ],
+    correct_option_id: "a",
+  },
+];
+
 export const deckStore = {
   "operating-systems": placeholderDeck.cards,
   "computer-networks": computerNetworks,
@@ -467,4 +542,5 @@ export const deckStore = {
   databases,
   "network-security": networkSecurity,
   "network-protocols": networkProtocols,
+  "quantitative-aptitude": quantitativeAptitude,
 };

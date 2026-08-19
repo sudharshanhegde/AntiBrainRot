@@ -55,6 +55,12 @@ const TOPICS = [
     accent: "accent-proto",
     blurb: "The layered stack behind every packet, frame by frame.",
   },
+  {
+    slug: "quantitative-aptitude",
+    name: "Quantitative Aptitude",
+    accent: "accent-apt",
+    blurb: "The math and reasoning problems asked in interviews and aptitude tests.",
+  },
 ];
 
 async function upsertTopic(t) {

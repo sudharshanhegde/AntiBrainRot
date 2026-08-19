@@ -17,3 +17,4 @@ computer-organization-and-architecture
 artificial-intelligence
 network-security
 network-protocols
+quantitative-aptitude

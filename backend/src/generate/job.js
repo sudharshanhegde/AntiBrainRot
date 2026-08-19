@@ -43,6 +43,7 @@ const TARGET_BY_SLUG = {
   "artificial-intelligence": 100,
   "network-security": 120,
   "network-protocols": 120,
+  "quantitative-aptitude": 60,
 };
 
 function targetFor(slug) {

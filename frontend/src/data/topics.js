@@ -67,6 +67,13 @@ export const topicPalette = {
     blurb:
       "The layered stack behind every packet, frame by frame.",
   },
+  "quantitative-aptitude": {
+    name: "Quantitative Aptitude",
+    short: "APT",
+    accent: "accent-apt",
+    blurb:
+      "The math and reasoning problems asked in interviews and aptitude tests.",
+  },
 };
 
 // A niche decides which topics appear on the topic list. The content
@@ -86,6 +93,7 @@ export const niches = [
       "computer-organization-and-architecture",
       "artificial-intelligence",
       "network-security",
+      "quantitative-aptitude",
     ],
   },
   {
@@ -125,6 +133,7 @@ export const niches = [
       "network-security",
       "computer-organization-and-architecture",
       "artificial-intelligence",
+      "quantitative-aptitude",
     ],
   },
 ];

@@ -61,6 +61,12 @@ const TOPICS = [
     accent: "accent-apt",
     blurb: "The math and reasoning problems asked in interviews and aptitude tests.",
   },
+  {
+    slug: "cognitive-ability",
+    name: "Cognitive Ability",
+    accent: "accent-cog",
+    blurb: "The reasoning, word, and number questions used in aptitude assessments.",
+  },
 ];
 
 async function upsertTopic(t) {

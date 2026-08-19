@@ -74,6 +74,13 @@ export const topicPalette = {
     blurb:
       "The math and reasoning problems asked in interviews and aptitude tests.",
   },
+  "cognitive-ability": {
+    name: "Cognitive Ability",
+    short: "COG",
+    accent: "accent-cog",
+    blurb:
+      "The reasoning, word, and number questions used in aptitude assessments.",
+  },
 };
 
 // A niche decides which topics appear on the topic list. The content
@@ -94,6 +101,7 @@ export const niches = [
       "artificial-intelligence",
       "network-security",
       "quantitative-aptitude",
+      "cognitive-ability",
     ],
   },
   {
@@ -134,6 +142,7 @@ export const niches = [
       "computer-organization-and-architecture",
       "artificial-intelligence",
       "quantitative-aptitude",
+      "cognitive-ability",
     ],
   },
 ];

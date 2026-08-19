@@ -18,3 +18,4 @@ artificial-intelligence
 network-security
 network-protocols
 quantitative-aptitude
+cognitive-ability

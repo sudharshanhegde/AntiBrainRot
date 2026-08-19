@@ -30,6 +30,7 @@
   --color-accent-sec: #7A2E3B; /* deep wine, network security */
   --color-accent-proto: #0E7490; /* deep cyan, network protocols */
   --color-accent-apt: #3730A3; /* deep indigo, numbers and reasoning */
+  --color-accent-cog: #475569; /* graphite, reasoning and pattern tests */
 
   /* --- streak flame (SKILL_auth.md) ---
      A dedicated warm accent so the streak indicator reads as one
@@ -72,6 +73,7 @@
   --accent-sec: #7a2e3b;
   --accent-proto: #0e7490;
   --accent-apt: #3730a3;
+  --accent-cog: #475569;
   --accent-flame: #e8590c;
   --accent-complete: #1e88e5;
 }

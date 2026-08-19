@@ -44,6 +44,7 @@ const TARGET_BY_SLUG = {
   "network-security": 120,
   "network-protocols": 120,
   "quantitative-aptitude": 60,
+  "cognitive-ability": 60,
 };
 
 function targetFor(slug) {

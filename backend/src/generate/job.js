@@ -31,9 +31,9 @@ const DEFAULT_TARGET_DECKS = Number(process.env.DEFAULT_TARGET_DECKS || 18);
 // Max decks attempted per daily run across all topics. Bounds daily
 // spend regardless of how many topics are pending: each deck costs two
 // LLM calls (generate + validate), plus a possible retry, so a budget of
-// N means roughly 2N-4N calls per day. The queue order decides which
-// topics advance first. Lower this to cut cost; raise it to ship content
-// faster.
+// N means roughly 2N-4N calls per day. Which topics advance each day
+// rotates (see runDailyJob), so every topic is served evenly over time.
+// Lower this to cut cost; raise it to ship content faster.
 const DAILY_DECK_BUDGET = Number(process.env.DAILY_DECK_BUDGET || 6);
 
 // Per-topic deck targets. Deep topics need far more than a few days, so
@@ -370,9 +370,19 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
 
   const state = { calls: 0, totalTokens: 0 };
   const results = [];
+
+  // Rotate the batch each IST day so generation spreads evenly across all
+  // topics instead of always serving the first few in the queue. With 11
+  // topics and a budget of 6, day 1 serves the first 6, day 2 serves the
+  // next 6 (wrapping), and so on, so every topic advances regularly. The
+  // once-per-IST-day guard keeps the rotation stable.
+  const dayIndex = Math.floor((now + IST_OFFSET_MS) / 86400000);
+  const batchCount = Math.max(1, Math.ceil(activeRows.length / DAILY_DECK_BUDGET));
+  const batchStart = (dayIndex % batchCount) * DAILY_DECK_BUDGET;
+  const scoped = activeRows.slice(batchStart, batchStart + DAILY_DECK_BUDGET);
   let decksAttempted = 0;
 
-  for (const t of activeRows) {
+  for (const t of scoped) {
     if (decksAttempted >= DAILY_DECK_BUDGET) {
       results.push({ status: "skipped", topic_slug: t.slug, reason: "daily deck budget reached" });
       continue;

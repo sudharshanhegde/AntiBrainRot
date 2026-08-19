@@ -169,7 +169,7 @@ export function TopicList({
                   <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
                     {cooldown
                       ? `come back in ${cd.cooldown_remaining_hours}h`
-                      : "day 0"}
+                      : `day ${(cd?.last_deck_index_completed ?? -1) + 1}`}
                   </span>
                 </span>
                 <span className="font-sans text-[14px] leading-relaxed text-muted">

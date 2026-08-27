@@ -26,15 +26,20 @@ import { loadSources } from "./sources.js";
 // also alert the failure webhook.
 
 const MAX_ATTEMPTS = 2; // one generation + one retry, hard cap
-const DAILY_CALL_LIMIT = Number(process.env.DAILY_CALL_LIMIT || 30);
+// Hard cap on LLM calls per daily run (cost guardrail). With multiple
+// API keys load-balanced across topics, one deck costs ~2 calls (generate
+// + validate) plus a possible retry, so this comfortably covers every
+// active topic in a single run. Raise/lower as a safety net only.
+const DAILY_CALL_LIMIT = Number(process.env.DAILY_CALL_LIMIT || 80);
 const DEFAULT_TARGET_DECKS = Number(process.env.DEFAULT_TARGET_DECKS || 18);
-// Max decks attempted per daily run across all topics. Bounds daily
-// spend regardless of how many topics are pending: each deck costs two
-// LLM calls (generate + validate), plus a possible retry, so a budget of
-// N means roughly 2N-4N calls per day. Which topics advance each day
-// rotates (see runDailyJob), so every topic is served evenly over time.
-// Lower this to cut cost; raise it to ship content faster.
-const DAILY_DECK_BUDGET = Number(process.env.DAILY_DECK_BUDGET || 6);
+// Max decks attempted per daily run across all topics. Default 0 means
+// NO cap: with multiple API keys (load-balanced ~2 topics/key) every
+// active topic advances one deck per run, so content ships as fast as the
+// keys allow. Set a positive number to bound spend; that also re-enables
+// the day-to-day rotation (see runDailyJob) so the budget is spread
+// evenly across topics over time.
+const DAILY_DECK_BUDGET = Number(process.env.DAILY_DECK_BUDGET || 0);
+const UNLIMITED_DECK_BUDGET = DAILY_DECK_BUDGET <= 0;
 
 // Per-topic deck targets. Deep topics need far more than a few days, so
 // each topic gets a target sized to how long it takes to cover properly.
@@ -377,19 +382,25 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
   const state = { calls: 0, totalTokens: 0 };
   const results = [];
 
-  // Rotate the batch each IST day so generation spreads evenly across all
-  // topics instead of always serving the first few in the queue. With 11
-  // topics and a budget of 6, day 1 serves the first 6, day 2 serves the
-  // next 6 (wrapping), and so on, so every topic advances regularly. The
-  // once-per-IST-day guard keeps the rotation stable.
-  const dayIndex = Math.floor((now + IST_OFFSET_MS) / 86400000);
-  const batchCount = Math.max(1, Math.ceil(activeRows.length / DAILY_DECK_BUDGET));
-  const batchStart = (dayIndex % batchCount) * DAILY_DECK_BUDGET;
-  const scoped = activeRows.slice(batchStart, batchStart + DAILY_DECK_BUDGET);
+  // By default (no budget) every active topic is served each run: with
+  // multiple API keys the load is spread, so all topics advance one deck
+  // per run and content ships as fast as the keys allow. If a deck budget
+  // is set, rotate the batch each IST day so generation spreads evenly
+  // across all topics instead of always serving the first few in the
+  // queue. The once-per-IST-day guard keeps any rotation stable.
+  let scoped;
+  if (UNLIMITED_DECK_BUDGET) {
+    scoped = activeRows;
+  } else {
+    const dayIndex = Math.floor((now + IST_OFFSET_MS) / 86400000);
+    const batchCount = Math.max(1, Math.ceil(activeRows.length / DAILY_DECK_BUDGET));
+    const batchStart = (dayIndex % batchCount) * DAILY_DECK_BUDGET;
+    scoped = activeRows.slice(batchStart, batchStart + DAILY_DECK_BUDGET);
+  }
   let decksAttempted = 0;
 
   for (const t of scoped) {
-    if (decksAttempted >= DAILY_DECK_BUDGET) {
+    if (!UNLIMITED_DECK_BUDGET && decksAttempted >= DAILY_DECK_BUDGET) {
       results.push({ status: "skipped", topic_slug: t.slug, reason: "daily deck budget reached" });
       continue;
     }

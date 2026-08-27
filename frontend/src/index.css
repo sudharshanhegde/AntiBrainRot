@@ -11,6 +11,14 @@
     height: 100%;
   }
 
+  /* overscroll-behavior-x: none stops the browser from turning a
+     horizontal swipe into a back/forward navigation (which would leave
+     the app). Vertical pull-to-refresh/scroll is also disabled. */
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+
   body {
     background: var(--color-paper);
     color: var(--color-ink);
@@ -35,6 +43,10 @@
     overflow-y: scroll;
     scroll-snap-type: y mandatory;
     overscroll-behavior-y: none;
+    /* Stop a horizontal swipe from chaining into the browser's
+       back/forward gesture (which would leave the app) so only our
+       in-app swipe-to-exit runs. */
+    overscroll-behavior-x: none;
     scrollbar-width: none;
     /* Vertical pans stay fully native (top/bottom swipes move between
        cards); horizontal drags are delivered to the swipe-to-exit hook

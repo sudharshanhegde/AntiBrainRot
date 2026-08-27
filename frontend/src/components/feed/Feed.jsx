@@ -9,6 +9,15 @@ import { topicPalette } from "../../data/topics";
 import { fetchDeckChunk, fetchDays } from "../../api/feedService";
 import { saveViewedCardIndex } from "../../api/progress";
 import { useActiveCardIndex } from "../../hooks/useActiveCardIndex";
+import { useSwipeExit } from "../../hooks/useSwipeExit";
+
+// Maps the stored difficulty tier to the friendly name shown in the brief
+// "level" banner when a topic opens (fundamentals -> basics).
+const LEVEL_LABELS = {
+  fundamentals: "basics",
+  intermediate: "intermediate",
+  advanced: "advanced",
+};
 
 // The vertical scroll-snap feed. This is the single surface that opens
 // for a topic. Native CSS scroll-snap does the physics; no JS touch
@@ -47,9 +56,16 @@ export function Feed({
   // unmount. Only meaningful in normal play (deckTarget is null) and
   // never on the end card or after completion.
   const pendingSave = useRef({ timer: null, index: -1, slug: null });
+  // Brief "level" banner: shown once per open, auto-dismissed.
+  const [showLevelToast, setShowLevelToast] = useState(false);
+  const levelToastShownRef = useRef(false);
 
   const activeIndex = useActiveCardIndex(scrollRef, cards.length + (hasMore ? 0 : 1));
   const topic = topicPalette[topicSlug] || topicPalette["operating-systems"];
+
+  // A clearly horizontal swipe (left or right) exits back to topics
+  // without ever touching the vertical scroll that moves between cards.
+  useSwipeExit(scrollRef, onBack);
 
   // Reset to the initial day whenever the topic (re)opens.
   useEffect(() => {
@@ -159,6 +175,18 @@ export function Feed({
     };
   }, []);
 
+  // Show the difficulty tier (basics / intermediate / advanced) for a
+  // brief moment once the deck has loaded, so the user knows the level of
+  // content they are about to explore. Runs once per feed open.
+  useEffect(() => {
+    if (levelToastShownRef.current) return;
+    if (cards.length === 0) return;
+    levelToastShownRef.current = true;
+    setShowLevelToast(true);
+    const t = setTimeout(() => setShowLevelToast(false), 600);
+    return () => clearTimeout(t);
+  }, [cards.length]);
+
   const handleSelectDay = (day) => {
     // available -> play the next deck; completed -> re-read that day
     setDeckTarget(day.status === "completed" ? day.deck_index : null);
@@ -251,6 +279,16 @@ export function Feed({
           />
         )}
       </div>
+
+      {showLevelToast && (
+        <div className="level-toast" role="status" aria-live="polite">
+          <span className="level-toast-label">you're exploring</span>
+          <span className="level-toast-value">
+            {LEVEL_LABELS[meta.difficulty] || meta.difficulty}
+          </span>
+          <span className="level-toast-topic">level of {topic.name}</span>
+        </div>
+      )}
 
       {drawerOpen && (
         <DaysDrawer

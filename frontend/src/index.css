@@ -36,6 +36,10 @@
     scroll-snap-type: y mandatory;
     overscroll-behavior-y: none;
     scrollbar-width: none;
+    /* Vertical pans stay fully native (top/bottom swipes move between
+       cards); horizontal drags are delivered to the swipe-to-exit hook
+       instead of being taken by the browser. */
+    touch-action: pan-y;
   }
   .feed-scroll::-webkit-scrollbar {
     display: none;
@@ -179,6 +183,75 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .screen-in {
+      animation: none;
+    }
+  }
+
+  /* ---------------- level toast on topic open ---------------- */
+  /* Brief, non-blocking banner naming the difficulty tier of the deck
+     the user is about to explore (basics / intermediate / advanced).
+     Shows for ~0.6s then fades; pointer-events none so it never blocks
+     the feed. */
+  .level-toast {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    z-index: 40;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 1.1rem 1.7rem;
+    background: var(--color-ink);
+    color: var(--color-paper);
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+    animation: level-toast-in 180ms ease-out both, level-toast-out 260ms ease-in 340ms both;
+  }
+  .level-toast-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.62;
+  }
+  .level-toast-value {
+    font-family: var(--font-sans);
+    font-size: 22px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .level-toast-topic {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.62;
+  }
+  @keyframes level-toast-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.92);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+  }
+  @keyframes level-toast-out {
+    from {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translate(-50%, -50%) scale(0.96);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .level-toast {
       animation: none;
     }
   }

@@ -2,7 +2,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { query } from "../db.js";
-import { chat } from "./deepseek.js";
+import { chat, activeKeyCount, keyIndexFor } from "./deepseek.js";
 import { checkDeck } from "./checks.js";
 import {
   buildGenerationMessages,
@@ -216,6 +216,12 @@ async function generateOneDeck(
   let lastError = "unknown failure";
   const manualQuizzes = await loadManualQuizzes(topicSlug, deckIndex);
 
+  // Multi-key load balancing: each topic is pinned to one API key
+  // (~2 topics per key with 5 keys) so no single key hits its rate limit.
+  console.log(
+    `[generate] ${topicSlug} deck ${deckIndex} assigned to API key ${keyIndexFor(topicSlug) + 1}/${activeKeyCount()}`
+  );
+
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (state.calls >= DAILY_CALL_LIMIT) {
       const reason = "daily DeepSeek call limit exceeded";
@@ -235,7 +241,7 @@ async function generateOneDeck(
     let draft;
     try {
       state.calls++;
-      const gen = await chat(messages, { temperature: 0.2, json: true });
+      const gen = await chat(messages, { temperature: 0.2, json: true, topic: topicSlug });
       state.totalTokens += gen.tokens;
       draft = JSON.parse(gen.content);
       draft.deck_index = deckIndex;
@@ -273,7 +279,7 @@ async function generateOneDeck(
       state.calls++;
       const vres = await chat(
         buildValidationMessages(topicSlug, deckIndex, draft, coveredConcepts, priorTitles, sources),
-        { temperature: 0, json: true }
+        { temperature: 0, json: true, topic: topicSlug }
       );
       state.totalTokens += vres.tokens;
       verdict = JSON.parse(vres.content);

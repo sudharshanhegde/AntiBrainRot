@@ -147,7 +147,7 @@ export async function generateDeck(topicSlug, deckIndex, { dryRun = false, feedb
     return { dryRun: true, promptPath };
   }
 
-  const raw = await chat(messages, { temperature: 0.2, json: true });
+  const raw = await chat(messages, { temperature: 0.2, json: true, topic: topicSlug });
   let deck;
   try {
     deck = JSON.parse(raw);
@@ -185,7 +185,7 @@ export async function validateDeck(topicSlug, deckIndex, draft, { dryRun = false
     return { ok: false, errors: ["dry run: validation messages printed, not judged"] };
   }
 
-  const raw = await chat(messages, { temperature: 0, json: true });
+  const raw = await chat(messages, { temperature: 0, json: true, topic: topicSlug });
   let verdict;
   try {
     verdict = JSON.parse(raw);

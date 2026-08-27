@@ -208,7 +208,8 @@
     border-radius: 12px;
     text-align: center;
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
-    animation: level-toast-in 180ms ease-out both, level-toast-out 260ms ease-in 340ms both;
+    /* Fully visible until ~1.2s, then fades out by ~1.5s. */
+    animation: level-toast-in 220ms ease-out both, level-toast-out 300ms ease-in 1200ms both;
   }
   .level-toast-label {
     font-family: var(--font-mono);

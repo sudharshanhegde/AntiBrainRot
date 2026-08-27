@@ -175,15 +175,16 @@ export function Feed({
     };
   }, []);
 
-  // Show the difficulty tier (basics / intermediate / advanced) for a
-  // brief moment once the deck has loaded, so the user knows the level of
-  // content they are about to explore. Runs once per feed open.
+  // Show the difficulty tier (basics / intermediate / advanced) once the
+  // deck has loaded, so the user knows the level of content they are
+  // about to explore. Held ~1.5s (long enough to actually read), then
+  // fades out. Runs once per feed open.
   useEffect(() => {
     if (levelToastShownRef.current) return;
     if (cards.length === 0) return;
     levelToastShownRef.current = true;
     setShowLevelToast(true);
-    const t = setTimeout(() => setShowLevelToast(false), 600);
+    const t = setTimeout(() => setShowLevelToast(false), 1500);
     return () => clearTimeout(t);
   }, [cards.length]);
 

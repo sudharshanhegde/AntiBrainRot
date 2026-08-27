@@ -19,11 +19,17 @@ import OpenAI from "openai";
 // chat() takes { topic } to pick the right key; keyIndexFor(topic) exposes
 // the assignment for logging.
 
-const BASE_URL =
+// Normalize the base URL by stripping trailing slashes. Some OpenAI SDK
+// versions append "/chat/completions" without trimming, so a base URL that
+// ends in "/" becomes ".../openai//chat/completions", which the endpoint
+// answers with a bare 404 (no body). One trailing slash is exactly what
+// these OpenAI-compatible endpoints expect.
+const BASE_URL = (
   process.env.LLM_BASE_URL ||
   process.env.DEEPSEEK_BASE_URL ||
   process.env.GEMINI_BASE_URL ||
-  "https://api.deepseek.com";
+  "https://api.deepseek.com"
+).replace(/\/+$/, "");
 
 // Provider-aware default model. An OpenAI-compatible endpoint returns 404
 // when handed a model name it does not have, so the default must match the
@@ -118,9 +124,15 @@ export async function chat(messages, { temperature = 0.2, json = false, retries 
       const tokens = completion.usage ? completion.usage.total_tokens || 0 : 0;
       return { content, tokens };
     } catch (err) {
-      lastError = err;
+      // Enrich the error so the failure reason surfaces the real provider
+      // status/body (e.g. "400 [status 400] {"error":{"message":...}}").
+      const status = err && typeof err.status === "number" ? err.status : "";
+      const body = err && err.error ? JSON.stringify(err.error) : "";
+      lastError = new Error(
+        `${err.message}${status ? ` [status ${status}]` : ""}${body ? ` ${body}` : ""}`
+      );
       const transient = /fetch failed|ETIMEDOUT|ECONNRESET|ECONNREFUSED|socket hang up|network|timeout|429|rate limit|quota/i.test(
-        err && err.message ? err.message : String(err)
+        lastError.message
       );
       // Rate-limit / transient failures are retried so a key nearing its
       // quota does not abort a deck; the next attempt re-selects its key.

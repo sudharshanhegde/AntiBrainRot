@@ -14,11 +14,17 @@ import OpenAI from "openai";
 // variants). A topic always maps to the same key (stable hash) so the load
 // stays balanced day to day. chat() takes { topic } to pick the key.
 
-const BASE_URL =
+// Normalize the base URL by stripping trailing slashes. Some OpenAI SDK
+// versions append "/chat/completions" without trimming, so a base URL that
+// ends in "/" becomes ".../openai//chat/completions", which the endpoint
+// answers with a bare 404 (no body). One trailing slash is exactly what
+// these OpenAI-compatible endpoints expect.
+const BASE_URL = (
   process.env.LLM_BASE_URL ||
   process.env.DEEPSEEK_BASE_URL ||
   process.env.GEMINI_BASE_URL ||
-  "https://api.deepseek.com";
+  "https://api.deepseek.com"
+).replace(/\/+$/, "");
 
 // Provider-aware default model. An OpenAI-compatible endpoint returns 404
 // when handed a model name it does not have, so the default must match the

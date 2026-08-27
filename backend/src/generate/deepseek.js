@@ -19,16 +19,21 @@ import OpenAI from "openai";
 // chat() takes { topic } to pick the right key; keyIndexFor(topic) exposes
 // the assignment for logging.
 
-const MODEL =
-  process.env.LLM_MODEL ||
-  process.env.DEEPSEEK_MODEL ||
-  process.env.GEMINI_MODEL ||
-  "deepseek-chat";
 const BASE_URL =
   process.env.LLM_BASE_URL ||
   process.env.DEEPSEEK_BASE_URL ||
   process.env.GEMINI_BASE_URL ||
   "https://api.deepseek.com";
+
+// Provider-aware default model. An OpenAI-compatible endpoint returns 404
+// when handed a model name it does not have, so the default must match the
+// endpoint: a Gemini model for the Gemini endpoint, a DeepSeek model for
+// the DeepSeek endpoint. Explicit env vars (LLM_MODEL, then the
+// provider-specific ones) always win over the auto-detected default.
+const DEFAULT_MODEL = /generativelanguage\.googleapis\.com/i.test(BASE_URL)
+  ? process.env.GEMINI_MODEL || "gemini-2.0-flash"
+  : process.env.DEEPSEEK_MODEL || "deepseek-chat";
+const MODEL = process.env.LLM_MODEL || DEFAULT_MODEL;
 const MAX_KEYS = Number(process.env.LLM_KEY_COUNT || 5);
 
 // Ordered env-var groups, most generic first. The first group that yields

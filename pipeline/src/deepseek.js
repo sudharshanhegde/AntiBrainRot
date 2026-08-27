@@ -31,8 +31,12 @@ const BASE_URL = (
 // endpoint: a Gemini model for the Gemini endpoint, a DeepSeek model for
 // the DeepSeek endpoint. Explicit env vars (LLM_MODEL, then the
 // provider-specific ones) always win over the auto-detected default.
+// gemini-3.6-flash is what Gemini currently recommends for new projects;
+// older flash models (e.g. gemini-2.5-flash / gemini-2.0-flash) return
+// 404 "no longer available to new users". Override with LLM_MODEL /
+// GEMINI_MODEL if your project needs a specific model.
 const DEFAULT_MODEL = /generativelanguage\.googleapis\.com/i.test(BASE_URL)
-  ? process.env.GEMINI_MODEL || "gemini-2.0-flash"
+  ? process.env.GEMINI_MODEL || "gemini-3.6-flash"
   : process.env.DEEPSEEK_MODEL || "deepseek-chat";
 const MODEL = process.env.LLM_MODEL || DEFAULT_MODEL;
 const MAX_KEYS = Number(process.env.LLM_KEY_COUNT || 5);

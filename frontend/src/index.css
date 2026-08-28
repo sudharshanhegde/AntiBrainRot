@@ -39,7 +39,12 @@
 @layer components {
   /* ---------------- feed scroll mechanics ---------------- */
   .feed-scroll {
-    height: 100dvh;
+    /* Use the stable small-viewport height (svh). On Android, 100dvh
+       recalculates continuously as the browser URL bar shows/hides,
+       which shifts every snap target mid-scroll and reads as stutter.
+       svh is fixed, so snap offsets never change while scrolling. */
+    height: 100vh;
+    height: 100svh;
     overflow-y: scroll;
     scroll-snap-type: y mandatory;
     overscroll-behavior-y: none;
@@ -58,9 +63,13 @@
   }
 
   .feed-card {
-    height: 100dvh;
+    height: 100vh;
+    height: 100svh;
     scroll-snap-align: start;
-    scroll-snap-stop: always;
+    /* Deliberately no scroll-snap-stop: always. A hard stop at every
+       card makes the snap feel sticky and hitched on slower Android
+       devices; letting the browser coast to the nearest snap target
+       gives a smoother, more natural card-to-card glide. */
   }
 
   /* ---------------- panels: fixed sizes, zero layout shift ---------------- */

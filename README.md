@@ -78,8 +78,8 @@ A GitHub Actions workflow runs once a day and calls
    the deck job): generates a batch of short facts from the model's own
    knowledge, validates with a self-check pass plus the same mechanical
    checks, and publishes the passing bites with their `covered_facts`
-   labels, stamped with today's date. Batch size defaults to 10 for
-   testing; set `QUICK_BITES_BATCH_SIZE` (up to 80) to scale.
+   labels, stamped with today's date. Batch size defaults to 80 a day;
+   tune with `QUICK_BITES_BATCH_SIZE`.
 
 To add a topic, append one slug to `pipeline/topics_queue.md` and push. The
 pipeline picks it up on its next daily run.

@@ -114,13 +114,25 @@ export function ProfileScreen({ onBack, onDeleted, initialNotice = null }) {
     setError(null);
     try {
       await deleteAccount();
-      await signOut();
-      resetToGuest();
-      if (onDeleted) onDeleted();
     } catch (err) {
+      // The backend deletes the app data (progress, streak, quiz answers,
+      // the users row) in a transaction before it removes the Supabase
+      // Auth account. If that final auth removal fails (for example the
+      // service-role key is not configured), the app data is still gone,
+      // so we still sign out and reset to a fresh guest rather than
+      // trapping the user on a logged-in account that no longer has any
+      // data. The failure is surfaced as a notice, not a dead end.
       setError(err.message || "could not delete account");
-      setDeleting(false);
     }
+    // Sign out and clear local state regardless of the backend result, so
+    // deleting an account always logs the user out.
+    try {
+      await signOut();
+    } catch {
+      // sign-out failure is non-fatal; the local state is still reset.
+    }
+    resetToGuest();
+    if (onDeleted) onDeleted();
   };
 
   return (

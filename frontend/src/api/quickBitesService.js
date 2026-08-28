@@ -11,7 +11,7 @@ import { apiFetch, getUserId } from "./client";
 // scrolled past so they do not resurface. Default mode talks to the
 // Express API; with VITE_USE_MOCK=true it serves local placeholders.
 
-export const QUICK_BITES_CHUNK = 30;
+export const QUICK_BITES_CHUNK = 12;
 
 const MOCK_LATENCY = 180;
 const mockDelay = () => new Promise((resolve) => setTimeout(resolve, MOCK_LATENCY));

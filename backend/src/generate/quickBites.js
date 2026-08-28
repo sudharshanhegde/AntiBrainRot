@@ -28,9 +28,10 @@ const MAX_ATTEMPTS = 2; // one generation + one retry, hard cap
 // Bites per generation/validation call. Keep well under a large 80-bite
 // target so the model does not drift on length or quality in one call.
 const PER_CALL = 20;
-// Small batch default for first testing (build order: prove the loop at
-// ~10 before scaling to 80). Override with QUICK_BITES_BATCH_SIZE.
-const DEFAULT_BATCH = Number(process.env.QUICK_BITES_BATCH_SIZE || 10);
+// The full daily target (80 bites a day). The loop is proven at the
+// default now, so it runs at the production volume. Override with
+// QUICK_BITES_BATCH_SIZE to tune.
+const DEFAULT_BATCH = Number(process.env.QUICK_BITES_BATCH_SIZE || 80);
 
 // Scheduling anchors to IST like the rest of the pipeline, so
 // generated_date matches the product timezone.

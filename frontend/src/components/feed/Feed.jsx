@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { CardShell } from "../card/CardShell";
-import { TemplateRenderer } from "../card/TemplateRenderer";
 import { StatusScreen } from "../ui/StatusScreen";
 import { EndCard } from "./EndCard";
 import { DaysDrawer } from "./DaysDrawer";
-import { AppMenu } from "../ui/AppMenu";
+import { FeedCard } from "./FeedCard";
 import { topicPalette } from "../../data/topics";
 import { fetchDeckChunk, fetchDays } from "../../api/feedService";
 import { saveViewedCardIndex } from "../../api/progress";
@@ -194,6 +192,10 @@ export function Feed({
     setDrawerOpen(false);
   };
 
+  // Stable callback so memoized FeedCards do not re-render when the days
+  // drawer opens.
+  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+
   if (cards.length === 0 && loading) {
     return <StatusScreen label="loading deck" title={topic.name} accent={topic.accent} />;
   }
@@ -237,33 +239,18 @@ export function Feed({
         }
       >
         {cards.map((card) => (
-          <CardShell
+          <FeedCard
             key={card.order_index}
+            card={card}
             topic={topic}
             difficulty={meta.difficulty}
             deckIndex={meta.deckIndex}
             index={card.order_index}
             total={total}
-            topBar={
-              <div className="mb-3 flex items-center justify-between">
-                <AppMenu
-                  entries={[
-                    { label: "Days", onSelect: () => setDrawerOpen(true) },
-                    { label: "Profile", onSelect: onOpenProfile },
-                  ]}
-                />
-                <button
-                  type="button"
-                  onClick={onBack}
-                  className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
-                >
-                  topics
-                </button>
-              </div>
-            }
-          >
-            <TemplateRenderer card={card} accent={topic.accent} />
-          </CardShell>
+            onBack={onBack}
+            onOpenProfile={onOpenProfile}
+            onOpenDays={openDrawer}
+          />
         ))}
 
         {showEndCard && (

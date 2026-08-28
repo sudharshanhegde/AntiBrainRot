@@ -27,7 +27,7 @@ export function CardShell({
       className="feed-card flex flex-col"
       aria-label={`Card ${index + 1} of ${total}, ${topic.name}, ${difficulty}`}
     >
-      <header className="shrink-0 px-5 pt-[max(1rem,env(safe-area-inset-top))]">
+      <header className="shrink-0 px-5 pt-[max(0.5rem,env(safe-area-inset-top))]">
         {topBar ? (
           topBar
         ) : onBack ? (
@@ -57,17 +57,17 @@ export function CardShell({
             {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
           </span>
         </div>
-        <div className="mt-3 h-px bg-hairline" />
+        <div className="mt-2 h-px bg-hairline" />
       </header>
 
       <div
         ref={bodyRef}
-        className="card-body min-h-0 flex-1 overflow-y-auto px-5 py-6"
+        className="card-body min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-6"
       >
         {children}
       </div>
 
-      <footer className="shrink-0 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+      <footer className="shrink-0 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {footer ? (
           footer
         ) : (

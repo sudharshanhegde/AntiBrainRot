@@ -31,7 +31,7 @@ export const FeedCard = memo(function FeedCard({
       index={index}
       total={total}
       topBar={
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-2 flex items-center justify-between">
           <AppMenu
             entries={[
               { label: "Days", onSelect: onOpenDays },
@@ -43,7 +43,7 @@ export const FeedCard = memo(function FeedCard({
             onClick={onBack}
             className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
           >
-            topics
+            go back
           </button>
         </div>
       }

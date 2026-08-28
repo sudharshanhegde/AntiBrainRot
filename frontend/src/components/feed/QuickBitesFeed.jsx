@@ -26,8 +26,8 @@ const QUICK_BITES_ACCENT = "var(--accent-bite)";
 const QuickBiteCard = memo(function QuickBiteCard({ bite, index, onBack, onOpenProfile }) {
   return (
     <article className="feed-card flex flex-col" aria-label={`Quick bite ${index + 1}`}>
-      <header className="shrink-0 px-5 pt-[max(1rem,env(safe-area-inset-top))]">
-        <div className="mb-3 flex items-center justify-between">
+      <header className="shrink-0 px-5 pt-[max(0.5rem,env(safe-area-inset-top))]">
+        <div className="mb-2 flex items-center justify-between">
           <AppMenu
             entries={[
               { label: "Profile", onSelect: onOpenProfile },
@@ -39,7 +39,7 @@ const QuickBiteCard = memo(function QuickBiteCard({ bite, index, onBack, onOpenP
             onClick={onBack}
             className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
           >
-            topics
+            go back
           </button>
         </div>
         <div className="flex items-baseline justify-between gap-4 font-mono text-[11px] uppercase tracking-[0.14em]">
@@ -53,14 +53,14 @@ const QuickBiteCard = memo(function QuickBiteCard({ bite, index, onBack, onOpenP
             {bite.tag}
           </span>
         </div>
-        <div className="mt-3 h-px bg-hairline" />
+        <div className="mt-2 h-px bg-hairline" />
       </header>
 
-      <div className="card-body min-h-0 flex-1 overflow-y-auto px-5 py-6">
+      <div className="card-body min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-6">
         <p className="font-sans text-lg leading-relaxed text-ink">{bite.body}</p>
       </div>
 
-      <footer className="shrink-0 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+      <footer className="shrink-0 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="h-px bg-hairline" />
         <div className="mt-3 flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
           <span>quick bites</span>

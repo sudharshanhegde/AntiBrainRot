@@ -33,7 +33,7 @@ jobs:
       - name: Trigger generation
         run: |
           code=$(curl -s -o /tmp/generation_response.json -w "%{http_code}" \
-            -X POST https://antibrainrot.onrender.com/api/generate \
+            -X POST https://antibrainrot-cce1.onrender.com/api/generate \
             -H "Authorization: Bearer ${{ secrets.GENERATION_SECRET }}" \
             -H "Content-Type: application/json")
           echo "generation endpoint responded with HTTP $code"

@@ -175,3 +175,53 @@ export function checkDeck(deck) {
 
   return { ok: errors.length === 0, errors };
 }
+
+// --- Quick Bites checks ---
+// The low-commitment feed uses a much shorter, fixed word-count band than
+// the concept cards. It is enforced as a hard gate just like the concept
+// band: anything outside 40-60 words is rejected and regenerated, so the
+// shape never drifts toward the longer concept-card length over time.
+export const QUICK_BITE_MIN_WORDS = 40;
+export const QUICK_BITE_MAX_WORDS = 60;
+
+// Validates a Quick Bites batch ({ bites: [{ tag, fact_label, body }] }).
+// Mechanical checks only: no em dashes, no emojis, each body inside the
+// 40-60 word band, and every fact_label unique within the batch. Factual
+// accuracy is the separate LLM self-check pass.
+export function checkQuickBites(batch) {
+  const errors = [];
+  const bites = batch && Array.isArray(batch.bites) ? batch.bites : [];
+  if (bites.length === 0) {
+    return { ok: false, errors: ["batch must contain at least one bite"] };
+  }
+  const labels = new Set();
+  for (const [i, b] of bites.entries()) {
+    if (!b || typeof b !== "object") {
+      errors.push(`bite ${i}: not an object`);
+      continue;
+    }
+    const at = (f) => `bite ${i}.${f}`;
+    if (typeof b.tag !== "string" || !b.tag.trim()) {
+      errors.push(`${at("tag")}: required category label`);
+    }
+    if (typeof b.fact_label !== "string" || !b.fact_label.trim()) {
+      errors.push(`${at("fact_label")}: required short label for de-duplication`);
+    } else if (labels.has(b.fact_label.trim())) {
+      errors.push(`${at("fact_label")}: duplicate "${b.fact_label.trim()}"`);
+    } else {
+      labels.add(b.fact_label.trim());
+    }
+    if (typeof b.body !== "string" || !b.body.trim()) {
+      errors.push(`${at("body")}: required string`);
+    } else {
+      const wc = wordCount(b.body);
+      if (wc < QUICK_BITE_MIN_WORDS || wc > QUICK_BITE_MAX_WORDS) {
+        errors.push(
+          `${at("body")}: word count ${wc}, expected ${QUICK_BITE_MIN_WORDS}-${QUICK_BITE_MAX_WORDS}`
+        );
+      }
+      errors.push(...checkString(b.body, at("body")));
+    }
+  }
+  return { ok: errors.length === 0, errors };
+}

@@ -138,8 +138,8 @@ export function Feed({
   }, [activeIndex, cards, hasMore, loading, loadChunk]);
 
   // Mark the deck complete once the end card becomes the active snap.
-  // Skipped in revision mode (deckTarget set) so re-reading does not
-  // reset the cooldown.
+  // Skipped in revision mode (deckTarget set) so re-reading a specific
+  // day does not advance progress.
   const endCardIndex = hasMore ? -1 : cards.length;
   useEffect(() => {
     if (deckTarget != null) return;
@@ -189,8 +189,8 @@ export function Feed({
   }, [cards.length]);
 
   const handleSelectDay = (day) => {
-    // available -> play the next deck; completed -> re-read that day
-    setDeckTarget(day.status === "completed" ? day.deck_index : null);
+    // No cooldown and no lock: any published day can be opened directly.
+    setDeckTarget(day.deck_index);
     setDrawerOpen(false);
   };
 
@@ -198,17 +198,12 @@ export function Feed({
     return <StatusScreen label="loading deck" title={topic.name} accent={topic.accent} />;
   }
   if (cards.length === 0 && error) {
-    // A cooldown error means this topic is not playable right now. Offer
-    // a way out (back to topics) instead of a "try again" dead-end that
-    // would loop on the same failure.
-    const isCooldown = /on cooldown/i.test(error);
     return (
       <StatusScreen
         label={error}
         title={topic.name}
         accent={topic.accent}
-        onAction={isCooldown ? onBack : () => loadChunk(0)}
-        actionLabel={isCooldown ? "back to topics" : undefined}
+        onAction={() => loadChunk(0)}
       />
     );
   }

@@ -4,9 +4,6 @@ import { optionalUserId } from "../auth.js";
 
 export const feedRouter = Router();
 
-const COOLDOWN_HOURS = Number(process.env.COOLDOWN_HOURS || 12);
-const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
-
 function toCard(r) {
   return {
     card_id: r.card_id,
@@ -27,12 +24,12 @@ function toCard(r) {
 
 // GET /api/feed?topic_id=1&user_id=anon-1
 //
-// Serves the next unseen deck for a user on a topic, or a cooldown /
-// exhausted status. Content is never generated here, this endpoint only
-// reads pre-generated, pre-reviewed rows. A new user (no progress) is
-// served deck 0, which is how existing content gives them context. The
-// user id is taken from the verified JWT when one is sent, falling back
-// to the anonymous query parameter otherwise.
+// Serves the next unseen deck for a user on a topic, or an exhausted
+// status when no reviewed decks remain. Content is never generated here,
+// this endpoint only reads pre-generated, pre-reviewed rows. A new user
+// (no progress) is served deck 0, which is how existing content gives
+// them context. The user id is taken from the verified JWT when one is
+// sent, falling back to the anonymous query parameter otherwise.
 feedRouter.get("/", optionalUserId, async (req, res) => {
   try {
     const topicId = Number(req.query.topic_id);
@@ -51,8 +48,8 @@ feedRouter.get("/", optionalUserId, async (req, res) => {
     const topic = topicRes.rows[0];
 
     // Revision mode: serve a specific already-published deck (for
-    // example the one the user just finished) regardless of the 24h
-    // cooldown, so a user can re-read a completed deck.
+    // example the one the user just finished) so a user can re-read a
+    // completed deck.
     const rawDeckIndex = req.query.deck_index;
     const revisionIndex =
       rawDeckIndex !== undefined && rawDeckIndex !== ""
@@ -111,20 +108,8 @@ feedRouter.get("/", optionalUserId, async (req, res) => {
       last_completed_at: null,
     };
 
-    // A completed deck locks the topic for 24 hours.
-    if (progress.last_deck_index_completed >= 0 && progress.last_completed_at) {
-      const completedAt = new Date(progress.last_completed_at).getTime();
-      const remaining = COOLDOWN_MS - (Date.now() - completedAt);
-      if (remaining > 0) {
-        return res.json({
-          status: "cooldown",
-          topic,
-          next_deck_index: progress.last_deck_index_completed + 1,
-          cooldown_remaining_hours: Math.ceil(remaining / (60 * 60 * 1000)),
-        });
-      }
-    }
-
+    // No cooldown: the next deck is always served as soon as the previous
+    // one is completed.
     const nextIndex = progress.last_deck_index_completed + 1;
     const deckRes = await query(
       `select d.deck_index, d.difficulty, d.id as deck_id,

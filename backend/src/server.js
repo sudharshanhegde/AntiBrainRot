@@ -10,6 +10,7 @@ import { daysRouter } from "./routes/days.js";
 import { quizzesRouter } from "./routes/quizzes.js";
 import { authRouter } from "./routes/auth.js";
 import { leaderboardRouter } from "./routes/leaderboard.js";
+import { quickBitesRouter } from "./routes/quickBites.js";
 import { syncQueue } from "./generate/job.js";
 
 const app = express();
@@ -49,6 +50,7 @@ app.use("/api/days", daysRouter);
 app.use("/api/quizzes", quizzesRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/leaderboard", leaderboardRouter);
+app.use("/api/quick-bites", quickBitesRouter);
 
 const port = Number(process.env.PORT) || 4000;
 

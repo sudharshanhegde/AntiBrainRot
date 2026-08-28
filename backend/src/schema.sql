@@ -126,3 +126,38 @@ create table if not exists user_streaks (
   longest_streak integer not null default 0,
   last_active_date date
 );
+
+-- Quick Bites: the low-commitment feed module . A
+-- separate content shape sitting alongside the structured topic decks,
+-- deliberately with none of their structure: no decks, no difficulty, no
+-- quiz. Each row is one short, self-contained fact (40-60 words), loosely
+-- tagged for variety rather than organized into a curriculum.
+create table if not exists quick_bites (
+  id serial primary key,
+  tag text not null,
+  body text not null,
+  generated_date date not null,
+  created_at timestamptz not null default now()
+);
+
+-- Per-user seen tracking so the Quick Bites feed does not repeat a card a
+-- user has already scrolled past, even as the overall pool grows into the
+-- thousands. Same anon/authenticated text user_id convention as the other
+-- per-user tables.
+create table if not exists quick_bites_seen (
+  user_id text not null,
+  quick_bite_id integer not null references quick_bites(id) on delete cascade,
+  seen_at timestamptz not null default now(),
+  primary key (user_id, quick_bite_id)
+);
+
+-- Dedupe mechanism for Quick Bites generation, the same idea as
+-- covered_concepts for the topic decks: a short label per fact already
+-- used, checked before generating new ones so the same fact never
+-- resurfaces as the pool grows.
+create table if not exists covered_facts (
+  id serial primary key,
+  fact_label text not null unique,
+  tag text,
+  covered_at timestamptz not null default now()
+);

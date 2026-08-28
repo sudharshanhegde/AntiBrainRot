@@ -49,6 +49,12 @@
      screen. */
   --color-accent-complete: #1E88E5; /* sky blue, done / primary action */
 
+  /* --- quick bites accent () ---
+     A single warm gold for the low-commitment Quick Bites feed, distinct
+     from every topic accent and from the streak flame, so the module reads
+     as its own thing inside the same token system. */
+  --color-accent-bite: #A16207; /* dark goldenrod, quick bites */
+
   /* --- typefaces ---
      mono is structural (metadata, index, code, diagram labels)
      sans is the reading face for card bodies */
@@ -76,4 +82,5 @@
   --accent-cog: #475569;
   --accent-flame: #e8590c;
   --accent-complete: #1e88e5;
+  --accent-bite: #a16207;
 }

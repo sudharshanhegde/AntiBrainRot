@@ -4,20 +4,19 @@ import { optionalUserId } from "../auth.js";
 
 export const daysRouter = Router();
 
-const COOLDOWN_HOURS = Number(process.env.COOLDOWN_HOURS || 12);
-const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
-
 // GET /api/days?topic_id=1&user_id=anon-1
 //
 // Lists the published decks ("days") for a topic with per-user
 // availability, so the app can show a day-by-day progression:
 //   Day 0 fundamentals, Day 1 intermediate, Day 2 advanced, ...
 //
+// There is no cooldown and no sequential lock: every published day is
+// either already completed (re-readable as a revision) or available to
+// play immediately.
+//
 // Status per day:
-//   available  - the next uncompleted day and its cooldown has passed
 //   completed  - already finished, can be re-read (revision)
-//   cooldown   - the next day, still waiting out its cooldown
-//   locked     - must finish earlier days first
+//   available  - any published day not yet finished, playable immediately
 daysRouter.get("/", optionalUserId, async (req, res) => {
   try {
     const topicId = Number(req.query.topic_id);
@@ -49,37 +48,18 @@ daysRouter.get("/", optionalUserId, async (req, res) => {
       last_completed_at: null,
     };
 
-    const now = Date.now();
-    const completedAt = progress.last_completed_at
-      ? new Date(progress.last_completed_at).getTime()
-      : null;
     const lastCompleted = progress.last_deck_index_completed;
-    const onCooldown =
-      lastCompleted >= 0 &&
-      completedAt != null &&
-      now - completedAt < COOLDOWN_MS;
-    const nextIndex = lastCompleted + 1;
 
+    // No cooldown and no sequential lock: every published day is either
+    // completed (re-readable) or available to play immediately.
     const days = deckRes.rows.map((d) => {
-      let status;
-      if (d.deck_index <= lastCompleted) {
-        status = "completed";
-      } else if (d.deck_index === nextIndex && onCooldown) {
-        status = "cooldown";
-      } else if (d.deck_index === nextIndex) {
-        status = "available";
-      } else {
-        status = "locked";
-      }
+      const status = d.deck_index <= lastCompleted ? "completed" : "available";
       return {
         day: d.deck_index,
         deck_index: d.deck_index,
         difficulty: d.difficulty,
         status,
-        cooldown_remaining_hours:
-          status === "cooldown"
-            ? Math.ceil((COOLDOWN_MS - (now - completedAt)) / (60 * 60 * 1000))
-            : 0,
+        cooldown_remaining_hours: 0,
       };
     });
 

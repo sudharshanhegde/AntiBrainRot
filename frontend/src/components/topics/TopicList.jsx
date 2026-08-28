@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { StatusScreen } from "../ui/StatusScreen";
-import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { StreakIndicator } from "../ui/StreakIndicator";
 import { findNiche, topicPalette } from "../../data/topics";
 import { fetchTopics } from "../../api/feedService";
@@ -14,15 +13,15 @@ import { useAuth } from "../../auth/AuthContext";
 //   center - a plain "Leaderboard" text entry that opens the leaderboard
 //            screen on tap (label, not an icon-only trophy),
 //   main   - the topic grid itself, unchanged from before.
-// A topic on cooldown (its last day completed recently) shows the
-// remaining time and, when tapped, asks whether to revise the completed
-// day.
+// There is no cooldown: tapping a topic always opens its next deck, and
+// the day tracker lets the user jump to any published day freely.
 export function TopicList({
   nicheSlug,
   onPick,
   onChangeNiche,
   onOpenLeaderboard,
   onOpenProfile,
+  onOpenQuickBites,
   notice,
   onDismissNotice,
 }) {
@@ -30,7 +29,6 @@ export function TopicList({
   const { user, streak, refreshProfile } = useAuth();
   const [topicSlugs, setTopicSlugs] = useState(null);
   const [cooldowns, setCooldowns] = useState(new Map());
-  const [pendingRevision, setPendingRevision] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -88,8 +86,7 @@ export function TopicList({
           {niche.name}
         </h1>
         <p className="mt-2 max-w-md font-sans text-[15px] leading-relaxed text-muted">
-          Pick a topic to open its feed. One day per deck, and the next day
-          unlocks after a short cooldown.
+          Pick a topic to open its feed. One day per deck, always available.
         </p>
       </header>
 
@@ -129,28 +126,43 @@ export function TopicList({
         </div>
       )}
 
+      {/* Quick Bites: a separate entry point from the topic picker, not a
+          topic nested inside the grid. It is a genuinely different mode
+          (SKILL_quick_bites.md), so it is framed honestly as the thing to
+          open when bored rather than dressed up as another lesson. */}
+      <div className="mt-6 px-6">
+        <button
+          type="button"
+          onClick={onOpenQuickBites}
+          className="group flex w-full items-center gap-4 rounded-lg border border-hairline bg-panel px-5 py-4 text-left transition-colors hover:border-ink"
+        >
+          <span
+            className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]"
+            style={{ backgroundColor: "var(--accent-bite)" }}
+            aria-hidden="true"
+          />
+          <span className="flex flex-col gap-1">
+            <span className="font-sans text-[17px] font-semibold tracking-tight text-ink">
+              Quick Bites
+            </span>
+            <span className="font-sans text-[14px] leading-relaxed text-muted">
+              Bored? Get a quick CS refresh.
+            </span>
+          </span>
+        </button>
+      </div>
+
       <div className="mt-6 flex flex-col gap-3 px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
         {topicSlugs.map((slug) => {
           const t = topicPalette[slug];
           if (!t) return null;
           const accent = `var(--${t.accent})`;
           const cd = cooldowns.get(slug);
-          const cooldown = Boolean(cd?.is_on_cooldown);
           return (
             <button
               key={slug}
               type="button"
-              onClick={() => {
-                if (cooldown) {
-                  setPendingRevision({
-                    slug,
-                    deckIndex: cd.last_deck_index_completed,
-                    name: t.name,
-                  });
-                } else {
-                  onPick(slug);
-                }
-              }}
+              onClick={() => onPick(slug)}
               className="group flex items-start gap-4 rounded-lg border border-hairline bg-paper px-5 py-4 text-left transition-colors hover:border-ink"
             >
               <span
@@ -167,9 +179,7 @@ export function TopicList({
                     {t.name}
                   </span>
                   <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                    {cooldown
-                      ? `come back in ${cd.cooldown_remaining_hours}h`
-                      : `day ${(cd?.last_deck_index_completed ?? -1) + 1}`}
+                    day {(cd?.last_deck_index_completed ?? -1) + 1}
                   </span>
                 </span>
                 <span className="font-sans text-[14px] leading-relaxed text-muted">
@@ -181,19 +191,6 @@ export function TopicList({
         })}
       </div>
 
-      {pendingRevision && (
-        <ConfirmDialog
-          title="Revise this day?"
-          body={`You already finished the ${pendingRevision.name} day. Read it again?`}
-          confirmLabel="Revise"
-          cancelLabel="Not now"
-          onConfirm={() => {
-            onPick(pendingRevision.slug, pendingRevision.deckIndex);
-            setPendingRevision(null);
-          }}
-          onCancel={() => setPendingRevision(null)}
-        />
-      )}
     </main>
   );
 }

@@ -11,6 +11,7 @@ import {
 } from "./prompts.js";
 import { insertReviewedDeck } from "./insert.js";
 import { loadSources } from "./sources.js";
+import { runQuickBitesJob } from "./quickBites.js";
 
 // The automated daily generation job.
 //
@@ -366,6 +367,13 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
   }
 
   await syncQueue();
+
+  // Quick Bites runs additive to the same daily run, before the deck
+  // loop, so it still happens on days when every topic is already
+  // complete (the "all-complete" return below would otherwise skip it).
+  // It is gated by the same time window and once-per-IST-day guard above.
+  const quickBites = await runQuickBitesJob({ dryRun });
+
   const activeRes = await query(
     "select slug, target_decks, decks_generated from topics where status <> 'complete' order by queue_position"
   );
@@ -376,7 +384,7 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
     activeRows = activeRows.filter((t) => topics.includes(t.slug));
   }
   if (activeRows.length === 0) {
-    return { status: "all-complete", message: "no matching active topics" };
+    return { status: "all-complete", message: "no matching active topics", quickBites };
   }
 
   const state = { calls: 0, totalTokens: 0 };
@@ -450,5 +458,5 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
     decksAttempted += 1;
   }
 
-  return { status: "success", results };
+  return { status: "success", results, quickBites };
 }

@@ -5,14 +5,11 @@ import { updateStreak } from "../streaks.js";
 
 export const progressRouter = Router();
 
-const COOLDOWN_HOURS = Number(process.env.COOLDOWN_HOURS || 12);
-const COOLDOWN_MS = COOLDOWN_HOURS * 60 * 60 * 1000;
-
 // GET /api/progress
-// Returns the signed-in user's progress per topic with the computed
-// cooldown state, so the frontend can show "come back tomorrow" from the
-// authoritative server state instead of client-side storage. The user id
-// comes from the verified JWT, never a query parameter.
+// Returns the signed-in user's progress per topic. The user id comes from
+// the verified JWT, never a query parameter. There is no cooldown: every
+// topic's next deck is always available, so this reports progress only
+// (last completed deck, resume position), never a wait state.
 progressRouter.get("/", requireAuth, async (req, res) => {
   try {
     const userId = req.userId;
@@ -27,28 +24,14 @@ progressRouter.get("/", requireAuth, async (req, res) => {
       [userId]
     );
 
-    const now = Date.now();
-    const progress = rows.map((r) => {
-      const completedAt = r.last_completed_at
-        ? new Date(r.last_completed_at).getTime()
-        : null;
-      const onCooldown =
-        r.last_deck_index_completed >= 0 &&
-        completedAt != null &&
-        now - completedAt < COOLDOWN_MS;
-      const remaining = onCooldown ? COOLDOWN_MS - (now - completedAt) : 0;
-
-      return {
-        topic_id: r.topic_id,
-        topic_slug: r.slug,
-        last_deck_index_completed: r.last_deck_index_completed,
-        last_viewed_card_index: r.last_viewed_card_index,
-        is_on_cooldown: onCooldown,
-        cooldown_remaining_hours: onCooldown
-          ? Math.ceil(remaining / (60 * 60 * 1000))
-          : 0,
-      };
-    });
+    const progress = rows.map((r) => ({
+      topic_id: r.topic_id,
+      topic_slug: r.slug,
+      last_deck_index_completed: r.last_deck_index_completed,
+      last_viewed_card_index: r.last_viewed_card_index,
+      is_on_cooldown: false,
+      cooldown_remaining_hours: 0,
+    }));
 
     res.json({ progress });
   } catch (err) {
@@ -59,11 +42,10 @@ progressRouter.get("/", requireAuth, async (req, res) => {
 
 // POST /api/progress
 // body: { topic_id, deck_index, niche?, local_date? }
-// Marks a deck as completed for the signed-in user. The 24-hour cooldown
-// is derived from last_completed_at by this endpoint and the feed
-// endpoint. Runs as one transaction: the progress write and the
-// account-level streak side effect commit together, so a
-// partial failure cannot record one without the other.
+// Marks a deck as completed for the signed-in user. Runs as one
+// transaction: the progress write and the account-level streak side
+// effect commit together, so a partial failure cannot record one without
+// the other.
 progressRouter.post("/", requireAuth, async (req, res) => {
   try {
     const { topic_id, deck_index, niche, local_date } = req.body || {};
@@ -109,8 +91,8 @@ progressRouter.post("/", requireAuth, async (req, res) => {
 // Saves the resume position within the current in-progress deck. Written
 // throttled by the frontend (roughly once a second or on scroll settle),
 // never on every scroll event. Only touches last_viewed_card_index, so
-// it never advances completion or the cooldown. On deck completion the
-// completion endpoint resets this back to 0.
+// it never advances completion. On deck completion the completion
+// endpoint resets this back to 0.
 progressRouter.post("/view", requireAuth, async (req, res) => {
   try {
     const { topic_id, card_index } = req.body || {};

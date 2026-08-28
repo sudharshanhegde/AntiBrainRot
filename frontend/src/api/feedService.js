@@ -68,11 +68,6 @@ async function apiDeckChunk(topicSlug, deckIndex, offset) {
   if (!res.ok) throw new Error("could not load the feed from the API");
   const data = await res.json();
 
-  if (data.status === "cooldown") {
-    throw new Error(
-      `this topic is on cooldown for ${data.cooldown_remaining_hours}h`
-    );
-  }
   if (data.status !== "ok") {
     // exhausted: no reviewed decks exist for this topic yet
     return { cards: [], hasMore: false, total: 0, difficulty: "fundamentals", deckIndex };

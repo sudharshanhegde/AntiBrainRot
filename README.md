@@ -19,9 +19,9 @@ teaches you something real, then the next one.
   that tests exactly what you just read. Answering is one tap with instant
   feedback.
 - **Structured progression.** Each topic is a series of decks that move
-  from fundamentals to advanced. Completing a deck starts a cooldown
-  before the next deck unlocks (12 hours by default, configurable via
-  `COOLDOWN_HOURS`), so the next deck is ready soon after.
+  from fundamentals to advanced. Content is never locked behind a
+  cooldown: the next deck is always available the moment you finish the
+  current one, and the day tracker lets you open any published day.
 - **Resume where you left off.** Opening a topic lands you on the exact
   card you were last on, restored before first paint.
 - **Accounts, streaks, and leaderboard.** Google or email/password sign-in
@@ -32,6 +32,9 @@ teaches you something real, then the next one.
 - **Automated content.** Decks are generated and validated by an LLM
   pipeline before they ship. Nothing is generated while you use the app,
   which keeps serving cheap and fast.
+- **Quick Bites.** A separate, low-commitment feed for when you're bored
+  rather than studying: short, single-idea CS facts (40-60 words) that are
+  always available, with no decks, difficulty ladder, cooldown, or quiz.
 
 ## Tech stack
 
@@ -71,6 +74,12 @@ A GitHub Actions workflow runs once a day and calls
 2. Generates one new deck for every topic that is not yet complete.
 3. Validates each deck with mechanical checks and a separate LLM pass.
 4. Publishes decks that pass, in a single transaction.
+5. Also runs the Quick Bites batch (additive to, not a replacement for,
+   the deck job): generates a batch of short facts from the model's own
+   knowledge, validates with a self-check pass plus the same mechanical
+   checks, and publishes the passing bites with their `covered_facts`
+   labels, stamped with today's date. Batch size defaults to 10 for
+   testing; set `QUICK_BITES_BATCH_SIZE` (up to 80) to scale.
 
 To add a topic, append one slug to `pipeline/topics_queue.md` and push. The
 pipeline picks it up on its next daily run.
@@ -115,6 +124,7 @@ Backend environment variables (`backend/.env`):
 | `SUPABASE_ANON_KEY` | Supabase public anon key |
 | `CORS_ORIGIN` | Frontend origin(s) allowed to call the API |
 | `SUPABASE_SERVICE_ROLE_KEY` | Optional; required only for account deletion |
+| `QUICK_BITES_BATCH_SIZE` | Quick Bites per daily run (default 10; scale to 80 once the loop works) |
 
 ### 3. Frontend
 

@@ -3,15 +3,12 @@ import { NichePicker } from "./components/onboarding/NichePicker";
 import { WelcomeGate } from "./components/onboarding/WelcomeGate";
 import { TopicList } from "./components/topics/TopicList";
 import { Feed } from "./components/feed/Feed";
+import { QuickBitesFeed } from "./components/feed/QuickBitesFeed";
 import { ProfileScreen } from "./components/profile/ProfileScreen";
 import { LeaderboardScreen } from "./components/leaderboard/LeaderboardScreen";
 import { StatusScreen } from "./components/ui/StatusScreen";
 import { findNiche } from "./data/topics";
-import {
-  fetchCooldownMap,
-  markDeckCompleted,
-  getResumeCardIndex,
-} from "./api/progress";
+import { markDeckCompleted, getResumeCardIndex } from "./api/progress";
 import { hasGuestId, hasVisited, markVisited, resetToGuest } from "./api/client";
 import { useAuth } from "./auth/AuthContext";
 import { isSupabaseConfigured } from "./api/supabase";
@@ -106,10 +103,10 @@ export default function App() {
     setView("topics");
   };
 
-  // revisionIndex (optional) opens a specific completed day, used when a
-  // topic on cooldown is tapped so the user can re-read it. Guests can
-  // open any topic too: content is public, and their progress is kept in
-  // the local mirror until they sign in and migrate it to an account.
+  // revisionIndex (optional) opens a specific published day so the user
+  // can re-read a completed deck. Guests can open any topic too: content
+  // is public, and their progress is kept in the local mirror until they
+  // sign in and migrate it to an account.
   const pickTopic = async (slug, revisionIndex = null) => {
     writeStored(STORAGE_KEYS.topic, slug);
     setTopicSlug(slug);
@@ -145,6 +142,12 @@ export default function App() {
   const openLeaderboard = () => {
     setView("leaderboard");
   };
+  // The Quick Bites feed is a separate mode from the topic decks, opened
+  // from its own entry point on the topics page ().
+  const openQuickBites = () => {
+    setSurpriseNotice(null);
+    setView("quickBites");
+  };
   // After account deletion: back to a clean guest start.
   const handleDeleted = () => {
     setNicheSlug(null);
@@ -161,38 +164,18 @@ export default function App() {
     if (topicSlug) markDeckCompleted(topicSlug, deckIndex).catch(() => {});
   };
 
-  // "Surprise me" picks a random topic from the niche that is not on
-  // cooldown (read from the backend). If every topic is cooling down, or
-  // availability cannot be determined, it never guesses and never leaves
-  // the user on a dead-end error screen: it goes back to the topics page
-  // with a short note explaining why.
+  // "Surprise me" picks a random topic from the niche. There is no
+  // cooldown or availability gate anymore, so any topic can be picked
+  // directly.
   const handleSurprise = async () => {
     const niche = findNiche(nicheSlug);
     const all = niche ? [...niche.topics] : [];
-
-    let available = [];
-    try {
-      const map = await fetchCooldownMap();
-      available = all.filter((slug) => !(map.get(slug)?.is_on_cooldown));
-    } catch {
-      // Availability is unknown, so any pick could be on cooldown and
-      // would surface a dead-end error in the feed. Be honest instead.
-      setSurpriseNotice(
-        "Could not check what is available right now. Pick a topic below, or come back after the cooldown."
-      );
+    if (all.length === 0) {
+      setSurpriseNotice("No topics to pick from yet.");
       setView("topics");
       return;
     }
-
-    if (available.length === 0) {
-      setSurpriseNotice(
-        "You've completed everything available today. Come back after the cooldown for a fresh day."
-      );
-      setView("topics");
-      return;
-    }
-
-    const pick = available[Math.floor(Math.random() * available.length)];
+    const pick = all[Math.floor(Math.random() * all.length)];
     pickTopic(pick);
   };
 
@@ -219,10 +202,14 @@ export default function App() {
         onChangeNiche={backToNiche}
         onOpenLeaderboard={openLeaderboard}
         onOpenProfile={openProfile}
+        onOpenQuickBites={openQuickBites}
         notice={surpriseNotice}
         onDismissNotice={() => setSurpriseNotice(null)}
       />
     );
+  }
+  if (view === "quickBites") {
+    return <QuickBitesFeed onBack={backToTopics} onOpenProfile={openProfile} />;
   }
   return (
     <Feed

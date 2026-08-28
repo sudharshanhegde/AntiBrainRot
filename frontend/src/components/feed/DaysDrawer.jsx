@@ -1,27 +1,15 @@
 import { topicPalette } from "../../data/topics";
 
 // A slide-in drawer listing a topic's days (Day 0, Day 1, ...), opened
-// from the feed's hamburger. This is where completed days are marked:
-// finished days are shown in the sky-blue
-// completion color with a "done" label, the in-progress day is available
-// to play, and future days show their status. Completed and available
-// days can be opened; cooldown and locked days are not clickable.
+// from the feed's hamburger. Finished days are shown in the sky-blue
+// completion color with a "done" label; every other published day is
+// playable immediately. There is no cooldown and no lock, so every day
+// can be opened directly.
 export function DaysDrawer({ topicSlug, days, onSelect, onClose, onBackToTopics }) {
   const topic = topicPalette[topicSlug] || topicPalette["operating-systems"];
   const accent = `var(--${topic.accent})`;
 
-  const statusLabel = (day) => {
-    switch (day.status) {
-      case "available":
-        return "play";
-      case "completed":
-        return "done";
-      case "cooldown":
-        return `unlocks in ${day.cooldown_remaining_hours}h`;
-      default:
-        return "locked";
-    }
-  };
+  const statusLabel = (day) => (day.status === "completed" ? "done" : "play");
 
   return (
     <div
@@ -59,19 +47,13 @@ export function DaysDrawer({ topicSlug, days, onSelect, onClose, onBackToTopics 
           </p>
           <div className="flex flex-col gap-2">
             {days.map((day) => {
-              const clickable = day.status === "available" || day.status === "completed";
               const isDone = day.status === "completed";
               return (
                 <button
                   key={day.deck_index}
                   type="button"
-                  disabled={!clickable}
                   onClick={() => onSelect(day)}
-                  className={`flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-colors ${
-                    clickable
-                      ? "border-hairline hover:border-ink"
-                      : "cursor-not-allowed border-hairline opacity-60"
-                  }`}
+                  className="flex items-center justify-between rounded-lg border border-hairline px-4 py-3 text-left transition-colors hover:border-ink"
                 >
                   <span className="flex items-baseline gap-3">
                     <span

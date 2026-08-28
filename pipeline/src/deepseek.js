@@ -36,7 +36,7 @@ const BASE_URL = (
 // 404 "no longer available to new users". Override with LLM_MODEL /
 // GEMINI_MODEL if your project needs a specific model.
 const DEFAULT_MODEL = /generativelanguage\.googleapis\.com/i.test(BASE_URL)
-  ? process.env.GEMINI_MODEL || "Gemini 3.5 Flash Lite"
+  ? process.env.GEMINI_MODEL || "gemini-3.5-flash-lite"
   : process.env.DEEPSEEK_MODEL || "deepseek-chat";
 const MODEL = process.env.LLM_MODEL || DEFAULT_MODEL;
 const MAX_KEYS = Number(process.env.LLM_KEY_COUNT || 5);

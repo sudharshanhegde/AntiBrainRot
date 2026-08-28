@@ -41,7 +41,7 @@ export const FeedCard = memo(function FeedCard({
           <button
             type="button"
             onClick={onBack}
-            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="font-mono text-[13px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
           >
             go back
           </button>

@@ -2,7 +2,7 @@ import { useState } from "react";
 
 function HamburgerIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" strokeWidth="1.5" />
       <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="1.5" />
       <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" strokeWidth="1.5" />
@@ -27,7 +27,7 @@ export function AppMenu({ entries = [] }) {
         aria-label="Open menu"
         aria-haspopup="true"
         aria-expanded={open}
-        className="flex items-center gap-2 text-muted transition-colors hover:text-ink"
+        className="flex items-center gap-2 p-1 text-muted transition-colors hover:text-ink"
       >
         <HamburgerIcon />
       </button>

@@ -12,6 +12,29 @@
       content="Swipe through short, high-density computer science lessons. One deck at a time, one idea per card."
     />
     <title>AntiBrainRot</title>
+    <script>
+      // Apply the saved (or OS-preferred) theme before the app renders so
+      // there is no flash of the wrong theme on reload. The useTheme hook
+      // owns the class from then on.
+      (function () {
+        try {
+          var t = localStorage.getItem("antibrainrot:theme");
+          if (t !== "dark" && t !== "light") {
+            t =
+              window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "dark"
+                : "light";
+          }
+          if (t === "dark") {
+            document.documentElement.classList.add("dark");
+            document
+              .querySelector('meta[name="theme-color"]')
+              .setAttribute("content", "#14161a");
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

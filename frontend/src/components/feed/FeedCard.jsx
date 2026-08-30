@@ -2,6 +2,7 @@ import { memo } from "react";
 import { CardShell } from "../card/CardShell";
 import { TemplateRenderer } from "../card/TemplateRenderer";
 import { AppMenu } from "../ui/AppMenu";
+import { useTheme } from "../../hooks/useTheme";
 
 // Memoized per-card wrapper for the topic feed.
 //
@@ -23,6 +24,7 @@ export const FeedCard = memo(function FeedCard({
   onOpenProfile,
   onOpenDays,
 }) {
+  const { theme, toggleTheme } = useTheme();
   return (
     <CardShell
       topic={topic}
@@ -36,6 +38,10 @@ export const FeedCard = memo(function FeedCard({
             entries={[
               { label: "Days", onSelect: onOpenDays },
               { label: "Profile", onSelect: onOpenProfile },
+              {
+                label: theme === "dark" ? "Dark mode: on" : "Dark mode: off",
+                onSelect: toggleTheme,
+              },
             ]}
           />
           <button

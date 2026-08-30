@@ -4,6 +4,7 @@ import { AppMenu } from "../ui/AppMenu";
 import { fetchQuickBites, markBitesSeen } from "../../api/quickBitesService";
 import { useActiveCardIndex } from "../../hooks/useActiveCardIndex";
 import { useSwipeExit } from "../../hooks/useSwipeExit";
+import { useTheme } from "../../hooks/useTheme";
 
 // The Quick Bites feed 
 //
@@ -24,6 +25,7 @@ const QUICK_BITES_ACCENT = "var(--accent-bite)";
 // content depends only on its own props, so memoizing keeps the other
 // cards from re-rendering during a scroll, which keeps the feed smooth.
 const QuickBiteCard = memo(function QuickBiteCard({ bite, index, onBack, onOpenProfile }) {
+  const { theme, toggleTheme } = useTheme();
   return (
     <article className="feed-card flex flex-col" aria-label={`Quick bite ${index + 1}`}>
       <header className="shrink-0 px-5 pt-[max(0.5rem,env(safe-area-inset-top))]">
@@ -32,6 +34,10 @@ const QuickBiteCard = memo(function QuickBiteCard({ bite, index, onBack, onOpenP
             entries={[
               { label: "Profile", onSelect: onOpenProfile },
               { label: "Topics", onSelect: onBack },
+              {
+                label: theme === "dark" ? "Dark mode: on" : "Dark mode: off",
+                onSelect: toggleTheme,
+              },
             ]}
           />
           <button

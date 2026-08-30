@@ -84,3 +84,33 @@
   --accent-complete: #1e88e5;
   --accent-bite: #a16207;
 }
+
+/* Dark mode.
+   The whole app is token-driven: every screen uses the five semantic
+   colors (paper, ink, muted, hairline, panel) plus the topic accents, so
+   a single `.dark` class on <html> swaps the entire theme. The dark
+   accent variants are lightened so topic colors stay readable on the
+   dark paper. Toggled by frontend/src/hooks/useTheme.js and set before
+   first paint by an inline script in index.html to avoid a flash. */
+.dark {
+  --color-paper: #14161a;
+  --color-ink: #e9e7df;
+  --color-muted: #9aa0a8;
+  --color-hairline: #2b2f36;
+  --color-panel: #1c1f25;
+
+  --accent-os: #e8913d;
+  --accent-net: #6ca6e8;
+  --accent-dsa: #a78bfa;
+  --accent-sys: #5ac8bb;
+  --accent-db: #74c477;
+  --accent-coa: #f472b6;
+  --accent-ai: #fbbf24;
+  --accent-sec: #e8879a;
+  --accent-proto: #38bdf8;
+  --accent-apt: #818cf8;
+  --accent-cog: #a3aab5;
+  --accent-flame: #fb923c;
+  --accent-complete: #60a5fa;
+  --accent-bite: #eab308;
+}

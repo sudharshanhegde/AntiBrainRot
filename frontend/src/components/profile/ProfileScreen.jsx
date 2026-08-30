@@ -11,6 +11,7 @@ import {
 import { resetToGuest } from "../../api/client";
 import { StreakIndicator } from "../ui/StreakIndicator";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { useTheme } from "../../hooks/useTheme";
 
 // Primary action button: sky blue, the completion/action color, so
 // interactive actions on this page read
@@ -27,6 +28,7 @@ const PRIMARY_BTN =
 // one-time anonymous progress migration.
 export function ProfileScreen({ onBack, onDeleted, initialNotice = null }) {
   const { user, profile, streak, refreshProfile, setLeaderboardOptIn } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState("login"); // "login" | "signup"
@@ -162,6 +164,34 @@ export function ProfileScreen({ onBack, onDeleted, initialNotice = null }) {
       )}
 
       <div className="mt-6 flex flex-col gap-6 px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
+        {/* Theme toggle: always available, signed in or out. */}
+        <section className="flex items-center justify-between rounded-lg border border-hairline bg-paper px-5 py-4">
+          <span className="flex flex-col gap-1">
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+              theme
+            </span>
+            <span className="font-sans text-[15px] font-medium tracking-tight text-ink">
+              {isDark ? "Dark" : "Light"}
+            </span>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={isDark}
+            aria-label="Toggle dark mode"
+            onClick={toggleTheme}
+            className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors ${
+              isDark ? "border-accent-complete bg-accent-complete" : "border-hairline bg-panel"
+            }`}
+          >
+            <span
+              className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-paper transition-all ${
+                isDark ? "left-[calc(100%-1.25rem)]" : "left-1"
+              }`}
+            />
+          </button>
+        </section>
+
         {!isSupabaseConfigured && (
           <div className="rounded-lg border border-hairline bg-panel px-4 py-3">
             <p className="font-sans text-[14px] leading-relaxed text-ink/90">

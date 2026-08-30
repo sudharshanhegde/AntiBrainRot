@@ -32,6 +32,25 @@
     box-sizing: border-box;
   }
 
+  /* Card text wraps cleanly: never let a long technical term or URL push
+     past the card's right edge or force a horizontal scroll. The flex
+     child also needs min-width: 0 so its content cannot expand the card
+     wider than the viewport. */
+  .card-body {
+    min-width: 0;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+  .card-body p,
+  .card-body h1,
+  .card-body h2,
+  .card-body h3,
+  .card-body li {
+    max-width: 100%;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
   /* Structural typeface for metadata lives on a mono utility,
      applied in components. Nothing to add globally here. */
 }

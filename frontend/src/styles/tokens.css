@@ -58,7 +58,7 @@
   /* --- typefaces ---
      mono is structural (metadata, index, code, diagram labels)
      sans is the reading face for card bodies */
-  --font-sans: "Comic Sans MS", "Comic Sans", "Marker Felt", cursive,
+  --font-sans: "Comic Sans MS", "Comic Sans", "Marker Felt", "Trebuchet MS",
     system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
     Consolas, "Liberation Mono", monospace;

@@ -55,6 +55,12 @@
      as its own thing inside the same token system. */
   --color-accent-bite: #A16207; /* dark goldenrod, quick bites */
 
+  /* --- worth a read accent ---
+     A single deep fuchsia for the Worth a Read list, distinct from every
+     topic accent and from the quick bites gold, so the module reads as its
+     own thing inside the same token system. */
+  --color-accent-read: #A21CAF; /* deep fuchsia, worth a read */
+
   /* --- typefaces ---
      mono is structural (metadata, index, code, diagram labels)
      sans is the reading face for card bodies */
@@ -83,6 +89,7 @@
   --accent-flame: #e8590c;
   --accent-complete: #1e88e5;
   --accent-bite: #a16207;
+  --accent-read: #a21caf;
 }
 
 /* Dark mode.
@@ -113,4 +120,5 @@
   --accent-flame: #fb923c;
   --accent-complete: #60a5fa;
   --accent-bite: #eab308;
+  --accent-read: #e879f9;
 }

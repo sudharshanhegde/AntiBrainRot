@@ -11,7 +11,9 @@ import { quizzesRouter } from "./routes/quizzes.js";
 import { authRouter } from "./routes/auth.js";
 import { leaderboardRouter } from "./routes/leaderboard.js";
 import { quickBitesRouter } from "./routes/quickBites.js";
+import { worthAReadRouter } from "./routes/worthARead.js";
 import { syncQueue } from "./generate/job.js";
+import { syncWorthARead } from "./generate/worthARead.js";
 
 const app = express();
 
@@ -51,6 +53,7 @@ app.use("/api/quizzes", quizzesRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/leaderboard", leaderboardRouter);
 app.use("/api/quick-bites", quickBitesRouter);
+app.use("/api", worthAReadRouter);
 
 const port = Number(process.env.PORT) || 4000;
 
@@ -62,4 +65,9 @@ app.listen(port, () => {
   syncQueue()
     .then(() => console.log("[topics] queue synced"))
     .catch((err) => console.warn("[topics] startup sync failed:", err.message));
+  // Same for Worth a Read, so the list has data immediately after a fresh
+  // deploy instead of waiting for the first daily run or a manual trigger.
+  syncWorthARead()
+    .then(() => console.log("[worth-a-read] synced"))
+    .catch((err) => console.warn("[worth-a-read] startup sync failed:", err.message));
 });

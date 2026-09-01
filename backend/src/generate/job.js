@@ -12,6 +12,7 @@ import {
 import { insertReviewedDeck } from "./insert.js";
 import { loadSources } from "./sources.js";
 import { runQuickBitesJob } from "./quickBites.js";
+import { syncWorthARead } from "./worthARead.js";
 
 // The automated daily generation job.
 //
@@ -368,6 +369,12 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
 
   await syncQueue();
 
+  // Worth a Read rides on the same daily run too: a pure parse-and-upsert
+  // of the markdown queue into worth_a_read, with no LLM calls and no cost.
+  // It also has its own on-demand endpoint for pushing updates live without
+  // waiting for this scheduled run.
+  const worthARead = await syncWorthARead();
+
   // Quick Bites runs additive to the same daily run, before the deck
   // loop, so it still happens on days when every topic is already
   // complete (the "all-complete" return below would otherwise skip it).
@@ -384,7 +391,7 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
     activeRows = activeRows.filter((t) => topics.includes(t.slug));
   }
   if (activeRows.length === 0) {
-    return { status: "all-complete", message: "no matching active topics", quickBites };
+    return { status: "all-complete", message: "no matching active topics", quickBites, worthARead };
   }
 
   const state = { calls: 0, totalTokens: 0 };
@@ -458,5 +465,5 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
     decksAttempted += 1;
   }
 
-  return { status: "success", results, quickBites };
+  return { status: "success", results, quickBites, worthARead };
 }

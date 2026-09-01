@@ -4,6 +4,7 @@ import { WelcomeGate } from "./components/onboarding/WelcomeGate";
 import { TopicList } from "./components/topics/TopicList";
 import { Feed } from "./components/feed/Feed";
 import { QuickBitesFeed } from "./components/feed/QuickBitesFeed";
+import { WorthAReadList } from "./components/worthARead/WorthAReadList";
 import { ProfileScreen } from "./components/profile/ProfileScreen";
 import { LeaderboardScreen } from "./components/leaderboard/LeaderboardScreen";
 import { StatusScreen } from "./components/ui/StatusScreen";
@@ -148,6 +149,12 @@ export default function App() {
     setSurpriseNotice(null);
     setView("quickBites");
   };
+  // Worth a Read is a separate screen from the topic decks and Quick Bites,
+  // opened from its own entry point on the topics page.
+  const openWorthARead = () => {
+    setSurpriseNotice(null);
+    setView("worthARead");
+  };
   // After account deletion: back to a clean guest start.
   const handleDeleted = () => {
     setNicheSlug(null);
@@ -203,6 +210,7 @@ export default function App() {
         onOpenLeaderboard={openLeaderboard}
         onOpenProfile={openProfile}
         onOpenQuickBites={openQuickBites}
+        onOpenWorthARead={openWorthARead}
         notice={surpriseNotice}
         onDismissNotice={() => setSurpriseNotice(null)}
       />
@@ -210,6 +218,9 @@ export default function App() {
   }
   if (view === "quickBites") {
     return <QuickBitesFeed onBack={backToTopics} onOpenProfile={openProfile} />;
+  }
+  if (view === "worthARead") {
+    return <WorthAReadList onBack={backToTopics} />;
   }
   return (
     <Feed

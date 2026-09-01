@@ -161,3 +161,17 @@ create table if not exists covered_facts (
   tag text,
   covered_at timestamptz not null default now()
 );
+
+-- Worth a Read: a curated list of links worth reading, one per row.
+-- Synced from pipeline/worth_a_read.md on the same daily run as the topic
+-- queue (plus an on-demand endpoint), so there is no admin screen and no
+-- file storage beyond the markdown queue. url is unique so re-parsing the
+-- file never creates duplicates, and lines can be reordered or reformatted
+-- without re-inserting everything.
+create table if not exists worth_a_read (
+  id serial primary key,
+  title text not null,
+  url text not null unique,
+  note text,
+  added_at timestamptz not null default now()
+);

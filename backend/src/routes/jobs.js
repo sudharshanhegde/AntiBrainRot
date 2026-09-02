@@ -242,9 +242,14 @@ jobsRouter.get("/", requireAuth, async (req, res) => {
                and qp.min_experience_years <= $3
                and (qp.max_experience_years is null or qp.max_experience_years >= $3)
           )
+          -- 4. Never show a job the user has marked "not interested".
+          and not exists (
+            select 1 from job_user_flags f
+             where f.user_id = $5 and f.job_id = j.id and f.interested = false
+          )
         order by j.last_seen_at desc, j.id desc
         limit 200`,
-      [country, userRank, years, gradYear]
+      [country, userRank, years, gradYear, req.userId]
     );
 
     // Applied markers for the user.
@@ -254,7 +259,18 @@ jobsRouter.get("/", requireAuth, async (req, res) => {
     );
     const applied = new Set(appliedRes.rows.map((r) => r.job_id));
 
-    const jobs = rows.map((r) => ({ ...toJob(r), applied: applied.has(r.id) }));
+    // Jobs the user marked "interested" (for the card marker).
+    const flagRes = await query(
+      "select job_id from job_user_flags where user_id = $1 and interested = true",
+      [req.userId]
+    );
+    const interested = new Set(flagRes.rows.map((r) => r.job_id));
+
+    const jobs = rows.map((r) => ({
+      ...toJob(r),
+      applied: applied.has(r.id),
+      interested: interested.has(r.id),
+    }));
     res.json({ status: "ok", jobs });
   } catch (err) {
     console.error(err);
@@ -349,6 +365,36 @@ jobsRouter.post("/feedback", requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "could not save feedback" });
+  }
+});
+
+// POST /api/jobs/flag   body: { job_id, interested: boolean }
+// Records whether the user is interested in a job. interested=false means
+// "not interested", which permanently hides that posting from this user's
+// feed. interested=true records interest (a saved/marked state). One row per
+// (user, job), so tapping again just updates it.
+jobsRouter.post("/flag", requireAuth, async (req, res) => {
+  try {
+    const jobId = Number(req.body?.job_id);
+    const interested = req.body?.interested;
+    if (!Number.isInteger(jobId) || typeof interested !== "boolean") {
+      return res.status(400).json({ error: "job_id and a boolean interested are required" });
+    }
+    const jobRes = await query("select id from jobs where id = $1", [jobId]);
+    if (jobRes.rows.length === 0) {
+      return res.status(404).json({ error: "job not found" });
+    }
+    await query(
+      `insert into job_user_flags (user_id, job_id, interested)
+       values ($1, $2, $3)
+       on conflict (user_id, job_id) do update set
+         interested = excluded.interested, updated_at = now()`,
+      [req.userId, jobId, interested]
+    );
+    res.json({ ok: true, job_id: jobId, interested });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "could not save your interest" });
   }
 });
 

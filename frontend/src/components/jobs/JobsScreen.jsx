@@ -11,6 +11,7 @@ import {
   applyToJob,
   fetchPendingApplications,
   submitApplicationFeedback,
+  flagJob,
 } from "../../api/jobsService";
 
 // The Jobs screen.
@@ -297,7 +298,7 @@ function JobProfileForm({ onSave, onBack }) {
 }
 
 // --- A single job card in the feed --------------------------------------
-function JobCard({ job, index, onApply, onBack, onOpenProfile, onOpenApplications }) {
+function JobCard({ job, index, onApply, onFlag, onBack, onOpenProfile, onOpenApplications }) {
   const { theme, toggleTheme } = useTheme();
   const gradYear = job.target_grad_year
     ? `${job.target_grad_year} graduate target`
@@ -365,6 +366,28 @@ function JobCard({ job, index, onApply, onBack, onOpenProfile, onOpenApplication
 
       <footer className="shrink-0 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="h-px bg-hairline" />
+        {/* Interest: "Not interested" permanently hides this job for the user;
+            "Interested" records it (shown as a marker). */}
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => onFlag(job, false)}
+            className="rounded-lg border border-hairline px-4 py-1.5 font-sans text-[13px] font-medium text-muted transition-colors hover:border-ink"
+          >
+            Not interested
+          </button>
+          <button
+            type="button"
+            onClick={() => onFlag(job, true)}
+            className={
+              job.interested
+                ? "rounded-lg border border-ink px-4 py-1.5 font-sans text-[13px] font-medium text-ink"
+                : "rounded-lg border border-hairline px-4 py-1.5 font-sans text-[13px] font-medium text-muted transition-colors hover:border-ink"
+            }
+          >
+            {job.interested ? "Interested ✓" : "Interested"}
+          </button>
+        </div>
         <div className="mt-3 flex items-center justify-between gap-3">
           {job.applied ? (
             <span className="font-sans text-[14px] font-semibold" style={{ color: JOBS_ACCENT }}>
@@ -536,6 +559,20 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
     }
   }, []);
 
+  const handleFlag = useCallback(async (job, interested) => {
+    try {
+      await flagJob(job.id, interested);
+      if (interested) {
+        setJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, interested: true } : j)));
+      } else {
+        // "Not interested" removes the job from this user's feed entirely.
+        setJobs((prev) => prev.filter((j) => j.id !== job.id));
+      }
+    } catch (err) {
+      console.warn("could not save your interest", err);
+    }
+  }, []);
+
   // Once a profile is known, fetch the applications that still need the
   // "did this job still exist?" answer, so it can be asked before the feed.
   useEffect(() => {
@@ -644,6 +681,7 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
           job={job}
           index={i}
           onApply={handleApply}
+          onFlag={handleFlag}
           onBack={onBack}
           onOpenProfile={onOpenProfile}
           onOpenApplications={onOpenApplications}

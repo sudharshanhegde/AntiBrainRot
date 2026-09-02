@@ -130,6 +130,18 @@ export async function fetchPendingApplications() {
   return data.pending || [];
 }
 
+// Records interest in a job. interested=false means "not interested", which
+// hides that posting from this user's feed from now on.
+export async function flagJob(jobId, interested) {
+  if (USE_MOCK) return;
+  const res = await apiFetch("/api/jobs/flag", {
+    method: "POST",
+    body: JSON.stringify({ job_id: jobId, interested }),
+  });
+  if (!res.ok) throw new Error("could not save your interest");
+  return res.json();
+}
+
 // Submits the Yes/No answer for one application (job_existed = true means
 // the posting was real/applyable; false means it was gone or dead).
 export async function submitApplicationFeedback(jobId, jobExisted) {

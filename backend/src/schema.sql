@@ -308,6 +308,20 @@ create index if not exists applied_jobs_user_idx on applied_jobs (user_id);
 create unique index if not exists applied_jobs_user_job_idx
   on applied_jobs (user_id, job_id);
 
+-- Per-user interest flags. One row per (user, job). interested=false means
+-- the user is NOT interested, so that posting is never shown to them again;
+-- interested=true records interest (and can be switched). Jobs rows are never
+-- hard-deleted, so the reference stays valid.
+create table if not exists job_user_flags (
+  id serial primary key,
+  user_id text not null,
+  job_id integer not null references jobs(id),
+  interested boolean not null,
+  updated_at timestamptz not null default now(),
+  unique (user_id, job_id)
+);
+create index if not exists job_user_flags_user_idx on job_user_flags (user_id);
+
 -- User-verification feedback: when a user returns to the Jobs tab after
 -- applying, we ask "did this job still exist?" (Yes/No). feedback_job_existed
 -- stores the answer and feedback_given_at marks it as answered so it is only

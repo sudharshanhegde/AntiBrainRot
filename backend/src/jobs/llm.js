@@ -28,7 +28,7 @@ const GROQ_BASE_URL = (process.env.GROQ_BASE_URL || "https://api.groq.com/openai
 // not here (specialized safety classifier, not a general extractor).
 const GROQ_EXTRACT_MODELS = (
   process.env.GROQ_EXTRACT_MODELS ||
-  "openai/gpt-oss-20b,qwen/qwen3.6-27b,qwen/qwen3.8-27b"
+  "openai/gpt-oss-20b,qwen/qwen3.6-27b,qwen/qwen3.8-27b,openai/gpt-oss-120b"
 )
   .split(",")
   .map((s) => s.trim())
@@ -48,11 +48,24 @@ export function groqExtractionModelCount() {
   return GROQ_EXTRACT_MODELS.length;
 }
 
-// Models that hit their per-minute/day limit this run. Skipped for the rest
-// of the run instead of retried into more 429s.
+// Per-run Groq health state:
+//   cooldownUntil - a model that got rate-limited waits here (gives it time
+//                   to recover instead of being bombarded), then is retried.
+//   exhausted     - models that failed repeatedly / hit a long retry-after;
+//                   skipped for the whole run.
+//   failCount     - how many times each model has rate-limited this run.
+const GROQ_COOLDOWN_MS = Number(process.env.GROQ_COOLDOWN_MS || 20000);
+let cooldownUntil = new Map();
 let exhausted = new Set();
+let failCount = new Map();
 export function resetGroqExhaustion() {
+  cooldownUntil = new Map();
   exhausted = new Set();
+  failCount = new Map();
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 let groqClient = null;
@@ -97,25 +110,51 @@ async function groqChat(model, messages, opts = {}) {
   throw lastError;
 }
 
-// Extraction across the Groq model pool: round-robins over non-exhausted
-// models; on a rate limit marks that model exhausted and tries the next. If
-// every model is exhausted, throws so the caller falls over to failover keys.
+// Extraction across the Groq model pool.
+// Round-robins over models that are currently available. When a model gets
+// rate-limited it is put into a short cooldown (respecting retry-after) so it
+// has time to recover, and the next available model is tried — it is NOT
+// bombarded again in the next second. A model only becomes permanently
+// exhausted for the run after repeated failures or a long retry-after. If no
+// model is available it waits for the soonest cooldown and retries; if all are
+// exhausted it throws so the caller falls over to the failover keys.
 let rr = 0;
 async function groqExtraction(messages, opts) {
-  const available = GROQ_EXTRACT_MODELS.filter((m) => !exhausted.has(m));
+  const now = Date.now();
+  const available = GROQ_EXTRACT_MODELS.filter(
+    (m) => !exhausted.has(m) && now >= (cooldownUntil.get(m) || 0)
+  );
+
   if (available.length === 0) {
-    throw new Error("all Groq extraction models exhausted for this run");
+    const cooling = GROQ_EXTRACT_MODELS.filter((m) => !exhausted.has(m));
+    if (cooling.length === 0) {
+      throw new Error("all Groq extraction models exhausted for this run");
+    }
+    const soonest = Math.min(...cooling.map((m) => cooldownUntil.get(m) || now));
+    if (soonest > now) await sleep(Math.min(soonest - now, 60000));
+    return groqExtraction(messages, opts);
   }
+
   const model = available[rr % available.length];
   rr += 1;
   try {
     return await groqChat(model, messages, opts);
   } catch (err) {
-    if (err && (err.status === 429 || isRetryableRateLimit(err))) {
+    if (!(err && (err.status === 429 || isRetryableRateLimit(err)))) throw err;
+    const after = err?.headers?.get?.("retry-after");
+    const afterSec = after ? Math.max(Number(after) || 1, 1) : 0;
+    failCount.set(model, (failCount.get(model) || 0) + 1);
+    if (afterSec >= 300 || (failCount.get(model) || 0) >= 4) {
+      // Long retry-after (e.g. daily budget) or repeated failures -> give up
+      // on this model for the rest of the run.
       exhausted.add(model);
-      return groqExtraction(messages, opts); // retry on the next available model
+    } else {
+      // Short cooldown so the model can recover before being tried again.
+      const cooldownMs = afterSec > 0 ? afterSec * 1000 : GROQ_COOLDOWN_MS;
+      cooldownUntil.set(model, Date.now() + cooldownMs);
     }
-    throw err;
+    await sleep(300); // brief pause before hitting the next model
+    return groqExtraction(messages, opts);
   }
 }
 

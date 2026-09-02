@@ -27,21 +27,43 @@ function hashListing(listing) {
     .slice(0, 24);
 }
 
-// Crude HTML -> text. Enough to hand the LLM readable requirement text and
-// to store a raw_requirements_text a user can scan; it is not meant to be a
-// perfect renderer. Entities and tags are stripped and whitespace collapsed.
+// Decodes common HTML entities (also numeric ones) into their literal
+// characters. Runs repeatedly because some ATS descriptions are doubly
+// entity-encoded (the HTML is itself escaped, e.g. &lt;div&gt;), so a
+// single pass leaves <div behind. Decoding fully first turns encoded tags
+// back into real tags so they can be stripped and the surrounding text kept.
+function decodeEntitiesN(s, passes = 3) {
+  let out = String(s);
+  const named = { nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", "#39": "'" };
+  for (let i = 0; i < passes; i++) {
+    // Note: this regex intentionally does not contain any entity sequences,
+    // so it is not subject to the same escaping issues. It matches a leading
+    // ampersand, an entity name or numeric code, and a trailing semicolon.
+    const decoded = out.replace(/&([a-z]+|#\d+);/gi, (m, body) => {
+      const key = body.toLowerCase();
+      if (key.startsWith("#")) {
+        const code = Number(key.slice(1));
+        return Number.isFinite(code) ? String.fromCharCode(code) : m;
+      }
+      return named[key] != null ? named[key] : m;
+    });
+    if (decoded === out) break;
+    out = decoded;
+  }
+  return out;
+}
+
+// HTML -> readable text. Fully decodes entities first (revealing any nested
+// markup), turns block tags into line breaks and list items into bullets,
+// then strips remaining tags and collapses whitespace. Good enough to hand a
+// model readable requirement text and to store a scannable raw copy.
 function htmlToText(html) {
   if (!html) return "";
-  return String(html)
+  return decodeEntitiesN(html)
     .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|li|h[1-6]|div|tr)>/gi, "\n")
+    .replace(/<\/(p|li|h[1-6]|div|tr|ul|ol|section)>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "- ")
     .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&/gi, "&")
-    .replace(/</gi, "<")
-    .replace(/>/gi, ">")
-    .replace(/"/gi, '"')
-    .replace(/'|'/gi, "'")
     .replace(/[ \t]+/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();

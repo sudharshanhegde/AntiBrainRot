@@ -239,7 +239,10 @@ function years(value) {
 }
 
 function extractionMessages(listing) {
-  const text = String(listing.raw_text || "").slice(0, 12000);
+  // Use the cleaned description (adapters strip markup before storing). A
+  // generous window so requirement sections that appear later in long
+  // postings are not cut off before the model reads them.
+  const text = String(listing.raw_text || "").slice(0, 20000);
   return [
     {
       role: "system",

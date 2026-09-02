@@ -272,6 +272,12 @@ create table if not exists jobs (
 );
 create index if not exists jobs_live_idx on jobs (expired) where not expired;
 
+-- requirements_summary is added with a separate ALTER because CREATE TABLE IF
+-- NOT EXISTS does not add columns to a jobs table that already exists (the
+-- schema is re-run against an existing DB), so the additive column must be
+-- its own statement to take effect.
+alter table jobs add column if not exists requirements_summary text;
+
 -- A posting often accepts more than one qualification path ("bachelor's
 -- plus 2 years, or master's plus 0 years"), so paths live in their own
 -- table, one row per accepted path, matched against a user if they satisfy

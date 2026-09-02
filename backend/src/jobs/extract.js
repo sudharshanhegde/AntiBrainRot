@@ -340,10 +340,11 @@ function years(value) {
 }
 
 function extractionMessages(listing) {
-  // Use the cleaned description (adapters strip markup before storing). A
-  // generous window so requirement sections that appear later in long
-  // postings are not cut off before the model reads them.
-  const text = String(listing.raw_text || "").slice(0, 20000);
+  // Send only the requirements/qualifications excerpt (not the full posting
+  // with company boilerplate, benefits, legal disclaimers), which keeps each
+  // request small so the Groq model pool's per-minute token budget stretches
+  // further. Falls back to the raw text if no requirement section is found.
+  const text = requirementsExcerpt(String(listing.raw_text || ""), 2600);
   return [
     {
       role: "system",

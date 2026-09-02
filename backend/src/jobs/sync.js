@@ -7,7 +7,7 @@ import {
 } from "./registry.js";
 import { fetchSourceListings, isSupportedSourceType } from "./adapters.js";
 import { extractListing } from "./extract.js";
-import { jobConcurrency } from "./llm.js";
+import { jobConcurrency, resetGroqExhaustion } from "./llm.js";
 
 // The daily jobs scrape and extraction pipeline.
 //
@@ -260,6 +260,9 @@ async function logSourceRun(sourceId, { startedAt, status, jobs_found, jobs_inse
 // Runs the full jobs job: sync the registry, then scrape each enabled
 // source. Called from the daily generation run and an on-demand endpoint.
 export async function runJobsJob({ dryRun = false } = {}) {
+  // Fresh run: forget which Groq extraction models got rate-limited in the
+  // previous run so their budgets can be retried today.
+  resetGroqExhaustion();
   const synced = await syncJobSources();
   const sources = await loadEnabledSources();
   const results = [];

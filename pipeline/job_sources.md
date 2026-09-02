@@ -47,6 +47,18 @@ lever:smarsh
 lever:peoplegrove
 lever:smart-working-solutions
 
+# Newly discovered, run through your API checker
+greenhouse:alphasenseindia
+greenhouse:onetrust
+greenhouse:celonis
+greenhouse:knowbe4
+greenhouse:instawork
+greenhouse:forwardnetworks
+greenhouse:twilio
+greenhouse:databricks
+greenhouse:earnin
+greenhouse:6sense
+
 # --- Previously-tried sources that did NOT resolve (kept for reference) ---
 # Fix/confirm the board token or slug, then move the line above to activate.
 # greenhouse:phonepe             HTTP 404

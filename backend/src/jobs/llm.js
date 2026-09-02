@@ -88,7 +88,9 @@ async function groqChat(model, messages, opts = {}) {
       lastError = err;
       if (!isRetryableRateLimit(err)) throw err;
       const after = err?.headers?.get?.("retry-after");
-      const waitMs = after ? Math.min(Number(after) || 1, 30) * 1000 : 500 * attempt;
+      // Respect retry-after; never hammer again within the same second. When
+      // no retry-after is given, back off longer on each attempt.
+      const waitMs = after ? Math.max(Number(after) || 1, 1) * 1000 : 1500 * attempt;
       await new Promise((resolve) => setTimeout(resolve, waitMs));
     }
   }
@@ -162,7 +164,11 @@ export function activeJobKeyCount() {
 export function jobConcurrency() {
   const explicit = Number(process.env.JOB_CONCURRENCY);
   if (Number.isInteger(explicit) && explicit > 0) return explicit;
-  if (groqConfigured()) return Math.max(1, groqExtractionModelCount());
+  // Groq rate-limits requests-per-minute (a 429 arrives immediately, TTFT 0),
+  // so run calls SEQUENTIALLY — one in-flight — and round-robin across the
+  // model pool to still spread the token budget. Raising JOB_CONCURRENCY
+  // above 1 with Groq is what causes the bursts of 429s.
+  if (groqConfigured()) return 1;
   return Math.max(1, activeJobKeyCount());
 }
 

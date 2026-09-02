@@ -141,3 +141,12 @@ export async function submitApplicationFeedback(jobId, jobExisted) {
   if (!res.ok) throw new Error("could not save your answer");
   return res.json();
 }
+
+// The user's full application history (every job they tapped Apply on).
+export async function fetchAppliedJobs() {
+  if (USE_MOCK) return [];
+  const res = await apiFetch("/api/jobs/applied");
+  if (!res.ok) throw new Error("could not load your applications");
+  const data = await res.json();
+  return data.applied || [];
+}

@@ -6,6 +6,7 @@ import { Feed } from "./components/feed/Feed";
 import { QuickBitesFeed } from "./components/feed/QuickBitesFeed";
 import { WorthAReadList } from "./components/worthARead/WorthAReadList";
 import { JobsScreen } from "./components/jobs/JobsScreen";
+import { ApplicationsScreen } from "./components/jobs/ApplicationsScreen";
 import { ProfileScreen } from "./components/profile/ProfileScreen";
 import { LeaderboardScreen } from "./components/leaderboard/LeaderboardScreen";
 import { StatusScreen } from "./components/ui/StatusScreen";
@@ -163,6 +164,13 @@ export default function App() {
     setSurpriseNotice(null);
     setView("jobs");
   };
+  // The user's application history, opened from the jobs hamburger.
+  const openApplications = () => {
+    setView("applications");
+  };
+  const backToJobs = () => {
+    setView("jobs");
+  };
   // After account deletion: back to a clean guest start.
   const handleDeleted = () => {
     setNicheSlug(null);
@@ -232,7 +240,18 @@ export default function App() {
     return <WorthAReadList onBack={backToTopics} />;
   }
   if (view === "jobs") {
-    return <JobsScreen onBack={backToTopics} onOpenProfile={openProfile} />;
+    return (
+      <JobsScreen
+        onBack={backToTopics}
+        onOpenProfile={openProfile}
+        onOpenApplications={openApplications}
+      />
+    );
+  }
+  if (view === "applications") {
+    return (
+      <ApplicationsScreen onBack={backToJobs} onOpenProfile={openProfile} />
+    );
   }
   return (
     <Feed

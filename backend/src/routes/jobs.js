@@ -352,6 +352,40 @@ jobsRouter.post("/feedback", requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/jobs/applied
+// The user's full application history (every job they tapped Apply on), so
+// they can review what they applied for — role + company + when, plus the
+// current apply URL when the job is still live. Intentionally includes jobs
+// that have since expired (company/role are denormalized on the application
+// row precisely so history survives expiry).
+jobsRouter.get("/applied", requireAuth, async (req, res) => {
+  try {
+    const { rows } = await query(
+      `select a.job_id, a.company, a.role, a.applied_at,
+              a.feedback_job_existed,
+              j.apply_url, j.expired as job_expired
+         from applied_jobs a
+         left join jobs j on j.id = a.job_id
+        where a.user_id = $1
+        order by a.applied_at desc, a.id desc`,
+      [req.userId]
+    );
+    const applied = rows.map((r) => ({
+      job_id: r.job_id,
+      company: r.company,
+      role: r.role,
+      applied_at: r.applied_at,
+      job_existed: r.feedback_job_existed,
+      job_still_live: r.job_expired === false,
+      apply_url: r.apply_url,
+    }));
+    res.json({ applied });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "could not load applications" });
+  }
+});
+
 // POST /api/jobs/sync   (header: Authorization: Bearer <GENERATION_SECRET>)
 // On-demand scrape + extraction run. Protected like the other pipeline
 // triggers. No hard daily cap here: it runs on demand for testing and is

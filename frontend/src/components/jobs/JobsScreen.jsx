@@ -297,7 +297,7 @@ function JobProfileForm({ onSave, onBack }) {
 }
 
 // --- A single job card in the feed --------------------------------------
-function JobCard({ job, index, onApply, onBack, onOpenProfile }) {
+function JobCard({ job, index, onApply, onBack, onOpenProfile, onOpenApplications }) {
   const { theme, toggleTheme } = useTheme();
   const gradYear = job.target_grad_year
     ? `${job.target_grad_year} graduate target`
@@ -314,6 +314,7 @@ function JobCard({ job, index, onApply, onBack, onOpenProfile }) {
         <div className="mb-2 flex items-center justify-between">
           <AppMenu
             entries={[
+              { label: "My applications", onSelect: onOpenApplications },
               { label: "Profile", onSelect: onOpenProfile },
               { label: "Topics", onSelect: onBack },
               { label: theme === "dark" ? "Dark mode: on" : "Dark mode: off", onSelect: toggleTheme },
@@ -457,7 +458,7 @@ function ApplicationVerifier({ items, onAnswer, onSkip, onBack }) {
 }
 
 // --- Main screen ---------------------------------------------------------
-export function JobsScreen({ onBack, onOpenProfile = () => {} }) {
+export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplications = () => {} }) {
   const { user } = useAuth();
   const [profile, setProfile] = useState(undefined); // undefined = loading
   const [jobs, setJobs] = useState([]);
@@ -645,6 +646,7 @@ export function JobsScreen({ onBack, onOpenProfile = () => {} }) {
           onApply={handleApply}
           onBack={onBack}
           onOpenProfile={onOpenProfile}
+          onOpenApplications={onOpenApplications}
         />
       ))}
     </div>

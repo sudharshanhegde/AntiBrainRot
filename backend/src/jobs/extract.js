@@ -11,7 +11,7 @@
 // The structured country/remote fields come from deterministic parsing of the
 // location string (the model is not needed for those). The raw requirement
 // text is always preserved so a user can verify against the original.
-import { chat } from "../generate/deepseek.js";
+import { jobChat } from "./llm.js";
 
 // Ordered country/city recognizers. Order matters: the first country whose
 // token matches the location string wins, so the more specific/common
@@ -278,10 +278,9 @@ function extractionMessages(listing) {
 }
 
 async function extractWithModel(listing) {
-  const res = await chat(extractionMessages(listing), {
+  const res = await jobChat(extractionMessages(listing), {
     temperature: 0,
     json: true,
-    topic: `jobs:${listing.company}`,
   });
   const p = JSON.parse(res.content);
   const paths = Array.isArray(p.qualification_paths)

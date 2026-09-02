@@ -7,6 +7,7 @@ import {
 } from "./registry.js";
 import { fetchSourceListings, isSupportedSourceType } from "./adapters.js";
 import { extractListing } from "./extract.js";
+import { jobConcurrency } from "./llm.js";
 
 // The daily jobs scrape and extraction pipeline.
 //
@@ -82,10 +83,14 @@ async function runOneSource(source, { dryRun }) {
   const seenUrls = new Set();
   const seenRefs = new Set();
 
+  const newListings = [];
+
+  // Pass 1: categorize — track what was seen and collect brand-new listings.
   for (const listing of listings) {
     if (listing.source_url) seenUrls.add(listing.source_url);
     if (listing.source_ref) seenRefs.add(listing.source_ref);
 
+    if (dryRun) continue; // dry-run only counts; never mutates or extracts
     const existing = await findExisting(listing);
     if (existing) {
       // Seen again: refresh timestamps and treat as active (not expired).
@@ -95,47 +100,62 @@ async function runOneSource(source, { dryRun }) {
         [existing.id]
       );
       stats.jobs_updated += 1;
-      continue;
+    } else {
+      newListings.push(listing);
     }
-
-    if (dryRun) continue;
-
-    // New listing: extract structured fields (one cheap model call per new
-    // posting, with a deterministic fallback). Only new listings reach here,
-    // so the model cost stays small.
-    const extracted = await extractListing(listing);
-    if (!extracted.role || !extracted.company || !listing.apply_url) {
-      stats.jobs_failed_validation += 1;
-      continue;
-    }
-    await insertJob(listing, extracted);
-    stats.jobs_inserted += 1;
-    // Be gentle with the ATS between listings.
-    await sleep(150);
   }
 
-  // Expiry: only after this source returned data successfully. A previously
-  // known live job for this source/company that was NOT seen today and has
-  // not been seen for MISSING_DAYS_TO_EXPIRE days is flagged expired (never
-  // hard-deleted). A single failed run never reaches this point.
-  const company = source.company;
-  const threshold = new Date(Date.now() - MISSING_DAYS_TO_EXPIRE * 24 * 60 * 60 * 1000);
-  let missing = 0;
-  const liveRes = await query(
-    `select id, source_url, last_seen_at from jobs
-      where company = $1 and expired = false`,
-    [company]
-  );
-  for (const row of liveRes.rows) {
-    const seen = row.source_url ? seenUrls.has(row.source_url) : seenRefs.has(row.source_ref);
-    if (!seen) {
-      missing += 1;
-      if (new Date(row.last_seen_at) < threshold) {
-        await query("update jobs set expired = true where id = $1", [row.id]);
+  // Pass 2: extract + insert the new listings concurrently across the model
+  // key pool. extractListing picks the least-loaded key, so these workers fan
+  // out in parallel instead of serializing behind one key. Bounded by
+  // jobConcurrency() (one in-flight call per key by default) so no single
+  // key's per-minute rate limit is exceeded.
+  const limit = Math.min(jobConcurrency(), Math.max(1, newListings.length));
+  let cursor = 0;
+  async function worker() {
+    while (cursor < newListings.length) {
+      const listing = newListings[cursor++];
+      try {
+        const extracted = await extractListing(listing);
+        if (!extracted.role || !extracted.company || !listing.apply_url) {
+          stats.jobs_failed_validation += 1;
+          continue;
+        }
+        await insertJob(listing, extracted);
+        stats.jobs_inserted += 1;
+      } catch (err) {
+        console.error(`[jobs] could not process ${listing.role}: ${err.message}`);
+        stats.jobs_failed_validation += 1;
       }
     }
   }
-  stats.jobs_missing = missing;
+  await Promise.all(Array.from({ length: limit }, () => worker()));
+
+  // Expiry: only after this source returned data successfully (and never in a
+  // dry-run, which must not mutate). A previously known live job for this
+  // source/company that was NOT seen today and has not been seen for
+  // MISSING_DAYS_TO_EXPIRE days is flagged expired (never hard-deleted). A
+  // single failed fetch never reaches this point.
+  if (!dryRun) {
+    const company = source.company;
+    const threshold = new Date(Date.now() - MISSING_DAYS_TO_EXPIRE * 24 * 60 * 60 * 1000);
+    let missing = 0;
+    const liveRes = await query(
+      `select id, source_url, last_seen_at from jobs
+        where company = $1 and expired = false`,
+      [company]
+    );
+    for (const row of liveRes.rows) {
+      const seen = row.source_url ? seenUrls.has(row.source_url) : seenRefs.has(row.source_ref);
+      if (!seen) {
+        missing += 1;
+        if (new Date(row.last_seen_at) < threshold) {
+          await query("update jobs set expired = true where id = $1", [row.id]);
+        }
+      }
+    }
+    stats.jobs_missing = missing;
+  }
 
   const status = "healthy";
   await logSourceRun(source.id, { startedAt, status, ...stats, error: null });

@@ -2,18 +2,24 @@ import { Router } from "express";
 import { query } from "../db.js";
 import { requireAuth } from "../auth.js";
 import { runJobsJob } from "../jobs/sync.js";
+import { requirementsExcerpt } from "../jobs/extract.js";
 
 // Jobs board routes.
 //
 // This section is separate from the topic decks, Quick Bites, and Worth a
-// Read: it surfaces scraped job and internship listings filtered against the
-// user's job-search profile. The feed is fail-open: it only hides a job it
-// is fairly confident the user cannot reach. A job whose target graduation
-// year (if any) does not match the user's is hidden; a remote job restricted
-// to a different country is hidden; and an on-site job at a known other
-// country is hidden. Unknown location details do not hide a role, and the raw
-// requirement text is shown on every card so the user can self-screen on
-// experience/education rather than trusting a fragile automated parse.
+// Read: it surfaces scraped job and internship listings filtered strictly
+// against the user's job-search profile, so the feed is curated — a 0-year
+// user never sees a senior role, and the feed does not become an infinite
+// dump of every listing. A job is shown only when ALL of these hold:
+//   - location: an on-site job in the user's country, or a remote job open
+//     worldwide or restricted to the user's country;
+//   - graduation: a new-grad-specific posting's target year matches the
+//     user's stated graduation year exactly;
+//   - qualification: the user satisfies at least one of the posting's paths
+//     (their education meets/exceeds the path's required level and their
+//     experience falls within the path's range).
+// The raw requirement text is also shown on every card so the user can verify
+// the summary against the original wording.
 //
 // Routes:
 //   GET  /api/jobs/profile          - the signed-in user's job profile
@@ -26,6 +32,25 @@ import { runJobsJob } from "../jobs/sync.js";
 
 export const jobsRouter = Router();
 
+// Education rank: phd(4) > master(3) > bachelor(2) > associate(1) > any(0).
+// A path whose required level is <= the user's level is satisfied (the user
+// "meets or exceeds" it). A posting with no stated degree ("any") is
+// satisfied by everyone.
+function educationRank(level) {
+  switch (String(level || "").toLowerCase()) {
+    case "phd":
+      return 4;
+    case "master":
+      return 3;
+    case "bachelor":
+      return 2;
+    case "associate":
+      return 1;
+    default:
+      return 0; // "any" / none
+  }
+}
+
 function toJob(r) {
   return {
     id: r.id,
@@ -33,6 +58,10 @@ function toJob(r) {
     role: r.role,
     location: r.location,
     apply_url: r.apply_url,
+    // A cleaned, role-specific excerpt for display (skips the company "About
+    // us" boilerplate). The full original text stays available as
+    // raw_requirements_text for verification.
+    requirements_text: requirementsExcerpt(r.raw_requirements_text),
     raw_requirements_text: r.raw_requirements_text,
     target_grad_year: r.target_grad_year,
     location_country: r.location_country,
@@ -162,6 +191,8 @@ jobsRouter.get("/", requireAuth, async (req, res) => {
     }
 
     const country = String(p.job_country).toLowerCase();
+    const years = p.job_years_experience;
+    const userRank = educationRank(p.job_education_level);
     const gradYear = p.job_graduation_year;
 
     const { rows } = await query(
@@ -177,33 +208,43 @@ jobsRouter.get("/", requireAuth, async (req, res) => {
               ) as qualification_paths
          from jobs j
         where j.expired = false
-          -- A job with a target graduation year must match the user's
-          -- stated graduation year exactly.
+          -- Strict matching against the user's profile: a job is shown only
+          -- when it actually fits them, so the feed is curated and never an
+          -- infinite dump of every listing.
           and (
-            j.target_grad_year is null
-            or (j.target_grad_year = $2 and $2 is not null)
-          )
-          -- Location, fail-open: we only hide a job when we are fairly sure
-          -- it is out of reach. A remote job is shown when it is open
-          -- worldwide or restricted to the user's country, and hidden only
-          -- when it is explicitly restricted to a different country. An
-          -- on-site job is hidden only when its location is a known country
-          -- that differs from the user's; an unknown location is shown
-          -- (rather than wrongly hiding an India office with a city-only
-          -- listing).
-          and (
+            -- 1. Location must match the user's country.
             (
+              j.is_remote = false
+              and lower(j.location_country) = $1
+            )
+            or (
               j.is_remote = true
               and (j.remote_restricted_to is null or lower(j.remote_restricted_to) = $1)
             )
-            or (
-              j.is_remote = false
-              and (j.location_country is null or lower(j.location_country) = $1)
-            )
+          )
+          -- 2. If a job is new-grad specific, the user's graduation year must
+          --    match it exactly (a 2027-targeted role never shows for a 2026
+          --    graduate).
+          and (
+            j.target_grad_year is null
+            or (j.target_grad_year = $4 and $4 is not null)
+          )
+          -- 3. The user must satisfy at least one qualification path: their
+          --    education meets or exceeds the path's required level, and their
+          --    experience falls within the path's range.
+          and exists (
+            select 1 from job_qualification_paths qp
+             where qp.job_id = j.id
+               and case lower(qp.education_level)
+                     when 'phd' then 4 when 'master' then 3
+                     when 'bachelor' then 2 when 'associate' then 1 else 0
+                   end <= $2
+               and qp.min_experience_years <= $3
+               and (qp.max_experience_years is null or qp.max_experience_years >= $3)
           )
         order by j.last_seen_at desc, j.id desc
         limit 200`,
-      [country, gradYear]
+      [country, userRank, years, gradYear]
     );
 
     // Applied markers for the user.

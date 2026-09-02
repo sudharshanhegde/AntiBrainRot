@@ -73,47 +73,122 @@ function detectTargetGradYear(role, rawText) {
   return year;
 }
 
-// Best-effort education/experience summary drawn from the requirement text.
-// Returns an informational list of qualification paths. This is deliberately
-// lightweight (no model): it surfaces what is clearly stated and leaves the
-// fields empty when the wording is ambiguous, so the caller can fail open
-// rather than wrongly hide a role.
+// --- Strict requirement extraction (degree + experience) ----------------
+// Every listing gets at least one concrete qualification path so the feed can
+// filter strictly against the user's profile instead of showing everything.
+// A role's requirement is read from the description when it is stated, with
+// a seniority-based fallback derived from the role title when it is not, so a
+// 0-experience user never sees clearly senior roles and the feed stays
+// curated (no infinite scroll of everything). No model is used.
+
+// The smallest "N years" figure stated in the text (the minimum a candidate
+// needs). Ranges like "3-5 years" naturally resolve to their lower bound.
+function explicitMinYears(text) {
+  const m = text.match(/(\d{1,2})\s*(?:\+)?\s*years?/gi);
+  if (!m) return null;
+  const nums = m.map((s) => Number(s.replace(/\D/g, ""))).filter((n) => n < 60);
+  if (nums.length === 0) return null;
+  return Math.min(...nums);
+}
+
+// Fallback minimum experience from role seniority when the text is silent.
+function seniorityDefaultYears(role) {
+  const r = role.toLowerCase();
+  if (/\bintern|internship|trainee|fresher|graduate/.test(r)) return 0;
+  const rules = [
+    [/director|principal|head|vp\b|chief/.test(r) && true, 8],
+    [/manager|lead|staff|architect/.test(r), 6],
+    [/\bsenior\b/.test(r), 4],
+    [/associate|analyst|junior|executive|support/.test(r), 0],
+  ];
+  for (const [hit, years] of rules) {
+    if (hit) return years;
+  }
+  return 0;
+}
+
+// The degree level(s) a posting will accept, as distinct tracks. When no
+// degree is mentioned at all, a single "any" track is used (no degree gate).
+function degreeTracks(role, rawText) {
+  const t = `${role || ""} ${rawText || ""}`.toLowerCase();
+  const tracks = [];
+  if (/(ph\.?\s?d|doctorate)/.test(t)) tracks.push("phd");
+  if (/(master|m\.?\s?tech|m\.?\s?s(?:c)?\b|mba)/.test(t)) tracks.push("master");
+  if (/(bachelor|b\.?\s?tech|b\.?\s?e\b|b\.?\s?s(?:c)?\b|undergrad)/.test(t)) tracks.push("bachelor");
+  if (tracks.length === 0) tracks.push("any");
+  return tracks;
+}
+
+// Builds the qualification paths for one listing. Never returns an empty
+// array.
 function detectQualificationPaths(role, rawText) {
-  const text = `${role || ""} ${rawText || ""}`.toLowerCase();
-  const isIntern = /\bintern\b/.test(text) || /internship/.test(text);
+  const text = `${role || ""} ${rawText || ""}`;
+  const stated = explicitMinYears(text);
+  const minYears = stated != null ? stated : seniorityDefaultYears(role);
 
-  const hasBachelors = /(bachelor|b\.?\s?tech|b\.?\s?e\b|b\.?\s?s(?:c)?\b|undergrad)/.test(text);
-  const hasMasters = /(master|m\.?\s?tech|m\.?\s?s(?:c)?\b|mba)/.test(text);
-  const hasPhD = /(ph\.?\s?d|doctorate)/.test(text);
-
-  // Smallest stated "N years" figure, 0 when none is stated (entry-level).
-  const yearMatches = text.match(/(\d{1,2})\s*(?:\+)?\s*years?/g) || [];
-  let minYears = 0;
-  if (yearMatches.length > 0) {
-    const nums = yearMatches.map((s) => Number(s.replace(/\D/g, ""))).filter((n) => n < 60);
-    if (nums.length > 0) minYears = Math.min(...nums);
-  }
-
-  const levels = [];
-  if (hasPhD) levels.push("phd");
-  if (hasMasters) levels.push("master");
-  if (hasBachelors) levels.push("bachelor");
-  // No degree keyword: interns are typically bachelor-track; otherwise leave
-  // the role open rather than inventing a requirement.
-  if (levels.length === 0) {
-    if (isIntern) levels.push("bachelor");
-    else return [];
-  }
-
-  const paths = levels.map((education_level) => ({
+  const paths = degreeTracks(role, rawText).map((education_level) => ({
     education_level,
     min_experience_years: minYears,
     max_experience_years: null,
   }));
-  // Dedupe by education level.
   return paths.filter(
     (p, i, arr) => arr.findIndex((q) => q.education_level === p.education_level) === i
   );
+}
+
+// Requirement-section excerpt.
+//
+// A posting's raw description almost always opens with heavy company
+// boilerplate ("About us", "Our impact", product marketing) before it gets to
+// the actual role, and that boilerplate is useless to a candidate. This
+// deterministically pulls out the role-specific section: it skips leading
+// company copy and returns the "About the role / Requirements /
+// Qualifications / You have / skills" portion, capped at `max` characters.
+// It is not perfect (postings are not written consistently) but it removes
+// the "random info" that was being shown whole on each card.
+export function requirementsExcerpt(rawText, max = 1600) {
+  if (!rawText) return "";
+  const lines = rawText.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  if (lines.length === 0) return "";
+
+  // Headings that mark role/requirement content (good place to start).
+  const isReqHeading = (l) =>
+    /^(requirements?|qualifications?|minimum qualifications?|must haves?|you(?:'ll| will| would| should)? (?:need|have|bring|be able to)|we (?:need|require|look for|are looking for)|skills?(?: and experience| required| needed)?|experience (?:required|needed)|responsibilities|what you(?:'ll| will) do|about the role|about this role|the role|role overview|job (?:summary|description)|key (?:skills|responsibilities))$/i.test(
+      l
+    );
+  // Headings that mark boilerplate / apply sections (stop here).
+  const isStopHeading = (l) =>
+    /^(about us|about the company|about (the )?(?:organisation|organization)|our (?:impact|culture|story|mission|values|benefits)|who we are|benefits|what we offer|perks?|how to apply|to apply|apply(?: now| here)?|equal opportunity|life at|follow us|learn more|watch our|visit our|backed by|join us|connect with us|get in touch)/i.test(
+      l
+    );
+
+  // Prefer the first requirement heading; otherwise the first role heading;
+  // otherwise start at the top (already role-ish or heading-less prose).
+  let start = -1;
+  let fallbackRole = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (start < 0 && isReqHeading(lines[i])) start = i;
+    if (fallbackRole < 0 && /^(about the role|the role|responsibilities|job (summary|description))/i.test(lines[i])) fallbackRole = i;
+    if (start >= 0) break;
+  }
+  if (start < 0) start = fallbackRole >= 0 ? fallbackRole : 0;
+
+  // Stop at the first boilerplate/apply heading after the start.
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (isStopHeading(lines[i])) {
+      end = i;
+      break;
+    }
+  }
+
+  let out = lines.slice(start, end).join("\n").trim();
+  if (out.length > max) {
+    let cut = out.slice(0, max);
+    const nl = cut.lastIndexOf("\n");
+    out = (nl > max * 0.6 ? cut.slice(0, nl) : cut) + "\n…";
+  }
+  return out;
 }
 
 // Parses one raw adapter listing into the structured fields stored on the

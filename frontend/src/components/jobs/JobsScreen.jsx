@@ -355,7 +355,7 @@ function JobCard({ job, index, onApply, onBack, onOpenProfile }) {
 
         <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">Requirements</p>
         <p className="mt-2 whitespace-pre-wrap font-sans text-[15px] leading-relaxed text-ink/90">
-          {job.raw_requirements_text || "No requirement text supplied with this posting."}
+          {job.requirements_text || job.raw_requirements_text || "No requirement text supplied with this posting."}
         </p>
       </div>
 

@@ -473,7 +473,11 @@ export function JobsScreen({ onBack, onOpenProfile = () => {} }) {
     try {
       const data = await fetchJobs();
       if (data.status === "needs_profile") {
-        setProfile(null);
+        // Only reached if the save did not persist server-side (e.g. the
+        // PUT failed earlier). Never flip back to the form here, which would
+        // loop; surface it as "no matches" instead so the user is not stuck
+        // re-answering forever.
+        setEmpty(true);
         return;
       }
       setJobs(data.jobs || []);
@@ -509,10 +513,12 @@ export function JobsScreen({ onBack, onOpenProfile = () => {} }) {
     }
   }, [profile, loadJobs]);
 
-  // After the questionnaire saves, the profile becomes truthy and the effect
-  // above loads the feed.
-  const handleSaved = useCallback(async () => {
-    setProfile({});
+  // Saves the questionnaire, then adopts the returned profile so the feed
+  // loads. Throws on failure so the form can show the error instead of
+  // advancing (no silent loop back to the questions).
+  const handleSaved = useCallback(async (payload) => {
+    const saved = await saveJobProfile(payload);
+    setProfile(saved);
   }, []);
 
   const handleApply = useCallback(async (job) => {

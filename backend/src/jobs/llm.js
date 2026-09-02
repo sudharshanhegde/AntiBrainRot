@@ -1,23 +1,73 @@
 import OpenAI from "openai";
 import { chat as sharedChat } from "../generate/deepseek.js";
 
-// Jobs-only model pool.
+// Jobs-only LLM client.
 //
-// The job extraction job is kept entirely separate from the topic-deck
-// generation pool so each can use its own provider/keys and neither starves
-// the other. The new keys added for jobs are Gemini 3.5 Flash Lite keys, but
-// they are stored in Render under the legacy `…_API_KEY_6..20` slots — naming
-// here is irrelevant, only the values matter. This pool scans those slots
-// (6..20, the range the deck pool does not use) across the common key
-// families, and treats every key it finds as a Gemini Flash Lite key.
+// The job extraction job is kept separate from the topic-deck generation pool
+// so each can use its own provider/keys and neither starves the other.
+// Deck generation and Quick Bites keep using DeepSeek untouched.
 //
-// Load balancing: instead of pinning each listing to a single key (which
-// would make requests queue behind one key's rate limit), the pool picks the
-// least-loaded key for each call and the sync job fans listings out across
-// all keys concurrently. 429 / quota errors retry on a different key.
+// PROVIDER ORDER for job extraction:
+//   1. Groq (default). A single key (GROQ_API_KEY); Groq rate-limits per
+//      organization/model, so one key is all you need. Cheap and generous.
+//   2. The legacy job key pool (DeepSeek/Gemini slots 6..20) as automatic
+//      failover when Groq is not configured or a Groq call fails.
+//   3. The shared content client (DeepSeek) as a final fallback so the
+//      pipeline still runs out of the box with no job keys at all.
+//
+// Load balancing applies to the failover pool: the least-loaded key is chosen
+// per call and the sync fans listings out across them. 429 / quota errors
+// retry on a different key.
 
-// Gemini OpenAI-compatible endpoint + model for the job pool. Overridable so
-// the same keys can target DeepSeek or another provider if ever wanted.
+// --- Groq -----------------------------------------------------------------
+const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
+const GROQ_BASE_URL = (process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1").replace(/\/+$/, "");
+// Extraction model (the doc's "model A", high volume).
+const GROQ_EXTRACT_MODEL = process.env.GROQ_EXTRACT_MODEL || "openai/gpt-oss-20b";
+
+export function groqConfigured() {
+  return Boolean(GROQ_API_KEY);
+}
+
+let groqClient = null;
+function getGroqClient() {
+  if (!groqClient) groqClient = new OpenAI({ apiKey: GROQ_API_KEY, baseURL: GROQ_BASE_URL });
+  return groqClient;
+}
+
+// One Groq completion. Respects 429 retry-after where available, with a few
+// bounded retries, then throws so the caller can fall over to another
+// provider.
+async function groqChat(model, messages, opts = {}) {
+  const client = getGroqClient();
+  let lastError;
+  const maxRetries = Number(process.env.GROQ_RETRIES || 3);
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const completion = await client.chat.completions.create({
+        model,
+        messages,
+        temperature: opts?.temperature ?? 0,
+        response_format: opts?.json ? { type: "json_object" } : undefined,
+      });
+      const content = completion.choices[0]?.message?.content;
+      return { content, tokens: completion.usage ? completion.usage.total_tokens || 0 : 0 };
+    } catch (err) {
+      lastError = err;
+      const msg = `${err?.message || ""}`;
+      if (!/429|rate\s?limit|RESOURCE_EXHAUSTED|503|fetch failed|ETIMEDOUT|ECONNRESET|socket hang up/i.test(msg)) {
+        throw err; // non-retryable
+      }
+      // Respect retry-after if the provider returned one.
+      const after = err?.headers?.get?.("retry-after");
+      const waitMs = after ? Math.min(Number(after) || 1, 30) * 1000 : 500 * attempt;
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  }
+  throw lastError;
+}
+
+// --- Legacy failover pool (DeepSeek/Gemini slots 6..20) -------------------
 const BASE_URL = (
   process.env.JOB_LLM_BASE_URL ||
   process.env.GEMINI_BASE_URL ||
@@ -26,14 +76,9 @@ const BASE_URL = (
 
 const MODEL = process.env.JOB_LLM_MODEL || process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
 
-// Key slots this pool reads. The deck pool uses 1..(LLM_KEY_COUNT||5); jobs
-// uses the slots above that, so the two never collide even though they share
-// the same legacy env-var family on the host.
 const JOB_KEYS_START = Number(process.env.JOB_KEYS_START || 6);
 const JOB_KEYS_END = Number(process.env.JOB_KEYS_END || 20);
 
-// Candidate env-var getters, most explicit first. Each returns the secret at
-// slot i for that family, or undefined.
 const KEY_GETTERS = [
   (i) => process.env[`JOB_LLM_API_KEY_${i}`],
   (i) => (i === 1 ? process.env.JOB_LLM_API_KEY : undefined),
@@ -49,15 +94,29 @@ function collectKeys() {
       const k = getter(i);
       if (k) {
         keys.push(k);
-        break; // one value per slot
+        break;
       }
     }
   }
   return [...new Set(keys.filter(Boolean))];
 }
 
-const clients = new Map(); // apiKey -> OpenAI client (Gemini endpoint)
-const inFlight = new Map(); // apiKey -> number of calls currently running
+export function activeJobKeyCount() {
+  return collectKeys().length;
+}
+
+// Concurrency bound. When Groq is the active default it is a single key, so
+// one in-flight call is the safe default; the failover pool fans out across
+// its many keys. Override with JOB_CONCURRENCY.
+export function jobConcurrency() {
+  const explicit = Number(process.env.JOB_CONCURRENCY);
+  if (Number.isInteger(explicit) && explicit > 0) return explicit;
+  if (groqConfigured()) return 1;
+  return Math.max(1, activeJobKeyCount());
+}
+
+const clients = new Map();
+const inFlight = new Map();
 function getClient(apiKey) {
   let c = clients.get(apiKey);
   if (!c) {
@@ -67,21 +126,6 @@ function getClient(apiKey) {
   return c;
 }
 
-export function activeJobKeyCount() {
-  return collectKeys().length;
-}
-
-// A sensible concurrency bound for the sync job: at most one in-flight call
-// per key by default, so all keys run in parallel without any single key
-// exceeding its per-minute limit. Override with JOB_CONCURRENCY.
-export function jobConcurrency() {
-  const explicit = Number(process.env.JOB_CONCURRENCY);
-  if (Number.isInteger(explicit) && explicit > 0) return explicit;
-  return Math.max(1, activeJobKeyCount());
-}
-
-// Picks the key with the fewest in-flight requests (least-loaded). Ties break
-// by round-robin so a key is not chosen twice in a row when idle.
 let rr = 0;
 function pickKey() {
   const keys = collectKeys();
@@ -89,7 +133,6 @@ function pickKey() {
   keys.sort((a, b) => (inFlight.get(a) || 0) - (inFlight.get(b) || 0));
   const min = inFlight.get(keys[0]) || 0;
   const candidates = keys.filter((k) => (inFlight.get(k) || 0) === min);
-  // Prefer keys that have handled fewer calls overall (rotation).
   const idx = rr % candidates.length;
   rr += 1;
   return candidates[idx];
@@ -106,24 +149,19 @@ async function runOnKey(key, messages, opts) {
       response_format: opts?.json ? { type: "json_object" } : undefined,
     });
     const content = completion.choices[0]?.message?.content;
-    const tokens = completion.usage ? completion.usage.total_tokens || 0 : 0;
-    return { content, tokens, key };
+    return { content, tokens: completion.usage ? completion.usage.total_tokens || 0 : 0 };
   } finally {
     inFlight.set(key, Math.max(0, (inFlight.get(key) || 0) - 1));
   }
 }
 
-// One completion through the job pool: picks the least-loaded key, and on a
-// rate-limit/quota failure retries on another key. Returns { content, tokens }.
-export async function jobChat(messages, opts = {}) {
+// The failover pool (DeepSeek/Gemini slots 6..20), then the shared client.
+async function jobKeyPoolChat(messages, opts) {
   const keys = collectKeys();
-  // No job keys configured yet: fall back to the shared content-generation
-  // client so the pipeline still works out of the box.
   if (keys.length === 0) {
     const res = await sharedChat(messages, { ...opts, json: true });
     return { content: res.content, tokens: res.tokens };
   }
-
   const used = new Set();
   for (let attempt = 0; attempt < keys.length; attempt++) {
     const key = pickKey();
@@ -134,12 +172,23 @@ export async function jobChat(messages, opts = {}) {
       return { content: res.content, tokens: res.tokens };
     } catch (err) {
       const msg = `${err?.message || ""}`;
-      const retryable = /429|rate\s?limit|quota|RESOURCE_EXHAUSTED|503|fetch failed|ETIMEDOUT|ECONNRESET|socket hang up/i.test(
-        msg
-      );
+      const retryable = /429|rate\s?limit|quota|RESOURCE_EXHAUSTED|503|fetch failed|ETIMEDOUT|ECONNRESET|socket hang up/i.test(msg);
       if (!retryable) throw err;
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
   }
   throw new Error("all job model keys are rate-limited or failing");
+}
+
+// One extraction completion. Groq is the default; DeepSeek/Gemini slots and
+// the shared client are automatic failover. Returns { content, tokens }.
+export async function jobChat(messages, opts = {}) {
+  if (groqConfigured()) {
+    try {
+      return await groqChat(GROQ_EXTRACT_MODEL, messages, opts);
+    } catch (err) {
+      console.warn(`[jobs] groq extraction failed (${err?.message}); using failover keys`);
+    }
+  }
+  return jobKeyPoolChat(messages, opts);
 }

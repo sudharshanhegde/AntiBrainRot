@@ -1,176 +1,141 @@
-import { chat } from "../generate/deepseek.js";
-
-// Job listing extraction and validation.
+// Job listing extraction (deterministic, no LLM).
 //
-// A job's required experience range, degree requirement, and target
-// graduation year have to be pulled out of unstructured description text,
-// so this is an LLM parsing step — the same kind of task as the content
-// pipeline's generation. But the cost of a mistake here is different: a user
-// might skip a role they qualified for, or waste time on one they did not.
-// So the raw requirement text is preserved alongside whatever structured
-// fields are extracted, and a separate validation pass checks the structured
-// fields are actually supported by the raw text before a listing is stored.
+// The ATS source APIs already give us structured role, company, and location
+// fields, so this layer only fills in the fields that are NOT structured in
+// the raw feed: which country a posting is based in, whether it is remote
+// (and restricted to a country if so), and whether it is a new-grad role with
+// a target graduation year. Everything here is plain, deterministic parsing
+// over the adapter's structured fields plus the raw description text — no
+// model call, no cost, no extra moving part.
+//
+// This is intentionally conservative and "fail-open": whenever a field
+// cannot be determined confidently it is left null rather than guessed, and
+// the consumer treats an unknown location as not-worth-hiding. The raw
+// requirement text is preserved alongside these fields so the user can read
+// the actual requirements and self-screen.
 
-// Allowed education levels, ordered from least to most. "none"/"associate"
-// are accepted from free-form text but normalized to "bachelor"/"master"
-// handling is left to matching (a bachelor role requires at least a
-// bachelor). Postings rarely demand less than a bachelor for these roles.
-const EDUCATION_LEVELS = new Set(["associate", "bachelor", "master", "phd"]);
+// Ordered country/city recognizers. Order matters: the first country whose
+// token matches the location string wins, so the more specific/common
+// recognizers come first. Tokens deliberately avoid short ambiguous ones.
+const COUNTRY_RECOGNIZERS = [
+  { country: "India", re: /(india|bengaluru|bangalore|mumbai|bombay|hyderabad|pune|chennai|gurgaon|gurugram|noida|new delhi|delhi|kolkata|ahmedabad|kochi|coimbatore|indore)/i },
+  { country: "United States", re: /(united states|\busa\b|u\.?s\.?a\.?|san francisco|new york|seattle|austin|mountain view|palo alto|redwood city|boston|chicago|atlanta|los angeles)/i },
+  { country: "United Kingdom", re: /(united kingdom|\buk\b|england|britain|london|manchester)/i },
+  { country: "Canada", re: /(canada|toronto|vancouver|ottawa|montreal|waterloo)/i },
+  { country: "Germany", re: /(germany|berlin|munich|hamburg)/i },
+  { country: "Singapore", re: /(singapore)/i },
+  { country: "United Arab Emirates", re: /(united arab emirates|\buae\b|dubai|abu dhabi)/i },
+  { country: "Netherlands", re: /(netherlands|amsterdam|rotterdam)/i },
+  { country: "Australia", re: /(australia|sydney|melbourne)/i },
+  { country: "France", re: /(france|paris)/i },
+  { country: "Japan", re: /(japan|tokyo)/i },
+];
 
-function normalizeEducation(value) {
-  const v = String(value || "").toLowerCase().trim();
-  if (!v) return null;
-  if (/(ph\.?d|doctorate|doctoral)/.test(v)) return "phd";
-  if (/master|m\.?s|m\.?tech|mba/.test(v)) return "master";
-  if (/bachelor|b\.?s|b\.?tech|b\.?e|undergrad/.test(v)) return "bachelor";
-  if (/associate/.test(v)) return "associate";
+function detectCountry(text) {
+  if (!text) return null;
+  for (const r of COUNTRY_RECOGNIZERS) {
+    if (r.re.test(text)) return r.country;
+  }
   return null;
 }
 
-function normalizeYears(value) {
-  if (value === null || value === undefined || value === "") return null;
-  const n = Number(value);
-  if (!Number.isFinite(n)) return null;
-  return Math.max(0, Math.round(n));
+// Remote detection is best-effort and drawn from the structured location
+// field (and role title), NOT the whole description, so phrases like
+// "we are a remote-first company" do not misclassify an on-site role.
+function isRemoteText(location, role) {
+  return /\bremote\b/i.test(`${location || ""} ${role || ""}`);
 }
 
-// Builds the system + user prompt for extracting structured fields from one
-// listing's raw description.
-function extractionMessages(listing) {
-  return [
-    {
-      role: "system",
-      content: [
-        "You extract structured job eligibility fields from raw job description text.",
-        "Return ONLY a JSON object with this exact shape:",
-        JSON.stringify(
-          {
-            role: "string",
-            company: "string",
-            location: "string (clean summary of where the role is based)",
-            location_country: "string|null (country name, or null if unknown)",
-            is_remote: "boolean (whether the posting is remote)",
-            remote_restricted_to:
-              "string|null (if remote, the country it is actually limited to, else null; null means open globally)",
-            is_new_grad_role:
-              "boolean (true only if the posting is specifically for recent/new graduates with a target year)",
-            target_grad_year:
-              "integer|null (graduation year required, only for new-grad roles, else null)",
-            qualification_paths: [
-              {
-                education_level: "one of: associate,bachelor,master,phd",
-                min_experience_years: "integer (0 if none)",
-                max_experience_years: "integer|null (null if open-ended)",
-              },
-            ],
-          },
-          null,
-          2
-        ),
-        "Rules:",
-        "- A posting often accepts MULTIPLE paths (e.g. \"Bachelor's plus 2 years, or Master's plus 0\").",
-        "  Emit one qualification_paths entry per accepted path.",
-        "- experience years come from the requirements text, NOT the whole description.",
-        "- Only set target_grad_year / is_new_grad_role=true when the posting is explicitly for",
-        "  current/recent students with a graduation window (e.g. \"2026 or 2027 graduates\").",
-        "- location_country is the country implied by the location string. A remote role may still",
-        "  have remote_restricted_to set when the posting says remote workers must live in one country.",
-        "- If no qualification info exists, return qualification_paths: [].",
-      ].join("\n"),
-    },
-    {
-      role: "user",
-      content: `Company: ${listing.company}\nRole title from feed: ${listing.role}\nLocation from feed: ${listing.location}\n\nRaw job description:\n${listing.raw_text || "(no description)"}`,
-    },
-  ];
+// For a remote posting, decide the country it is actually restricted to, if
+// the posting states one. Drawn from the location string (e.g. "Remote –
+// India" or "Remote (US)"), so an explicit restriction is honoured while a
+// bare "Remote" stays open (null = worldwide).
+function remoteRestrictedTo(location) {
+  if (!location) return null;
+  if (/\bremote\b/i.test(location)) {
+    return detectCountry(location.replace(/\bremote\b/gi, " "));
+  }
+  return null;
 }
 
-// Pass 1: extraction. Returns the parsed structured fields.
-export async function extractListing(listing) {
-  const res = await chat(extractionMessages(listing), {
-    temperature: 0,
-    json: true,
-    topic: `jobs:${listing.company}`,
-  });
-  const parsed = JSON.parse(res.content);
+// New-grad target graduation year, when the posting is specifically aimed at
+// a graduating class (e.g. "2026/2027 graduates", "graduating in 2026",
+// "2027 passouts"). Returns null for general experienced-hire roles.
+function detectTargetGradYear(role, rawText) {
+  const text = `${role || ""} ${rawText || ""}`;
+  // "graduat(e|es|ing|ed) ... 20XX" and "20XX ... (graduates|grad|passout|batch)"
+  const m =
+    text.match(/graduat(?:e|es|ing|ed)?[^.\n]{0,40}?(20\d{2})/i) ||
+    text.match(/(20\d{2})\s*(?:graduates?|graduation|grad|pass(?:ed)?\s?outs?|batch)/i);
+  if (!m) return null;
+  const year = Number(m[1]);
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) return null;
+  return year;
+}
 
-  const paths = Array.isArray(parsed.qualification_paths)
-    ? parsed.qualification_paths
-        .map((p) => ({
-          education_level: normalizeEducation(p.education_level),
-          min_experience_years: normalizeYears(p.min_experience_years) ?? 0,
-          max_experience_years: normalizeYears(p.max_experience_years),
-        }))
-        .filter((p) => p.education_level && EDUCATION_LEVELS.has(p.education_level))
-    : [];
+// Best-effort education/experience summary drawn from the requirement text.
+// Returns an informational list of qualification paths. This is deliberately
+// lightweight (no model): it surfaces what is clearly stated and leaves the
+// fields empty when the wording is ambiguous, so the caller can fail open
+// rather than wrongly hide a role.
+function detectQualificationPaths(role, rawText) {
+  const text = `${role || ""} ${rawText || ""}`.toLowerCase();
+  const isIntern = /\bintern\b/.test(text) || /internship/.test(text);
 
-  const isNewGrad = Boolean(parsed.is_new_grad_role);
+  const hasBachelors = /(bachelor|b\.?\s?tech|b\.?\s?e\b|b\.?\s?s(?:c)?\b|undergrad)/.test(text);
+  const hasMasters = /(master|m\.?\s?tech|m\.?\s?s(?:c)?\b|mba)/.test(text);
+  const hasPhD = /(ph\.?\s?d|doctorate)/.test(text);
+
+  // Smallest stated "N years" figure, 0 when none is stated (entry-level).
+  const yearMatches = text.match(/(\d{1,2})\s*(?:\+)?\s*years?/g) || [];
+  let minYears = 0;
+  if (yearMatches.length > 0) {
+    const nums = yearMatches.map((s) => Number(s.replace(/\D/g, ""))).filter((n) => n < 60);
+    if (nums.length > 0) minYears = Math.min(...nums);
+  }
+
+  const levels = [];
+  if (hasPhD) levels.push("phd");
+  if (hasMasters) levels.push("master");
+  if (hasBachelors) levels.push("bachelor");
+  // No degree keyword: interns are typically bachelor-track; otherwise leave
+  // the role open rather than inventing a requirement.
+  if (levels.length === 0) {
+    if (isIntern) levels.push("bachelor");
+    else return [];
+  }
+
+  const paths = levels.map((education_level) => ({
+    education_level,
+    min_experience_years: minYears,
+    max_experience_years: null,
+  }));
+  // Dedupe by education level.
+  return paths.filter(
+    (p, i, arr) => arr.findIndex((q) => q.education_level === p.education_level) === i
+  );
+}
+
+// Parses one raw adapter listing into the structured fields stored on the
+// jobs table. Pure and synchronous — no network, no model.
+export function parseListing(listing) {
+  const location = String(listing.location || "").trim();
+  const role = String(listing.role || "Untitled role").trim();
+  const rawText = String(listing.raw_text || "").trim();
+
+  const isRemote = listing.is_remote_hint === true || isRemoteText(location, role);
+  const location_country = isRemote ? null : detectCountry(location);
+  const remote_restricted_to = isRemote ? remoteRestrictedTo(location) : null;
+  const target_grad_year = detectTargetGradYear(role, rawText);
+
   return {
-    role: String(parsed.role || listing.role || "Untitled role").trim(),
-    company: String(parsed.company || listing.company || "").trim(),
-    location: String(parsed.location || listing.location || "").trim(),
-    location_country: parsed.location_country
-      ? String(parsed.location_country).trim()
-      : null,
-    is_remote: Boolean(parsed.is_remote),
-    remote_restricted_to: parsed.remote_restricted_to
-      ? String(parsed.remote_restricted_to).trim()
-      : null,
-    target_grad_year: isNewGrad ? normalizeYears(parsed.target_grad_year) : null,
-    qualification_paths: paths,
+    role,
+    company: String(listing.company || "").trim(),
+    location,
+    location_country,
+    is_remote: isRemote,
+    remote_restricted_to,
+    target_grad_year,
+    qualification_paths: detectQualificationPaths(role, rawText),
   };
-}
-
-// Pass 2: validation. A separate DeepSeek call with clean context checks
-// that the extracted structured fields are actually supported by the raw
-// text, mirroring the content pipeline's generate-then-validate split.
-function validationMessages(listing, extracted) {
-  return [
-    {
-      role: "system",
-      content: [
-        "You judge whether a set of extracted job-eligibility fields is SUPPORTED by the raw job description.",
-        "Return ONLY a JSON object: {\"pass\": boolean, \"issues\": [\"string\", ...]}.",
-        "An extracted field must be clearly grounded in the raw text. Flag:",
-        "- a target_grad_year set when the posting is not new-grad specific, or a graduation year that",
-        "  contradicts the text;",
-        "- an experience/education requirement stricter or looser than the text supports;",
-        "- a remote_restricted_to country the text does not mention;",
-        "- a location_country that clearly conflicts with the raw text.",
-        "Missing/unknown info is fine as long as you did not invent a contradictory field.",
-      ].join("\n"),
-    },
-    {
-      role: "user",
-      content: [
-        `RAW JOB DESCRIPTION:\n${listing.raw_text || "(none)"}`,
-        "",
-        "EXTRACTED FIELDS:",
-        JSON.stringify(
-          {
-            location: extracted.location,
-            location_country: extracted.location_country,
-            is_remote: extracted.is_remote,
-            remote_restricted_to: extracted.remote_restricted_to,
-            target_grad_year: extracted.target_grad_year,
-            qualification_paths: extracted.qualification_paths,
-          },
-          null,
-          2
-        ),
-      ].join("\n"),
-    },
-  ];
-}
-
-// Returns { ok, issues }. A listing that passes this is safe to insert.
-export async function validateExtraction(listing, extracted) {
-  const res = await chat(validationMessages(listing, extracted), {
-    temperature: 0,
-    json: true,
-    topic: `jobs:${listing.company}`,
-  });
-  const verdict = JSON.parse(res.content);
-  const issues = Array.isArray(verdict.issues) ? verdict.issues : [];
-  return { ok: verdict.pass === true, issues };
 }

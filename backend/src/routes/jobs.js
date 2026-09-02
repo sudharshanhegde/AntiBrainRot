@@ -7,36 +7,24 @@ import { runJobsJob } from "../jobs/sync.js";
 //
 // This section is separate from the topic decks, Quick Bites, and Worth a
 // Read: it surfaces scraped job and internship listings filtered against the
-// user's job-search profile. Matching only shows a job when at least one of
-// its qualification paths is satisfied, its target graduation year (if any)
-// matches exactly, and its location is reachable for the user (a remote role
-// restricted to one country is treated as that country's role, not global).
+// user's job-search profile. The feed is fail-open: it only hides a job it
+// is fairly confident the user cannot reach. A job whose target graduation
+// year (if any) does not match the user's is hidden; a remote job restricted
+// to a different country is hidden; and an on-site job at a known other
+// country is hidden. Unknown location details do not hide a role, and the raw
+// requirement text is shown on every card so the user can self-screen on
+// experience/education rather than trusting a fragile automated parse.
 //
 // Routes:
-//   GET  /api/jobs/profile   - the signed-in user's job profile (null if unset)
-//   PUT  /api/jobs/profile   - save the job profile (the first-open questionnaire)
-//   GET  /api/jobs           - the matched live feed for the user
-//   POST /api/jobs/apply     - record an application before redirecting
-//   POST /api/jobs/sync      - on-demand scrape (GENERATION_SECRET)
+//   GET  /api/jobs/profile          - the signed-in user's job profile
+//   PUT  /api/jobs/profile          - save the job profile (first-open form)
+//   GET  /api/jobs                  - the matched live feed for the user
+//   GET  /api/jobs/applied-pending  - applications awaiting Yes/No feedback
+//   POST /api/jobs/apply            - record an application before redirecting
+//   POST /api/jobs/feedback         - record a "did this job still exist?" answer
+//   POST /api/jobs/sync             - on-demand scrape (GENERATION_SECRET)
 
 export const jobsRouter = Router();
-
-// Education rank: phd > master > bachelor > associate. A path whose required
-// level is <= the user's level is satisfied (the user "meets or exceeds").
-function educationRank(level) {
-  switch (String(level || "").toLowerCase()) {
-    case "phd":
-      return 4;
-    case "master":
-      return 3;
-    case "bachelor":
-      return 2;
-    case "associate":
-      return 1;
-    default:
-      return 0;
-  }
-}
 
 function toJob(r) {
   return {
@@ -174,8 +162,6 @@ jobsRouter.get("/", requireAuth, async (req, res) => {
     }
 
     const country = String(p.job_country).toLowerCase();
-    const years = p.job_years_experience;
-    const userRank = educationRank(p.job_education_level);
     const gradYear = p.job_graduation_year;
 
     const { rows } = await query(
@@ -191,30 +177,33 @@ jobsRouter.get("/", requireAuth, async (req, res) => {
               ) as qualification_paths
          from jobs j
         where j.expired = false
+          -- A job with a target graduation year must match the user's
+          -- stated graduation year exactly.
           and (
             j.target_grad_year is null
-            or (j.target_grad_year = $4 and $4 is not null)
+            or (j.target_grad_year = $2 and $2 is not null)
           )
+          -- Location, fail-open: we only hide a job when we are fairly sure
+          -- it is out of reach. A remote job is shown when it is open
+          -- worldwide or restricted to the user's country, and hidden only
+          -- when it is explicitly restricted to a different country. An
+          -- on-site job is hidden only when its location is a known country
+          -- that differs from the user's; an unknown location is shown
+          -- (rather than wrongly hiding an India office with a city-only
+          -- listing).
           and (
-            (j.is_remote = false and lower(j.location_country) = $1)
-            or (
+            (
               j.is_remote = true
               and (j.remote_restricted_to is null or lower(j.remote_restricted_to) = $1)
             )
-          )
-          and exists (
-            select 1 from job_qualification_paths qp
-             where qp.job_id = j.id
-               and case lower(qp.education_level)
-                     when 'phd' then 4 when 'master' then 3
-                     when 'bachelor' then 2 when 'associate' then 1 else 0
-                   end <= $2
-               and qp.min_experience_years <= $3
-               and (qp.max_experience_years is null or qp.max_experience_years >= $3)
+            or (
+              j.is_remote = false
+              and (j.location_country is null or lower(j.location_country) = $1)
+            )
           )
         order by j.last_seen_at desc, j.id desc
         limit 200`,
-      [country, userRank, years, gradYear]
+      [country, gradYear]
     );
 
     // Applied markers for the user.

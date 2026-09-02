@@ -6,17 +6,16 @@ import {
   enableSource,
 } from "./registry.js";
 import { fetchSourceListings, isSupportedSourceType } from "./adapters.js";
-import { extractListing, validateExtraction } from "./extract.js";
+import { parseListing } from "./extract.js";
 
 // The daily jobs scrape and extraction pipeline.
 //
 // For each enabled source in the synced registry, fetch current listings via
-// the platform's API, extract structured fields from the raw description for
-// any listing not already in the jobs table, validate that extraction
-// against the raw text, insert the result (job + qualification paths), and
-// finally expire listings this source no longer carries — but only after a
-// couple of consecutive missed scrapes, and never because a single fetch
-// failed.
+// the platform's API, parse the structured fields directly from the source
+// data (deterministic, no LLM) for any listing not already in the jobs
+// table, insert the result (job + qualification paths), and finally expire
+// listings this source no longer carries — but only after a couple of
+// consecutive missed scrapes, and never because a single fetch failed.
 //
 // A broken source must never be interpreted as the company having zero jobs:
 // a failed fetch only records a source-level failure and does not touch that
@@ -25,7 +24,7 @@ import { extractListing, validateExtraction } from "./extract.js";
 // A listing not seen for this many days is treated as gone (the scrape runs
 // daily, so ~2 missed consecutive runs), rather than a single failed fetch.
 const MISSING_DAYS_TO_EXPIRE = 2;
-const MIN_MS = 60 * 60 * 1000; // 1 hour (small delay for rate limiting)
+const BETWEEN_SOURCES_MS = 1000; // short pause between sources to be polite
 
 function sourceKey(source) {
   return `${source.source_type}:${source.source_identifier}`;
@@ -101,31 +100,17 @@ async function runOneSource(source, { dryRun }) {
 
     if (dryRun) continue;
 
-    // New listing: extract, validate, then insert.
-    let extracted;
-    try {
-      extracted = await extractListing(listing);
-    } catch (err) {
-      console.error(`[jobs] ${sourceKey(source)} extraction error: ${err.message}`);
-      continue;
-    }
-    const verdict = await validateExtraction(listing, extracted).catch((err) => {
-      console.error(`[jobs] ${sourceKey(source)} validation error: ${err.message}`);
-      return { ok: false, issues: [`validation error: ${err.message}`] };
-    });
-    if (!verdict.ok) {
-      console.warn(
-        `[jobs] ${sourceKey(source)} rejected ${listing.role} (${listing.source_url}): ${(
-          verdict.issues || []
-        ).join("; ")}`
-      );
+    // New listing: parse the structured fields directly (deterministic, no
+    // LLM), with only a minimal sanity check before insert.
+    const extracted = parseListing(listing);
+    if (!extracted.role || !extracted.company || !listing.apply_url) {
       stats.jobs_failed_validation += 1;
       continue;
     }
     await insertJob(listing, extracted);
     stats.jobs_inserted += 1;
-    // Be gentle with the ATS and the LLM between listings.
-    await sleep(150);
+    // Be gentle with the ATS between listings.
+    await sleep(50);
   }
 
   // Expiry: only after this source returned data successfully. A previously
@@ -258,7 +243,7 @@ export async function runJobsJob({ dryRun = false } = {}) {
       console.error(`[jobs] ${sourceKey(source)} run error: ${err.message}`);
       results.push({ source: sourceKey(source), status: "error", error: err.message });
     }
-    await sleep(MIN_MS);
+    await sleep(BETWEEN_SOURCES_MS);
   }
   return { status: "ok", dryRun, synced, results };
 }

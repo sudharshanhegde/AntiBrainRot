@@ -16,7 +16,10 @@
 # that a company is hiring or what ATS it uses; current availability always
 # comes from the live source on each daily run.
 
-# Phase 1 (MVP) sources, verified ATS candidates with India relevance.
-greenhouse:phonepe
+# Phase 1 (MVP) sources. razorpay (greenhouse) and zeta (lever) resolve
+# against their live public APIs and are active. phonepe is commented out
+# because the greenhouse:phonepe board token returns HTTP 404 on onboarding;
+# re-add it once its real ATS/board token is confirmed.
 greenhouse:razorpaysoftwareprivatelimited
 lever:zeta
+# greenhouse:phonepe

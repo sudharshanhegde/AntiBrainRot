@@ -77,7 +77,7 @@ function describePaths(paths) {
 }
 
 // --- First-open questionnaire -------------------------------------------
-function JobProfileForm({ onSave }) {
+function JobProfileForm({ onSave, onBack }) {
   const [country, setCountry] = useState("");
   const [years, setYears] = useState("");
   const [education, setEducation] = useState("");
@@ -121,7 +121,13 @@ function JobProfileForm({ onSave }) {
       <header className="px-6 pt-[max(2.5rem,env(safe-area-inset-top))]">
         <div className="flex items-baseline justify-between">
           <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">antibrainrot</p>
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">jobs</p>
+          <button
+            type="button"
+            onClick={onBack}
+            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+          >
+            go back
+          </button>
         </div>
         <h1
           className="mt-3 font-sans text-2xl font-semibold tracking-tight sm:text-3xl"
@@ -584,7 +590,7 @@ export function JobsScreen({ onBack, onOpenProfile = () => {} }) {
     );
   }
   if (profile === null) {
-    return <JobProfileForm onSave={handleSaved} />;
+    return <JobProfileForm onSave={handleSaved} onBack={onBack} />;
   }
 
   // Pending "did this job still exist?" checks are asked before the feed so
@@ -611,8 +617,8 @@ export function JobsScreen({ onBack, onOpenProfile = () => {} }) {
   if (empty) {
     return (
       <StatusScreen
-        label="no matching jobs right now"
-        title="Nothing matches yet"
+        label="no jobs match your profile right now"
+        title="Nothing to show at the moment"
         accent="job"
         onAction={onBack}
         actionLabel="back to topics"

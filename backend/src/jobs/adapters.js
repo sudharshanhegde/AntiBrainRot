@@ -147,6 +147,9 @@ async function fetchAshby(source, company) {
         raw_html: j.descriptionHtml || "",
         source_ref: String(j.id || ""),
         workplace: j.employmentType || "",
+        // Ashby exposes an explicit isRemote flag; pass it so the parser
+        // does not have to infer remoteness from free text alone.
+        is_remote_hint: j.isRemote === true,
       };
       listing.content_hash = hashListing(listing);
       return listing;

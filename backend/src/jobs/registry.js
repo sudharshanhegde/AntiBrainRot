@@ -92,6 +92,12 @@ export async function syncJobSources() {
 
   const lines = parseSourceLines(content);
   let added = 0;
+
+  // The file is the source of truth: any source no longer listed is disabled
+  // so a removed line (e.g. a board token that 404s) stops being scraped on
+  // the next run instead of failing forever.
+  await query("update job_sources set enabled = false");
+
   for (const line of lines) {
     // Canonical company identity (upsert).
     const companyRes = await query(
@@ -109,10 +115,11 @@ export async function syncJobSources() {
     const res = await query(
       `insert into job_sources
          (company_id, source_type, source_identifier, source_url, enabled)
-       values ($1, $2, $3, $4, false)
+       values ($1, $2, $3, $4, true)
        on conflict (source_type, source_identifier) do update set
          company_id = excluded.company_id,
-         source_url = coalesce(excluded.source_url, job_sources.source_url)
+         source_url = coalesce(excluded.source_url, job_sources.source_url),
+         enabled = true
        returning (xmax = 0) as is_insert`,
       [companyId, line.source_type, line.source_identifier, line.source_url]
     );
@@ -122,20 +129,16 @@ export async function syncJobSources() {
   return { status: "ok", lines: lines.length, added };
 }
 
-// The sources the daily scrape runs against, in registry order. This is
-// enabled sources PLUS any not-yet-verified source (a freshly added line
-// starts disabled until its first live fetch verifies the mapping). A
-// verified source is enabled by recordSourceResult/enableSource on success,
-// so onboarding happens automatically on the first daily run after a line is
-// appended; a source is never fetched before its mapping is verified, and a
-// deliberately-disabled source (no first success yet) keeps being retried
-// rather than silently dropped.
+// The sources the daily scrape runs against, in registry order. `enabled`
+// now means "currently listed in the registry file" (set fresh on every
+// sync), so only sources present in pipeline/job_sources.md are fetched. A
+// removed source is disabled and no longer scraped.
 export async function loadEnabledSources() {
   const { rows } = await query(
     `select s.id, s.source_type, s.source_identifier, s.source_url, c.name as company
        from job_sources s
        join companies c on c.id = s.company_id
-      where s.enabled = true or s.last_success_at is null
+      where s.enabled = true
       order by s.id`
   );
   return rows;

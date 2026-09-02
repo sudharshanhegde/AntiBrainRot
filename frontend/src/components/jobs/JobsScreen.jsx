@@ -411,13 +411,35 @@ function JobCard({ job, index, onApply, onFlag, onBack, onOpenProfile, onOpenApp
   );
 }
 
-// --- "Did this job still exist?" verifier ---------------------------------
-// Shown on returning to the Jobs tab, before the feed, for every application
-// the user has tapped Apply on but not yet answered. Each row is a Yes/No
-// question about whether that job actually existed and let them apply. The
-// answers feed the stale-posting signal and are inspectable directly. Any
-// item left unanswered is kept for the next visit.
+// --- "Did you apply?" verifier -------------------------------------------
+// Shown on returning to the Jobs tab, before the feed, for every job the user
+// tapped Apply on but has not answered yet. For each, two Yes/No questions:
+//   "Could you apply?" - was the posting live / did they reach it (No means
+//                        the listing looks stale -> a quality signal), and
+//   "Did you apply?"   - did they actually submit an application.
+// Only "Did you apply? = Yes" saves the job to "My applications". Items left
+// unanswered are kept for the next visit.
 function ApplicationVerifier({ items, onAnswer, onSkip, onBack }) {
+  const [answers, setAnswers] = useState({}); // job_id -> { could, did }
+  const [saving, setSaving] = useState({});
+  const [fail, setFail] = useState({});
+
+  const setAnswer = (item, key, val) => {
+    const s = { ...(answers[item.job_id] || {}), [key]: val };
+    setAnswers((prev) => ({ ...prev, [item.job_id]: s }));
+    if (s.could != null && s.did != null) {
+      setSaving((prev) => ({ ...prev, [item.job_id]: true }));
+      onAnswer(item, s.could, s.did)
+        .catch(() => setFail((prev) => ({ ...prev, [item.job_id]: true })))
+        .finally(() => setSaving((prev) => ({ ...prev, [item.job_id]: false })));
+    }
+  };
+
+  const pill = (active) =>
+    active
+      ? "rounded-full border border-ink px-3 py-1 font-sans text-[12px] font-medium text-ink"
+      : "rounded-full border border-hairline px-3 py-1 font-sans text-[12px] font-medium text-muted";
+
   return (
     <main className="screen-in h-dvh overflow-y-auto bg-paper">
       <header className="px-6 pt-[max(2.5rem,env(safe-area-inset-top))]">
@@ -431,42 +453,62 @@ function ApplicationVerifier({ items, onAnswer, onSkip, onBack }) {
             go back
           </button>
         </div>
-        <h1 className="mt-3 font-sans text-2xl font-semibold tracking-tight sm:text-3xl" style={{ color: JOBS_ACCENT }}>
-          Did these jobs still exist?
+        <h1
+          className="mt-3 font-sans text-2xl font-semibold tracking-tight sm:text-3xl"
+          style={{ color: JOBS_ACCENT }}
+        >
+          Did you apply?
         </h1>
         <p className="mt-2 max-w-md font-sans text-[15px] leading-relaxed text-muted">
-          One quick check on the roles you applied to. It keeps stale listings out of the feed for everyone.
+          A quick check on jobs you opened. It only lands in My applications if you actually applied.
         </p>
       </header>
 
       <div className="mt-6 flex flex-col gap-3 px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
-        {items.map((item) => (
-          <div key={item.job_id} className="rounded-lg border border-hairline bg-paper px-5 py-4">
-            <p className="font-sans text-[17px] font-semibold tracking-tight text-ink">{item.role}</p>
-            <p className="mt-0.5 font-sans text-[14px] text-muted">{item.company}</p>
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
-                Could you apply?
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => onAnswer(item, true)}
-                  className="rounded-lg border border-ink px-4 py-1.5 font-sans text-[13px] font-semibold text-ink"
-                >
-                  Yes
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onAnswer(item, false)}
-                  className="rounded-lg border border-hairline px-4 py-1.5 font-sans text-[13px] font-semibold text-muted transition-colors hover:border-ink"
-                >
-                  No
-                </button>
+        {items.map((item) => {
+          const a = answers[item.job_id] || {};
+          return (
+            <div key={item.job_id} className="rounded-lg border border-hairline bg-paper px-5 py-4">
+              <p className="font-sans text-[17px] font-semibold tracking-tight text-ink">{item.role}</p>
+              <p className="mt-0.5 font-sans text-[14px] text-muted">{item.company}</p>
+
+              <div className="mt-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+                    Could you apply?
+                  </p>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setAnswer(item, "could", true)} className={pill(a.could === true)}>
+                      Yes
+                    </button>
+                    <button type="button" onClick={() => setAnswer(item, "could", false)} className={pill(a.could === false)}>
+                      No
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+                    Did you apply?
+                  </p>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setAnswer(item, "did", true)} className={pill(a.did === true)}>
+                      Yes
+                    </button>
+                    <button type="button" onClick={() => setAnswer(item, "did", false)} className={pill(a.did === false)}>
+                      No
+                    </button>
+                  </div>
+                </div>
+                {saving[item.job_id] && (
+                  <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">saving…</p>
+                )}
+                {fail[item.job_id] && (
+                  <p className="font-sans text-[13px] text-ink/70">could not save — try again</p>
+                )}
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         <button
           type="button"
@@ -549,10 +591,11 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
   }, []);
 
   const handleApply = useCallback(async (job) => {
-    if (job.applied) return;
     try {
+      // Opens the posting. This only marks the job as "pending a check"; it is
+      // NOT saved to My applications until the user later confirms "Did you
+      // apply? = Yes" in the verifier.
       const url = await applyToJob(job.id);
-      setJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, applied: true } : j)));
       if (url) window.open(url, "_blank", "noopener,noreferrer");
     } catch (err) {
       console.warn("could not record application", err);
@@ -594,13 +637,14 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
   }, [user, profile]);
 
   // Records a Yes/No answer and removes the application from the pending set.
-  const handleAnswer = useCallback(async (item, existed) => {
-    try {
-      await submitApplicationFeedback(item.job_id, existed);
-      setPending((prev) => (prev || []).filter((p) => p.job_id !== item.job_id));
-    } catch (err) {
-      console.warn("could not save application feedback", err);
-    }
+  // Records both answers for a job the user tapped Apply on. Only when
+  // didApply is true does the backend move it into "My applications". Returns
+  // a promise so the verifier can show saving state, and removes the item once
+  // answered (a failure leaves it pending to retry).
+  const handleAnswer = useCallback(async (item, couldApply, didApply) => {
+    const result = await submitApplicationFeedback(item.job_id, couldApply, didApply);
+    setPending((prev) => (prev || []).filter((p) => p.job_id !== item.job_id));
+    return result;
   }, []);
 
   // Needs an account: matching is personal.

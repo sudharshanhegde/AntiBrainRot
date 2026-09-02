@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { query } from "../db.js";
+import { query, pool } from "../db.js";
 import { requireAuth } from "../auth.js";
 import { runJobsJob } from "../jobs/sync.js";
 import { requirementsExcerpt } from "../jobs/extract.js";
@@ -279,8 +279,11 @@ jobsRouter.get("/", requireAuth, async (req, res) => {
 });
 
 // POST /api/jobs/apply   body: { job_id }
-// Records the application (company/role denormalized from jobs so the
-// history survives the job later expiring), before/alongside the redirect.
+// Records that the user tapped Apply (a PENDING check, NOT yet a real
+// application). The two questions are asked on a later visit; only when they
+// answer "Did you apply? = Yes" does a row get added to applied_jobs ("My
+// applications"). company/role are denormalized so the pending decision can
+// be recorded even after the job is flagged expired.
 jobsRouter.post("/apply", requireAuth, async (req, res) => {
   try {
     const jobId = Number(req.body?.job_id);
@@ -296,9 +299,11 @@ jobsRouter.post("/apply", requireAuth, async (req, res) => {
     }
     const job = jobRes.rows[0];
     await query(
-      `insert into applied_jobs (user_id, job_id, company, role)
-       values ($1, $2, $3, $4)
-       on conflict do nothing`,
+      `insert into job_apply_checks (user_id, job_id, company, role, answered)
+       values ($1, $2, $3, $4, false)
+       on conflict (user_id, job_id) do update set
+         company = excluded.company, role = excluded.role, answered = false,
+         could_apply = null, did_apply = null, updated_at = now()`,
       [req.userId, job.id, job.company, job.role]
     );
     res.json({ ok: true, apply_url: job.apply_url });
@@ -309,27 +314,25 @@ jobsRouter.post("/apply", requireAuth, async (req, res) => {
 });
 
 // GET /api/jobs/applied-pending
-// Applications the user has tapped Apply on but has not yet answered the
-// "did this job still exist?" check. Returned when they come back to the
-// Jobs tab so the question can be asked before the feed continues. The live
-// state of the underlying job is included so a still-active posting can
-// carry the user straight to Apply again if they want.
+// Jobs the user tapped Apply on but has NOT yet answered the two questions
+// ("Could you apply?" / "Did you apply?"). Returned when they come back to
+// the Jobs tab so the check can be asked before the feed continues.
 jobsRouter.get("/applied-pending", requireAuth, async (req, res) => {
   try {
     const { rows } = await query(
-      `select a.job_id, a.company, a.role, a.applied_at,
-              j.apply_url, j.expired, j.last_seen_at
-         from applied_jobs a
-         left join jobs j on j.id = a.job_id
-        where a.user_id = $1 and a.feedback_given_at is null
-        order by a.applied_at desc`,
+      `select c.job_id, c.company, c.role, c.updated_at,
+              j.apply_url, j.expired
+         from job_apply_checks c
+         left join jobs j on j.id = c.job_id
+        where c.user_id = $1 and c.answered = false
+        order by c.updated_at desc`,
       [req.userId]
     );
     const pending = rows.map((r) => ({
       job_id: r.job_id,
       company: r.company,
       role: r.role,
-      applied_at: r.applied_at,
+      tapped_at: r.updated_at,
       apply_url: r.apply_url,
       job_still_live: r.expired === false,
     }));
@@ -340,28 +343,62 @@ jobsRouter.get("/applied-pending", requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/jobs/feedback   body: { job_id, job_existed: boolean }
-// Records the user's answer to "did this job still exist?" (Yes = true, No =
-// false) on their application. Each application is answered once; a repeat
-// POST for the same job just refreshes the answer. These aggregate into the
-// "No" counts used to spot stale postings, and are inspectable directly.
+// POST /api/jobs/feedback   body: { job_id, could_apply: boolean, did_apply: boolean }
+// Records the user's answers to the two pending questions for a job they
+// tapped Apply on:
+//   could_apply - was the posting live/reachable (Yes = it was actively
+//                 hiring; No = stale/dead -> a listing-quality signal).
+//   did_apply   - did they actually submit an application.
+// Only when did_apply = true is a row inserted into applied_jobs ("My
+// applications"). Runs in a transaction so the decision and (if any) the
+// application are consistent.
 jobsRouter.post("/feedback", requireAuth, async (req, res) => {
   try {
     const jobId = Number(req.body?.job_id);
-    const existed = req.body?.job_existed;
-    if (!Number.isInteger(jobId) || typeof existed !== "boolean") {
-      return res.status(400).json({ error: "job_id and a boolean job_existed are required" });
+    const couldApply = req.body?.could_apply;
+    const didApply = req.body?.did_apply;
+    if (!Number.isInteger(jobId) || typeof couldApply !== "boolean" || typeof didApply !== "boolean") {
+      return res.status(400).json({ error: "job_id, could_apply, and did_apply are required" });
     }
-    const { rowCount } = await query(
-      `update applied_jobs set
-         feedback_job_existed = $3, feedback_given_at = now()
-       where user_id = $1 and job_id = $2`,
-      [req.userId, jobId, existed]
+
+    const checkRes = await query(
+      `select company, role from job_apply_checks
+        where user_id = $1 and job_id = $2`,
+      [req.userId, jobId]
     );
-    if (rowCount === 0) {
-      return res.status(404).json({ error: "no application found for this job" });
+    if (checkRes.rows.length === 0) {
+      return res.status(404).json({ error: "no pending apply for this job" });
     }
-    res.json({ ok: true, job_id: jobId, job_existed: existed });
+    const { company, role } = checkRes.rows[0];
+
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      // Mark the pending check as answered.
+      await client.query(
+        `update job_apply_checks set
+           could_apply = $3, did_apply = $4, answered = true, updated_at = now()
+         where user_id = $1 and job_id = $2`,
+        [req.userId, jobId, couldApply, didApply]
+      );
+      // Only a real application (did_apply = Yes) goes into My applications.
+      if (didApply) {
+        await client.query(
+          `insert into applied_jobs (user_id, job_id, company, role)
+           values ($1, $2, $3, $4)
+           on conflict do nothing`,
+          [req.userId, jobId, company, role]
+        );
+      }
+      await client.query("commit");
+    } catch (err) {
+      await client.query("rollback");
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    res.json({ ok: true, job_id: jobId, could_apply: couldApply, did_apply: didApply, saved: didApply });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "could not save feedback" });

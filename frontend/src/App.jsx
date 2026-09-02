@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NichePicker } from "./components/onboarding/NichePicker";
 import { WelcomeGate } from "./components/onboarding/WelcomeGate";
 import { TopicList } from "./components/topics/TopicList";
@@ -38,9 +38,36 @@ function writeStored(key, value) {
   }
 }
 
-// Navigation is a small state machine, not a router: niche -> topics ->
-// feed, plus profile and leaderboard reachable from the hamburger menu.
-// The niche and last topic persist so a returning user skips onboarding.
+// --- Hash routing --------------------------------------------------------
+// Navigation is URL-based via the fragment ("#/jobs", "#/topic/os/decks/0",
+// ...) using the History API, so the browser's back/forward buttons move
+// between real app screens (e.g. Jobs -> Topics -> Home) instead of exiting
+// the site. Hash routing works on any static host with no server config.
+const STATIC_ROUTES = {
+  "#/niche": "niche",
+  "#/topics": "topics",
+  "#/profile": "profile",
+  "#/leaderboard": "leaderboard",
+  "#/quick-bites": "quickBites",
+  "#/worth-a-read": "worthARead",
+  "#/jobs": "jobs",
+  "#/applications": "applications",
+};
+
+// Parses the current location hash into { view, topicSlug, revision }, or
+// null when it is empty/unknown (caller falls back to the stored default).
+function parseRoute(hash) {
+  const h = hash || "";
+  if (h.startsWith("#/topic/")) {
+    const parts = h.replace("#/topic/", "").split("/");
+    const slug = decodeURIComponent(parts[0]) || null;
+    const rev = parts[1] ? Number(parts[1]) : null;
+    return { view: "feed", topicSlug: slug, revision: Number.isInteger(rev) ? rev : null };
+  }
+  const view = STATIC_ROUTES[h];
+  return view ? { view, topicSlug: null, revision: null } : null;
+}
+
 export default function App() {
   const { user, loading } = useAuth();
   const [nicheSlug, setNicheSlug] = useState(() => readStored(STORAGE_KEYS.niche));
@@ -59,6 +86,36 @@ export default function App() {
   // Note shown on the profile screen when a signed-out user tried to open
   // a topic, explaining why an account is needed.
   const [authNotice, setAuthNotice] = useState(null);
+
+  // Changes the URL hash (adds a history entry) and lets the hashchange
+  // listener below update the view, so the browser back button can return to
+  // the previous in-app screen.
+  function navigate(hash) {
+    if (window.location.hash === hash) return;
+    window.location.hash = hash;
+  }
+
+  // Applies the current hash to the view state (also runs on back/forward).
+  useEffect(() => {
+    const onHash = () => {
+      const route = parseRoute(window.location.hash);
+      if (!route) {
+        setView(readStored(STORAGE_KEYS.niche) ? "topics" : "niche");
+        setRevisionDeckIndex(null);
+        return;
+      }
+      setView(route.view);
+      if (route.view === "feed" && route.topicSlug) {
+        setTopicSlug(route.topicSlug);
+        setRevisionDeckIndex(route.revision);
+      } else if (route.view !== "feed") {
+        setRevisionDeckIndex(null);
+      }
+    };
+    onHash(); // initial load / deep link
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
   // Auth session is still being restored from storage; don't render the
   // app until the identity (or lack of one) is known.
@@ -79,19 +136,19 @@ export default function App() {
           markVisited();
           setGateChosen(true);
           setAuthNotice(null);
-          setView("profile");
+          navigate("#/profile");
         }}
         onLogin={() => {
           markVisited();
           setGateChosen(true);
           setAuthNotice(null);
-          setView("profile");
+          navigate("#/profile");
         }}
         onGuest={() => {
           resetToGuest();
           markVisited();
           setGateChosen(true);
-          setView(nicheSlug ? "topics" : "niche");
+          navigate(readStored(STORAGE_KEYS.niche) ? "#/topics" : "#/niche");
         }}
       />
     );
@@ -100,10 +157,9 @@ export default function App() {
   const pickNiche = (slug) => {
     writeStored(STORAGE_KEYS.niche, slug);
     setNicheSlug(slug);
-    setTopicSlug(null);
     writeStored(STORAGE_KEYS.topic, "");
     setSurpriseNotice(null);
-    setView("topics");
+    navigate("#/topics");
   };
 
   // revisionIndex (optional) opens a specific published day so the user
@@ -112,8 +168,6 @@ export default function App() {
   // sign in and migrate it to an account.
   const pickTopic = async (slug, revisionIndex = null) => {
     writeStored(STORAGE_KEYS.topic, slug);
-    setTopicSlug(slug);
-    setRevisionDeckIndex(revisionIndex);
     setSurpriseNotice(null);
     // Resume: opening a topic lands in the current in-progress deck at
     // the card the user was last on. Revision
@@ -127,50 +181,37 @@ export default function App() {
       }
     }
     setInitialCardIndex(revisionIndex != null ? 0 : resume);
-    setView("feed");
+    setTopicSlug(slug);
+    navigate(
+      `#/topic/${encodeURIComponent(slug)}${revisionIndex != null ? `/${revisionIndex}` : ""}`
+    );
   };
 
-  const backToTopics = () => {
-    setRevisionDeckIndex(null);
-    setView("topics");
-  };
+  const backToTopics = () => navigate("#/topics");
   const backToNiche = () => {
     setSurpriseNotice(null);
-    setView("niche");
+    navigate("#/niche");
   };
   const openProfile = () => {
     setAuthNotice(null);
-    setView("profile");
+    navigate("#/profile");
   };
-  const openLeaderboard = () => {
-    setView("leaderboard");
-  };
-  // The Quick Bites feed is a separate mode from the topic decks, opened
-  // from its own entry point on the topics page ().
+  const openLeaderboard = () => navigate("#/leaderboard");
   const openQuickBites = () => {
     setSurpriseNotice(null);
-    setView("quickBites");
+    navigate("#/quick-bites");
   };
-  // Worth a Read is a separate screen from the topic decks and Quick Bites,
-  // opened from its own entry point on the topics page.
   const openWorthARead = () => {
     setSurpriseNotice(null);
-    setView("worthARead");
+    navigate("#/worth-a-read");
   };
-  // The Jobs board is its own screen (separate from the topic decks, Quick
-  // Bites, and Worth a Read), opened from its own entry point on the topics
-  // page. It requires a signed-in account for personal matching.
   const openJobs = () => {
     setSurpriseNotice(null);
-    setView("jobs");
+    navigate("#/jobs");
   };
-  // The user's application history, opened from the jobs hamburger.
-  const openApplications = () => {
-    setView("applications");
-  };
-  const backToJobs = () => {
-    setView("jobs");
-  };
+  const openApplications = () => navigate("#/applications");
+  const backToJobs = () => navigate("#/jobs");
+
   // After account deletion: back to a clean guest start.
   const handleDeleted = () => {
     setNicheSlug(null);
@@ -178,7 +219,7 @@ export default function App() {
     setRevisionDeckIndex(null);
     writeStored(STORAGE_KEYS.niche, "");
     writeStored(STORAGE_KEYS.topic, "");
-    setView("niche");
+    navigate("#/niche");
   };
 
   // Called when the user reaches the end card of a deck. Records
@@ -195,7 +236,7 @@ export default function App() {
     const all = niche ? [...niche.topics] : [];
     if (all.length === 0) {
       setSurpriseNotice("No topics to pick from yet.");
-      setView("topics");
+      navigate("#/topics");
       return;
     }
     const pick = all[Math.floor(Math.random() * all.length)];
@@ -249,9 +290,7 @@ export default function App() {
     );
   }
   if (view === "applications") {
-    return (
-      <ApplicationsScreen onBack={backToJobs} onOpenProfile={openProfile} />
-    );
+    return <ApplicationsScreen onBack={backToJobs} onOpenProfile={openProfile} />;
   }
   return (
     <Feed

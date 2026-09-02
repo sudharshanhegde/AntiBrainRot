@@ -322,6 +322,30 @@ create table if not exists job_user_flags (
 );
 create index if not exists job_user_flags_user_idx on job_user_flags (user_id);
 
+-- Pending application checks. When a user taps Apply on a job the row is
+-- created (answered=false) but it is NOT yet a real application. On a later
+-- visit the user is asked two questions:
+--   could_apply - was the posting live / could they actually reach it
+--                (a listing-quality signal; No means it is stale/dead), and
+--   did_apply   - did they actually submit an application.
+-- Only when did_apply = true does a row get copied into applied_jobs ("My
+-- applications"). company/role are denormalized here so a decision can be
+-- recorded even after the job row is flagged expired.
+create table if not exists job_apply_checks (
+  id serial primary key,
+  user_id text not null,
+  job_id integer not null references jobs(id),
+  company text not null,
+  role text not null,
+  could_apply boolean,
+  did_apply boolean,
+  answered boolean not null default false,
+  updated_at timestamptz not null default now(),
+  unique (user_id, job_id)
+);
+create index if not exists job_apply_checks_user_idx
+  on job_apply_checks (user_id) where answered = false;
+
 -- User-verification feedback: when a user returns to the Jobs tab after
 -- applying, we ask "did this job still exist?" (Yes/No). feedback_job_existed
 -- stores the answer and feedback_given_at marks it as answered so it is only

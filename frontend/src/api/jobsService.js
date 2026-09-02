@@ -142,13 +142,17 @@ export async function flagJob(jobId, interested) {
   return res.json();
 }
 
-// Submits the Yes/No answer for one application (job_existed = true means
-// the posting was real/applyable; false means it was gone or dead).
-export async function submitApplicationFeedback(jobId, jobExisted) {
-  if (USE_MOCK) return;
+// Submits the answers to the two pending questions for a job the user tapped
+// Apply on:
+//   couldApply - was the posting live / could they reach it (Yes = actively
+//                hiring; No = stale listing -> quality signal), and
+//   didApply   - did they actually submit an application.
+// Only didApply = true saves the job to "My applications".
+export async function submitApplicationFeedback(jobId, couldApply, didApply) {
+  if (USE_MOCK) return { ok: true, saved: didApply };
   const res = await apiFetch("/api/jobs/feedback", {
     method: "POST",
-    body: JSON.stringify({ job_id: jobId, job_existed: jobExisted }),
+    body: JSON.stringify({ job_id: jobId, could_apply: couldApply, did_apply: didApply }),
   });
   if (!res.ok) throw new Error("could not save your answer");
   return res.json();

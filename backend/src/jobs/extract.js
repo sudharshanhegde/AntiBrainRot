@@ -190,6 +190,106 @@ export function requirementsExcerpt(rawText, max = 1600) {
   return out;
 }
 
+// --- Structured section parser (deterministic) ---------------------------
+// Postings are written with recognizable sections, so instead of hunting for
+// numbers anywhere we bucket the text by its section headings and only treat
+// the hard-requirement sections ("Minimum requirements", "Mandatory skills",
+// "Qualifications", ...) as gates, while "Preferred / Good to have / Bonus"
+// are explicitly NOT gates. This makes the no-model fallback much closer to a
+// human reading the posting, and the model path stays the primary extractor.
+function classifyHeading(line) {
+  const t = line.replace(/[:.,]+$/, "").trim().toLowerCase();
+  if (
+    /^(requirements?|job requirements?|minimum requirements?|qualifications?|mandatory (?:skills?|requirements?|qualifications?)|must have|essential|you (?:must|should|need to) have|what we look for|what you(?:'ll| will)? need|skills?(?: and experience| required)?$|experience (?:required|needed|qualifications?)|experience and qualifications?|additional requirements?|key (?:skills|requirements))$/i.test(
+      t
+    )
+  ) {
+    return "required";
+  }
+  if (
+    /^(preferred qualifications?|good to have|nice to have|bonus(?: points)?|would be a plus|a plus|desired(?: skills)?|what would make you stand out|preferred)$/i.test(
+      t
+    )
+  ) {
+    return "preferred";
+  }
+  if (
+    /^(responsibilities|about the role|about this role|the role|role overview|what you(?:'ll| will)? do|key responsibilities|day to day)$/i.test(
+      t
+    )
+  ) {
+    return "role";
+  }
+  if (
+    /^(about us|about the company|our (?:impact|culture|values|mission|story|team)|who we are|life at|join us|why .+|we are an|equal opportunity)/i.test(
+      t
+    )
+  ) {
+    return "company";
+  }
+  return null;
+}
+
+// Parses degree + experience out of the structured requirement sections.
+function parseStructuredRequirements(role, rawText) {
+  const lines = String(rawText || "")
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const buckets = { required: [], preferred: [], role: [] };
+  let cur = null;
+  for (const raw of lines) {
+    if (raw.length < 2) continue;
+    const h = classifyHeading(raw);
+    if (h) {
+      cur = h;
+      continue;
+    }
+    if (cur && buckets[cur]) buckets[cur].push(raw);
+  }
+
+  const reqAndRole = `${buckets.required.join(" ")} ${buckets.role.join(" ")}`;
+  const requiredText = buckets.required.join(" ");
+
+  // Experience: collect ranges/plus statements and pick the one with the
+  // largest minimum (the overall years requirement, not a sub-skill line).
+  const candidates = [];
+  const rangeRe = /(\d{1,2})\s*(?:to|-|–|and)\s*(\d{1,2})\s*\+?\s*years?/gi;
+  let m;
+  while ((m = rangeRe.exec(reqAndRole))) candidates.push({ min: +m[1], max: +m[2] });
+  const atLeastRe = /(?:at least|minimum|min\.?|over|plus|\+)\s*(\d{1,2})\s*(?:\+)?\s*years?/gi;
+  while ((m = atLeastRe.exec(reqAndRole))) candidates.push({ min: +m[1], max: null });
+  let chosen = null;
+  for (const c of candidates) {
+    if (!chosen || c.min > chosen.min) chosen = c;
+  }
+
+  const minExp = chosen ? chosen.min : seniorityDefaultYears(role);
+  const maxExp = chosen ? chosen.max : null;
+
+  // Degree: only a degree stated inside a REQUIRED section gates matching.
+  // A degree that only appears under "Good to have / Preferred" must not hide
+  // the role from someone without it.
+  const levels = [];
+  const rt = requiredText.toLowerCase();
+  if (/(ph\.?\s?d|doctorate)/.test(rt)) levels.push("phd");
+  if (/(master|m\.?\s?tech|m\.?\s?s(?:c)?\b|mba)/.test(rt)) levels.push("master");
+  if (/(bachelor|b\.?\s?tech|b\.?\s?e\b|b\.?\s?s(?:c)?\b|undergrad)/.test(rt)) levels.push("bachelor");
+  if (levels.length === 0) levels.push("any");
+
+  const paths = levels.map((education_level) => ({
+    education_level,
+    min_experience_years: minExp,
+    max_experience_years: maxExp,
+  }));
+
+  // Fallback summary: the required + role content, bounded.
+  const summarySrc = `${buckets.required.join("\n")}\n${buckets.role.join("\n")}`.trim();
+  const summary = summarySrc.length > 900 ? `${summarySrc.slice(0, 900)}…` : summarySrc;
+
+  return { qualification_paths: paths, requirements_summary: summary };
+}
+
 // Parses one raw adapter listing into the structured fields stored on the
 // jobs table. Pure and synchronous — no network, no model.
 export function parseListing(listing) {
@@ -201,6 +301,7 @@ export function parseListing(listing) {
   const location_country = isRemote ? null : detectCountry(location);
   const remote_restricted_to = isRemote ? remoteRestrictedTo(location) : null;
   const target_grad_year = detectTargetGradYear(role, rawText);
+  const structured = parseStructuredRequirements(role, rawText);
 
   return {
     role,
@@ -210,8 +311,8 @@ export function parseListing(listing) {
     is_remote: isRemote,
     remote_restricted_to,
     target_grad_year,
-    qualification_paths: detectQualificationPaths(role, rawText),
-    requirements_summary: requirementsExcerpt(rawText, 900),
+    qualification_paths: structured.qualification_paths,
+    requirements_summary: structured.requirements_summary || requirementsExcerpt(rawText, 900),
   };
 }
 

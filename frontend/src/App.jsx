@@ -5,6 +5,7 @@ import { TopicList } from "./components/topics/TopicList";
 import { Feed } from "./components/feed/Feed";
 import { QuickBitesFeed } from "./components/feed/QuickBitesFeed";
 import { WorthAReadList } from "./components/worthARead/WorthAReadList";
+import { JobsScreen } from "./components/jobs/JobsScreen";
 import { ProfileScreen } from "./components/profile/ProfileScreen";
 import { LeaderboardScreen } from "./components/leaderboard/LeaderboardScreen";
 import { StatusScreen } from "./components/ui/StatusScreen";
@@ -155,6 +156,13 @@ export default function App() {
     setSurpriseNotice(null);
     setView("worthARead");
   };
+  // The Jobs board is its own screen (separate from the topic decks, Quick
+  // Bites, and Worth a Read), opened from its own entry point on the topics
+  // page. It requires a signed-in account for personal matching.
+  const openJobs = () => {
+    setSurpriseNotice(null);
+    setView("jobs");
+  };
   // After account deletion: back to a clean guest start.
   const handleDeleted = () => {
     setNicheSlug(null);
@@ -211,6 +219,7 @@ export default function App() {
         onOpenProfile={openProfile}
         onOpenQuickBites={openQuickBites}
         onOpenWorthARead={openWorthARead}
+        onOpenJobs={openJobs}
         notice={surpriseNotice}
         onDismissNotice={() => setSurpriseNotice(null)}
       />
@@ -221,6 +230,9 @@ export default function App() {
   }
   if (view === "worthARead") {
     return <WorthAReadList onBack={backToTopics} />;
+  }
+  if (view === "jobs") {
+    return <JobsScreen onBack={backToTopics} onOpenProfile={openProfile} />;
   }
   return (
     <Feed

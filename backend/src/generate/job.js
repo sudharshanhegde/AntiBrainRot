@@ -13,6 +13,7 @@ import { insertReviewedDeck } from "./insert.js";
 import { loadSources } from "./sources.js";
 import { runQuickBitesJob } from "./quickBites.js";
 import { syncWorthARead } from "./worthARead.js";
+import { runJobsJob } from "../jobs/sync.js";
 
 // The automated daily generation job.
 //
@@ -381,6 +382,11 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
   // It is gated by the same time window and once-per-IST-day guard above.
   const quickBites = await runQuickBitesJob({ dryRun });
 
+  // Jobs: the daily scrape + extraction pass for the jobs board. It rides on
+  // the same daily run so the job listings refresh alongside the topic and
+  // quick-bites content. Source health and expiry are handled inside.
+  const jobs = await runJobsJob({ dryRun });
+
   const activeRes = await query(
     "select slug, target_decks, decks_generated from topics where status <> 'complete' order by queue_position"
   );
@@ -391,7 +397,7 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
     activeRows = activeRows.filter((t) => topics.includes(t.slug));
   }
   if (activeRows.length === 0) {
-    return { status: "all-complete", message: "no matching active topics", quickBites, worthARead };
+    return { status: "all-complete", message: "no matching active topics", quickBites, worthARead, jobs };
   }
 
   const state = { calls: 0, totalTokens: 0 };

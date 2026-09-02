@@ -1,0 +1,344 @@
+import { Router } from "express";
+import { query } from "../db.js";
+import { requireAuth } from "../auth.js";
+import { runJobsJob } from "../jobs/sync.js";
+
+// Jobs board routes.
+//
+// This section is separate from the topic decks, Quick Bites, and Worth a
+// Read: it surfaces scraped job and internship listings filtered against the
+// user's job-search profile. Matching only shows a job when at least one of
+// its qualification paths is satisfied, its target graduation year (if any)
+// matches exactly, and its location is reachable for the user (a remote role
+// restricted to one country is treated as that country's role, not global).
+//
+// Routes:
+//   GET  /api/jobs/profile   - the signed-in user's job profile (null if unset)
+//   PUT  /api/jobs/profile   - save the job profile (the first-open questionnaire)
+//   GET  /api/jobs           - the matched live feed for the user
+//   POST /api/jobs/apply     - record an application before redirecting
+//   POST /api/jobs/sync      - on-demand scrape (GENERATION_SECRET)
+
+export const jobsRouter = Router();
+
+// Education rank: phd > master > bachelor > associate. A path whose required
+// level is <= the user's level is satisfied (the user "meets or exceeds").
+function educationRank(level) {
+  switch (String(level || "").toLowerCase()) {
+    case "phd":
+      return 4;
+    case "master":
+      return 3;
+    case "bachelor":
+      return 2;
+    case "associate":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function toJob(r) {
+  return {
+    id: r.id,
+    company: r.company,
+    role: r.role,
+    location: r.location,
+    apply_url: r.apply_url,
+    raw_requirements_text: r.raw_requirements_text,
+    target_grad_year: r.target_grad_year,
+    location_country: r.location_country,
+    is_remote: r.is_remote,
+    remote_restricted_to: r.remote_restricted_to,
+    qualification_paths: r.qualification_paths || [],
+  };
+}
+
+// GET /api/jobs/profile
+jobsRouter.get("/profile", requireAuth, async (req, res) => {
+  try {
+    const { rows } = await query(
+      `select job_country, job_years_experience, job_education_level,
+              job_education_completed, job_graduation_year, job_past_internship,
+              job_profile_completed_at
+         from users where id = $1`,
+      [req.userId]
+    );
+    const r = rows[0];
+    if (!r || !r.job_profile_completed_at) {
+      return res.json({ profile: null });
+    }
+    res.json({
+      profile: {
+        country: r.job_country,
+        years_experience: r.job_years_experience,
+        education_level: r.job_education_level,
+        education_completed: r.job_education_completed,
+        graduation_year: r.job_graduation_year,
+        past_internship: r.job_past_internship,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "could not load job profile" });
+  }
+});
+
+// PUT /api/jobs/profile
+// body: the questionnaire fields; marks job_profile_completed_at so it is
+// only asked once on first opening the tab.
+jobsRouter.put("/profile", requireAuth, async (req, res) => {
+  const {
+    country,
+    years_experience,
+    education_level,
+    education_completed,
+    graduation_year,
+    past_internship,
+  } = req.body || {};
+
+  const validEducation = ["associate", "bachelor", "master", "phd"];
+  const years = Number(years_experience);
+  if (!country || !Number.isInteger(years) || years < 0) {
+    return res.status(400).json({ error: "country and a non-negative years_experience are required" });
+  }
+  if (!validEducation.includes(education_level)) {
+    return res.status(400).json({ error: "education_level must be one of associate,bachelor,master,phd" });
+  }
+  const completed = education_completed === true;
+  const gy = graduation_year == null || graduation_year === "" ? null : Number(graduation_year);
+  if (gy !== null && !Number.isInteger(gy)) {
+    return res.status(400).json({ error: "graduation_year must be an integer or null" });
+  }
+
+  const { rows } = await query(
+    `update users set
+       job_country = $2,
+       job_years_experience = $3,
+       job_education_level = $4,
+       job_education_completed = $5,
+       job_graduation_year = $6,
+       job_past_internship = $7,
+       job_profile_completed_at = now()
+     where id = $1
+     returning job_country, job_years_experience, job_education_level,
+               job_education_completed, job_graduation_year, job_past_internship`,
+    [
+      req.userId,
+      country,
+      years,
+      education_level,
+      completed,
+      gy,
+      past_internship === true,
+    ]
+  );
+  if (rows.length === 0) {
+    return res.status(404).json({ error: "user not found" });
+  }
+  const r = rows[0];
+  res.json({
+    profile: {
+      country: r.job_country,
+      years_experience: r.job_years_experience,
+      education_level: r.job_education_level,
+      education_completed: r.job_education_completed,
+      graduation_year: r.job_graduation_year,
+      past_internship: r.job_past_internship,
+    },
+  });
+});
+
+// GET /api/jobs   (requireAuth)
+//
+// The matched feed. Requires a completed job profile (country + years +
+// education); otherwise returns needs_profile so the UI can ask the
+// first-open questions. Matching rules:
+//   1. a qualification path satisfied by education level (>=) and experience
+//      years (within the path's range);
+//   2. if the job has a target_grad_year it must equal the user's stated
+//      graduation year exactly;
+//   3. the job's location_country equals the user's country, or it is remote
+//      and open globally or restricted to the user's country.
+jobsRouter.get("/", requireAuth, async (req, res) => {
+  try {
+    const profRes = await query(
+      `select job_country, job_years_experience, job_education_level,
+              job_graduation_year
+         from users where id = $1`,
+      [req.userId]
+    );
+    const p = profRes.rows[0];
+    if (!p || !p.job_country || p.job_years_experience == null || !p.job_education_level) {
+      return res.json({ status: "needs_profile", jobs: [] });
+    }
+
+    const country = String(p.job_country).toLowerCase();
+    const years = p.job_years_experience;
+    const userRank = educationRank(p.job_education_level);
+    const gradYear = p.job_graduation_year;
+
+    const { rows } = await query(
+      `select j.id, j.company, j.role, j.location, j.apply_url,
+              j.raw_requirements_text, j.target_grad_year, j.location_country,
+              j.is_remote, j.remote_restricted_to,
+              coalesce(
+                (select jsonb_agg(jsonb_build_object(
+                   'education_level', qp.education_level,
+                   'min_experience_years', qp.min_experience_years,
+                   'max_experience_years', qp.max_experience_years))
+                 from job_qualification_paths qp where qp.job_id = j.id), '[]'::jsonb
+              ) as qualification_paths
+         from jobs j
+        where j.expired = false
+          and (
+            j.target_grad_year is null
+            or (j.target_grad_year = $4 and $4 is not null)
+          )
+          and (
+            (j.is_remote = false and lower(j.location_country) = $1)
+            or (
+              j.is_remote = true
+              and (j.remote_restricted_to is null or lower(j.remote_restricted_to) = $1)
+            )
+          )
+          and exists (
+            select 1 from job_qualification_paths qp
+             where qp.job_id = j.id
+               and case lower(qp.education_level)
+                     when 'phd' then 4 when 'master' then 3
+                     when 'bachelor' then 2 when 'associate' then 1 else 0
+                   end <= $2
+               and qp.min_experience_years <= $3
+               and (qp.max_experience_years is null or qp.max_experience_years >= $3)
+          )
+        order by j.last_seen_at desc, j.id desc
+        limit 200`,
+      [country, userRank, years, gradYear]
+    );
+
+    // Applied markers for the user.
+    const appliedRes = await query(
+      "select job_id from applied_jobs where user_id = $1",
+      [req.userId]
+    );
+    const applied = new Set(appliedRes.rows.map((r) => r.job_id));
+
+    const jobs = rows.map((r) => ({ ...toJob(r), applied: applied.has(r.id) }));
+    res.json({ status: "ok", jobs });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "could not load the jobs feed" });
+  }
+});
+
+// POST /api/jobs/apply   body: { job_id }
+// Records the application (company/role denormalized from jobs so the
+// history survives the job later expiring), before/alongside the redirect.
+jobsRouter.post("/apply", requireAuth, async (req, res) => {
+  try {
+    const jobId = Number(req.body?.job_id);
+    if (!Number.isInteger(jobId)) {
+      return res.status(400).json({ error: "job_id is required" });
+    }
+    const jobRes = await query(
+      "select id, company, role, apply_url from jobs where id = $1 and expired = false",
+      [jobId]
+    );
+    if (jobRes.rows.length === 0) {
+      return res.status(404).json({ error: "job not found" });
+    }
+    const job = jobRes.rows[0];
+    await query(
+      `insert into applied_jobs (user_id, job_id, company, role)
+       values ($1, $2, $3, $4)
+       on conflict do nothing`,
+      [req.userId, job.id, job.company, job.role]
+    );
+    res.json({ ok: true, apply_url: job.apply_url });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "could not record application" });
+  }
+});
+
+// GET /api/jobs/applied-pending
+// Applications the user has tapped Apply on but has not yet answered the
+// "did this job still exist?" check. Returned when they come back to the
+// Jobs tab so the question can be asked before the feed continues. The live
+// state of the underlying job is included so a still-active posting can
+// carry the user straight to Apply again if they want.
+jobsRouter.get("/applied-pending", requireAuth, async (req, res) => {
+  try {
+    const { rows } = await query(
+      `select a.job_id, a.company, a.role, a.applied_at,
+              j.apply_url, j.expired, j.last_seen_at
+         from applied_jobs a
+         left join jobs j on j.id = a.job_id
+        where a.user_id = $1 and a.feedback_given_at is null
+        order by a.applied_at desc`,
+      [req.userId]
+    );
+    const pending = rows.map((r) => ({
+      job_id: r.job_id,
+      company: r.company,
+      role: r.role,
+      applied_at: r.applied_at,
+      apply_url: r.apply_url,
+      job_still_live: r.expired === false,
+    }));
+    res.json({ pending });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "could not load pending applications" });
+  }
+});
+
+// POST /api/jobs/feedback   body: { job_id, job_existed: boolean }
+// Records the user's answer to "did this job still exist?" (Yes = true, No =
+// false) on their application. Each application is answered once; a repeat
+// POST for the same job just refreshes the answer. These aggregate into the
+// "No" counts used to spot stale postings, and are inspectable directly.
+jobsRouter.post("/feedback", requireAuth, async (req, res) => {
+  try {
+    const jobId = Number(req.body?.job_id);
+    const existed = req.body?.job_existed;
+    if (!Number.isInteger(jobId) || typeof existed !== "boolean") {
+      return res.status(400).json({ error: "job_id and a boolean job_existed are required" });
+    }
+    const { rowCount } = await query(
+      `update applied_jobs set
+         feedback_job_existed = $3, feedback_given_at = now()
+       where user_id = $1 and job_id = $2`,
+      [req.userId, jobId, existed]
+    );
+    if (rowCount === 0) {
+      return res.status(404).json({ error: "no application found for this job" });
+    }
+    res.json({ ok: true, job_id: jobId, job_existed: existed });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "could not save feedback" });
+  }
+});
+
+// POST /api/jobs/sync   (header: Authorization: Bearer <GENERATION_SECRET>)
+// On-demand scrape + extraction run. Protected like the other pipeline
+// triggers. No hard daily cap here: it runs on demand for testing and is
+// also invoked by the daily generation job.
+jobsRouter.post("/sync", async (req, res) => {
+  const expected = process.env.GENERATION_SECRET
+    ? `Bearer ${process.env.GENERATION_SECRET}`
+    : "";
+  if (!expected || req.headers.authorization !== expected) {
+    return res.status(401).json({ error: "unauthorized" });
+  }
+  try {
+    const dryRun = req.query.dry_run === "1";
+    const result = await runJobsJob({ dryRun });
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "jobs sync failed" });
+  }
+});

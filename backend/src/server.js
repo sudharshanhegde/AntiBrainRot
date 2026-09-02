@@ -12,8 +12,10 @@ import { authRouter } from "./routes/auth.js";
 import { leaderboardRouter } from "./routes/leaderboard.js";
 import { quickBitesRouter } from "./routes/quickBites.js";
 import { worthAReadRouter } from "./routes/worthARead.js";
+import { jobsRouter } from "./routes/jobs.js";
 import { syncQueue } from "./generate/job.js";
 import { syncWorthARead } from "./generate/worthARead.js";
+import { syncJobSources } from "./jobs/registry.js";
 
 const app = express();
 
@@ -54,6 +56,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/leaderboard", leaderboardRouter);
 app.use("/api/quick-bites", quickBitesRouter);
 app.use("/api", worthAReadRouter);
+app.use("/api/jobs", jobsRouter);
 
 const port = Number(process.env.PORT) || 4000;
 
@@ -70,4 +73,9 @@ app.listen(port, () => {
   syncWorthARead()
     .then(() => console.log("[worth-a-read] synced"))
     .catch((err) => console.warn("[worth-a-read] startup sync failed:", err.message));
+  // Sync the jobs source registry so enabled sources are present for the
+  // first daily scrape instead of waiting for it.
+  syncJobSources()
+    .then(() => console.log("[jobs] source registry synced"))
+    .catch((err) => console.warn("[jobs] startup registry sync failed:", err.message));
 });

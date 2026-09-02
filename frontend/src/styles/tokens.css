@@ -61,6 +61,12 @@
      own thing inside the same token system. */
   --color-accent-read: #A21CAF; /* deep fuchsia, worth a read */
 
+  /* --- jobs accent ---
+     A single olive green for the jobs board, distinct from the other module
+     accents (quick bites gold, worth a read fuchsia), so the job feed reads
+     as its own thing inside the same token system. */
+  --color-accent-job: #4D7C0F; /* olive green, jobs board */
+
   /* --- typefaces ---
      mono is structural (metadata, index, code, diagram labels)
      sans is the reading face for card bodies */
@@ -90,6 +96,7 @@
   --accent-complete: #1e88e5;
   --accent-bite: #a16207;
   --accent-read: #a21caf;
+  --accent-job: #4d7c0f;
 }
 
 /* Dark mode.
@@ -121,4 +128,5 @@
   --accent-complete: #60a5fa;
   --accent-bite: #eab308;
   --accent-read: #e879f9;
+  --accent-job: #a3e635;
 }

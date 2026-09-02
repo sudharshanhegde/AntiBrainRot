@@ -175,3 +175,137 @@ create table if not exists worth_a_read (
   note text,
   added_at timestamptz not null default now()
 );
+
+-- ============================================================
+-- Jobs board
+-- ============================================================
+-- User-side job-search profile. Kept as columns on users (not a separate
+-- one-time form) because they change over time: experience count and
+-- graduation year both move. job_profile_completed_at marks that the
+-- user has answered the first-open Jobs tab questionnaire, so it is only
+-- asked once. country / education are stored as normalized display names
+-- (e.g. 'India', 'bachelor'); graduation_year only matters when
+-- job_education_completed is false.
+alter table users add column if not exists job_country text;
+alter table users add column if not exists job_years_experience integer;
+alter table users add column if not exists job_education_level text;
+alter table users add column if not exists job_education_completed boolean;
+alter table users add column if not exists job_graduation_year integer;
+alter table users add column if not exists job_past_internship boolean;
+alter table users add column if not exists job_profile_completed_at timestamptz;
+
+-- Canonical company identity. Multiple source records may point to the
+-- same employer (aliases and product/business-unit duplicates), so the
+-- canonical name lives here once and job_sources reference it by id.
+create table if not exists companies (
+  id serial primary key,
+  name text not null unique,
+  created_at timestamptz not null default now()
+);
+
+-- One row per scrape target, expanded beyond the one-line queue format so
+-- a source keeps its own health state. source_type is greenhouse, lever,
+-- ashby, smartrecruiters, or custom; source_identifier means the board
+-- token (greenhouse), company slug (lever), job-board name (ashby),
+-- company identifier (smartrecruiters), or canonical careers URL (custom).
+-- consecutive_failures + the *_at timestamps drive source health so a
+-- broken fetch is never mistaken for a company having zero jobs.
+create table if not exists job_sources (
+  id serial primary key,
+  company_id integer references companies(id) on delete cascade,
+  source_type text not null,
+  source_identifier text not null,
+  source_url text,
+  enabled boolean not null default true,
+  country_scope text,
+  last_success_at timestamptz,
+  last_failure_at timestamptz,
+  consecutive_failures integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (source_type, source_identifier)
+);
+
+-- One row per daily scrape of one source, the observable result the daily
+-- run records so failures are audit-able and expiry decisions are based on
+-- real source runs, not guesses.
+create table if not exists job_source_runs (
+  id serial primary key,
+  source_id integer references job_sources(id) on delete cascade,
+  started_at timestamptz not null default now(),
+  finished_at timestamptz,
+  status text, -- healthy | failed | disabled
+  jobs_found integer not null default 0,
+  jobs_inserted integer not null default 0,
+  jobs_updated integer not null default 0,
+  jobs_missing integer not null default 0,
+  jobs_failed_validation integer not null default 0,
+  error text
+);
+
+-- Live job listings. A row is never hard-deleted, only flagged expired,
+-- because applied_jobs keeps a stable reference to it; the denormalized
+-- company/role on applied_jobs protects the user's history regardless.
+-- source_url is the dedupe key (stable source URL), with content_hash as
+-- a fallback fingerprint. raw_requirements_text is preserved alongside the
+-- extracted fields so a user can verify the structured summary against the
+-- original requirement wording.
+create table if not exists jobs (
+  id serial primary key,
+  source text not null,
+  company text not null,
+  role text not null,
+  location text,
+  apply_url text,
+  source_url text unique,
+  content_hash text,
+  raw_requirements_text text,
+  target_grad_year integer,
+  location_country text,
+  is_remote boolean not null default false,
+  remote_restricted_to text,
+  posted_at timestamptz,
+  last_seen_at timestamptz not null default now(),
+  expired boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index if not exists jobs_live_idx on jobs (expired) where not expired;
+
+-- A posting often accepts more than one qualification path ("bachelor's
+-- plus 2 years, or master's plus 0 years"), so paths live in their own
+-- table, one row per accepted path, matched against a user if they satisfy
+-- any single row. education_level is one of bachelor/master/phd.
+create table if not exists job_qualification_paths (
+  id serial primary key,
+  job_id integer not null references jobs(id) on delete cascade,
+  education_level text not null,
+  min_experience_years integer not null default 0,
+  max_experience_years integer,
+  unique (job_id, education_level, min_experience_years, max_experience_years)
+);
+
+-- User application history. company and role are denormalized here (not
+-- only a foreign key to jobs) so a user's history survives even after the
+-- job is later marked expired and hidden from the live feed.
+create table if not exists applied_jobs (
+  id serial primary key,
+  user_id text not null,
+  job_id integer not null references jobs(id),
+  company text not null,
+  role text not null,
+  applied_at timestamptz not null default now()
+);
+create index if not exists applied_jobs_user_idx on applied_jobs (user_id);
+-- A user applies to a given job at most once; the unique key lets the apply
+-- route use on-conflict-do-nothing and makes the "Applied" marker cheap.
+create unique index if not exists applied_jobs_user_job_idx
+  on applied_jobs (user_id, job_id);
+
+-- User-verification feedback: when a user returns to the Jobs tab after
+-- applying, we ask "did this job still exist?" (Yes/No). feedback_job_existed
+-- stores the answer and feedback_given_at marks it as answered so it is only
+-- asked once per application. Aggregating "No" answers by job_id tells us
+-- which listings users could not actually apply to, so stale/fake postings
+-- can be removed or manually validated against this table at end of day.
+alter table applied_jobs add column if not exists feedback_job_existed boolean;
+alter table applied_jobs add column if not exists feedback_given_at timestamptz;

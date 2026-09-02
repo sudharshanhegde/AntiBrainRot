@@ -23,6 +23,7 @@ export function TopicList({
   onOpenProfile,
   onOpenQuickBites,
   onOpenWorthARead,
+  onOpenJobs,
   notice,
   onDismissNotice,
 }) {
@@ -174,6 +175,31 @@ export function TopicList({
             </span>
             <span className="font-sans text-[14px] leading-relaxed text-muted">
               Curated links worth your time.
+            </span>
+          </span>
+        </button>
+      </div>
+
+      {/* Jobs: the fourth entry point, alongside the topic picker, Quick
+          Bites, and Worth a Read. A separate section surfacing scraped job
+          listings matched to the signed-in user's profile. */}
+      <div className="mt-3 px-6">
+        <button
+          type="button"
+          onClick={onOpenJobs}
+          className="group flex w-full items-center gap-4 rounded-lg border border-hairline bg-panel px-5 py-4 text-left transition-colors hover:border-ink"
+        >
+          <span
+            className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]"
+            style={{ backgroundColor: "var(--accent-job)" }}
+            aria-hidden="true"
+          />
+          <span className="flex flex-col gap-1">
+            <span className="font-sans text-[17px] font-semibold tracking-tight text-ink">
+              Jobs
+            </span>
+            <span className="font-sans text-[14px] leading-relaxed text-muted">
+              Roles matched to your profile.
             </span>
           </span>
         </button>

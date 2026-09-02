@@ -59,6 +59,27 @@ greenhouse:databricks
 greenhouse:earnin
 greenhouse:6sense
 
+# few more new ones that i found
+greenhouse:asteralabs
+greenhouse:purestorage
+greenhouse:chargepoint
+greenhouse:dunnhumby
+greenhouse:cloudflare
+greenhouse:hackerrank
+greenhouse:workato
+greenhouse:diligentcorporation
+greenhouse:singlestore
+greenhouse:moloco
+greenhouse:flexport
+greenhouse:rubrik
+# greenhouse:confluent 404
+greenhouse:elastic
+greenhouse:okta
+greenhouse:mongodb
+greenhouse:gitlab
+# greenhouse:nutanix 404 sad
+greenhouse:jfrog
+# greenhouse:palantir 404
 # --- Previously-tried sources that did NOT resolve (kept for reference) ---
 # Fix/confirm the board token or slug, then move the line above to activate.
 # greenhouse:phonepe             HTTP 404

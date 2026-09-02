@@ -6,7 +6,7 @@ import {
   enableSource,
 } from "./registry.js";
 import { fetchSourceListings, isSupportedSourceType } from "./adapters.js";
-import { parseListing } from "./extract.js";
+import { extractListing } from "./extract.js";
 
 // The daily jobs scrape and extraction pipeline.
 //
@@ -100,9 +100,10 @@ async function runOneSource(source, { dryRun }) {
 
     if (dryRun) continue;
 
-    // New listing: parse the structured fields directly (deterministic, no
-    // LLM), with only a minimal sanity check before insert.
-    const extracted = parseListing(listing);
+    // New listing: extract structured fields (one cheap model call per new
+    // posting, with a deterministic fallback). Only new listings reach here,
+    // so the model cost stays small.
+    const extracted = await extractListing(listing);
     if (!extracted.role || !extracted.company || !listing.apply_url) {
       stats.jobs_failed_validation += 1;
       continue;
@@ -110,7 +111,7 @@ async function runOneSource(source, { dryRun }) {
     await insertJob(listing, extracted);
     stats.jobs_inserted += 1;
     // Be gentle with the ATS between listings.
-    await sleep(50);
+    await sleep(150);
   }
 
   // Expiry: only after this source returned data successfully. A previously
@@ -166,9 +167,9 @@ async function insertJob(listing, extracted) {
     const { rows } = await client.query(
       `insert into jobs
          (source, company, role, location, apply_url, source_url, content_hash,
-          raw_requirements_text, target_grad_year, location_country, is_remote,
-          remote_restricted_to, last_seen_at)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
+          raw_requirements_text, requirements_summary, target_grad_year,
+          location_country, is_remote, remote_restricted_to, last_seen_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, now())
        returning id`,
       [
         `${listing.source_type}:${listing.source_identifier}`,
@@ -179,6 +180,7 @@ async function insertJob(listing, extracted) {
         listing.source_url,
         listing.content_hash,
         listing.raw_text || null,
+        extracted.requirements_summary || null,
         extracted.target_grad_year,
         extracted.location_country,
         extracted.is_remote,

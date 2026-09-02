@@ -105,7 +105,22 @@ async function fetchLever(source, company) {
   const data = await fetchJson(url);
   const jobs = Array.isArray(data) ? data : [];
   return jobs.map((j) => {
-    const rawText = j.descriptionPlain || j.text || "";
+    // Lever splits a posting into a short intro (descriptionPlain / text) and
+    // a structured `lists` array — e.g. headings "Responsibilities", "Skills",
+    // "Experience and Qualification" each with their own HTML content. That
+    // structured part is where the actual requirements and years-of-experience
+    // live, so it must be folded into the raw text or matching/summary miss it
+    // (a role can look like it needs 0 years when it really needs 2-4).
+    const parts = [j.descriptionPlain || j.text || ""];
+    if (Array.isArray(j.lists)) {
+      for (const l of j.lists) {
+        if (!l || !l.text) continue;
+        const body = htmlToText(l.content || "");
+        parts.push(`${l.text}:\n${body}`);
+      }
+    }
+    const rawText = parts.filter(Boolean).join("\n\n");
+
     const sourceUrl = j.hostedUrl || j.applyUrl || j.id;
     const location = (j.categories && (j.categories.location || j.categories.allLocations)) || "";
     const listing = {

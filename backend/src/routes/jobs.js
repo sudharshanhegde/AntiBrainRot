@@ -58,9 +58,9 @@ function toJob(r) {
     role: r.role,
     location: r.location,
     apply_url: r.apply_url,
-    // A cleaned, role-specific excerpt for display (skips the company "About
-    // us" boilerplate). The full original text stays available as
-    // raw_requirements_text for verification.
+    // A concise model-generated summary of the actual requirements/skills for
+    // display. Falls back to the deterministic excerpt, then the raw text.
+    requirements_summary: r.requirements_summary,
     requirements_text: requirementsExcerpt(r.raw_requirements_text),
     raw_requirements_text: r.raw_requirements_text,
     target_grad_year: r.target_grad_year,
@@ -197,8 +197,8 @@ jobsRouter.get("/", requireAuth, async (req, res) => {
 
     const { rows } = await query(
       `select j.id, j.company, j.role, j.location, j.apply_url,
-              j.raw_requirements_text, j.target_grad_year, j.location_country,
-              j.is_remote, j.remote_restricted_to,
+              j.raw_requirements_text, j.requirements_summary, j.target_grad_year,
+              j.location_country, j.is_remote, j.remote_restricted_to,
               coalesce(
                 (select jsonb_agg(jsonb_build_object(
                    'education_level', qp.education_level,

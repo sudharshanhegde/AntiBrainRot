@@ -1,0 +1,37 @@
+
+# Jobs board daily scrape. Runs separately from topic-deck generation so a
+# deck run never blocks or is blocked by the job feed refresh.
+#
+# Schedule: once a day. Each run tells the backend to fetch current listings
+# from every enabled source, extract the structured fields for any NEW listing
+# (one cheap model call per new posting, deterministic fallback), insert them,
+# and expire listings that have not been seen for a couple of runs.
+#
+# Cost note: extraction only runs for listings not already in the jobs table,
+# so a typical day costs only a handful of model calls regardless of how many
+# total listings the sources carry.
+#
+# To run on demand (no time gate): POST /api/jobs/sync with the secret.
+
+name: daily-jobs
+
+on:
+  schedule:
+    - cron: "0 1 * * *" # daily at 01:00 UTC
+
+jobs:
+  sync-jobs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger jobs sync
+        run: |
+          code=$(curl -s -o /tmp/jobs_response.json -w "%{http_code}" \
+            -X POST https://antibrainrot-cce1.onrender.com/api/jobs/sync \
+            -H "Authorization: Bearer ${{ secrets.GENERATION_SECRET }}" \
+            -H "Content-Type: application/json")
+          echo "jobs sync endpoint responded with HTTP $code"
+          if [ "$code" -ne 200 ]; then
+            cat /tmp/jobs_response.json
+            exit 1
+          fi
+          cat /tmp/jobs_response.json

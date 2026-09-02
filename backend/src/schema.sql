@@ -260,6 +260,7 @@ create table if not exists jobs (
   source_url text unique,
   content_hash text,
   raw_requirements_text text,
+  requirements_summary text,
   target_grad_year integer,
   location_country text,
   is_remote boolean not null default false,

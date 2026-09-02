@@ -1,18 +1,17 @@
-// Job listing extraction (deterministic, no LLM).
+// Job listing extraction.
 //
-// The ATS source APIs already give us structured role, company, and location
-// fields, so this layer only fills in the fields that are NOT structured in
-// the raw feed: which country a posting is based in, whether it is remote
-// (and restricted to a country if so), and whether it is a new-grad role with
-// a target graduation year. Everything here is plain, deterministic parsing
-// over the adapter's structured fields plus the raw description text — no
-// model call, no cost, no extra moving part.
+// Reliable qualification extraction (which degrees and how many years a
+// posting accepts, whether it is new-grad only, and a short summary of the
+// actual requirements/skills for display) needs to read messy free text, so
+// a single model call per NEW listing produces those structured fields. This
+// runs only once per newly-seen posting during the daily scrape, so the cost
+// stays tiny. A deterministic parser is kept as the fallback so the pipeline
+// still works if no model key is configured or the call fails.
 //
-// This is intentionally conservative and "fail-open": whenever a field
-// cannot be determined confidently it is left null rather than guessed, and
-// the consumer treats an unknown location as not-worth-hiding. The raw
-// requirement text is preserved alongside these fields so the user can read
-// the actual requirements and self-screen.
+// The structured country/remote fields come from deterministic parsing of the
+// location string (the model is not needed for those). The raw requirement
+// text is always preserved so a user can verify against the original.
+import { chat } from "../generate/deepseek.js";
 
 // Ordered country/city recognizers. Order matters: the first country whose
 // token matches the location string wins, so the more specific/common
@@ -212,5 +211,115 @@ export function parseListing(listing) {
     remote_restricted_to,
     target_grad_year,
     qualification_paths: detectQualificationPaths(role, rawText),
+    requirements_summary: requirementsExcerpt(rawText, 900),
   };
+}
+
+// --- Model extraction ---------------------------------------------------
+// A single call per new listing to reliably read degree/experience
+// requirements and produce a concise requirements summary for display.
+// temperature 0, JSON out, pinned to the same provider client used by the
+// content pipeline. This is only ever invoked for listings not already in the
+// jobs table, so the daily cost stays small.
+
+function educationLevelFrom(value) {
+  const v = String(value || "").toLowerCase().trim();
+  if (!v || /^(any|none|not.required)$/.test(v)) return "any";
+  if (/ph\.?d|doctorate/.test(v)) return "phd";
+  if (/master|m\.?\s?tech|mba/.test(v)) return "master";
+  if (/bachelor|b\.?\s?tech|b\.?\s?e\b|b\.?\s?s(?:c)?\b/.test(v)) return "bachelor";
+  if (/associate/.test(v)) return "associate";
+  return "any";
+}
+
+function years(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+}
+
+function extractionMessages(listing) {
+  const text = String(listing.raw_text || "").slice(0, 12000);
+  return [
+    {
+      role: "system",
+      content: [
+        "You extract structured job eligibility fields from a raw job description.",
+        "Return ONLY a JSON object with this exact shape:",
+        JSON.stringify(
+          {
+            is_new_grad_only: "boolean (true only if aimed at a specific graduating class/year)",
+            target_grad_year: "integer|null (the graduation year a new-grad role targets, else null)",
+            qualification_paths: [
+              {
+                education_level: "one of: any,associate,bachelor,master,phd",
+                min_experience_years: "integer (minimum years required; 0 if none)",
+                max_experience_years: "integer|null (upper bound, null if open-ended)",
+              },
+            ],
+            requirements_summary:
+              "string: 2-5 short bullet lines (use line breaks) quoting the actual requirements and key skills (degrees, years, tools/languages). Quote the posting, do not invent.",
+          },
+          null,
+          2
+        ),
+        "Rules:",
+        "- A posting can accept MULTIPLE paths (e.g. \"B.Tech + 2 years, or M.Tech + 0\"). Emit one",
+        "  entry per accepted path, with that path's own experience. If no degree is required use 'any'.",
+        "- Only set is_new_grad_only/target_grad_year when the posting targets a specific class.",
+        "- requirements_summary must reflect ONLY what is in the text.",
+      ].join("\n"),
+    },
+    {
+      role: "user",
+      content: `Company: ${listing.company}\nRole: ${listing.role}\nLocation: ${listing.location}\n\nRaw job description:\n${text}`,
+    },
+  ];
+}
+
+async function extractWithModel(listing) {
+  const res = await chat(extractionMessages(listing), {
+    temperature: 0,
+    json: true,
+    topic: `jobs:${listing.company}`,
+  });
+  const p = JSON.parse(res.content);
+  const paths = Array.isArray(p.qualification_paths)
+    ? p.qualification_paths
+        .map((x) => ({
+          education_level: educationLevelFrom(x.education_level),
+          min_experience_years: years(x.min_experience_years) ?? 0,
+          max_experience_years: years(x.max_experience_years),
+        }))
+        .filter((x) => x.education_level !== "any" || true)
+    : [];
+
+  // Country/remote stay deterministic (a model is not needed for them).
+  const location = String(listing.location || "").trim();
+  const role = String(listing.role || "Untitled role").trim();
+  const isRemote = listing.is_remote_hint === true || isRemoteText(location, role);
+  const parsed = {
+    role,
+    company: String(listing.company || "").trim(),
+    location,
+    location_country: isRemote ? null : detectCountry(location),
+    is_remote: isRemote,
+    remote_restricted_to: isRemote ? remoteRestrictedTo(location) : null,
+    target_grad_year: p.is_new_grad_only === true ? years(p.target_grad_year) : null,
+    qualification_paths: paths.length > 0 ? paths : detectQualificationPaths(role, String(listing.raw_text || "")),
+    requirements_summary: String(p.requirements_summary || "").trim() || requirementsExcerpt(String(listing.raw_text || ""), 900),
+  };
+  return parsed;
+}
+
+// Orchestrator used by the sync job: prefer the model, fall back to the
+// deterministic parser (e.g. no model key configured, or a transient failure)
+// so the scrape never dies on an unavailable model.
+export async function extractListing(listing) {
+  try {
+    return await extractWithModel(listing);
+  } catch (err) {
+    console.warn(`[jobs] model extraction failed for "${listing.role}", using heuristics: ${err.message}`);
+    return parseListing(listing);
+  }
 }

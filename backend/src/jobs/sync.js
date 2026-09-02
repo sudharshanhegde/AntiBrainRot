@@ -111,6 +111,9 @@ async function runOneSource(source, { dryRun }) {
   // jobConcurrency() (one in-flight call per key by default) so no single
   // key's per-minute rate limit is exceeded.
   const limit = Math.min(jobConcurrency(), Math.max(1, newListings.length));
+  // Surface the actual per-listing error(s) in the run result so a silent
+  // insert/model failure is visible in the API response, not just logs.
+  const workerErrors = [];
   let cursor = 0;
   async function worker() {
     while (cursor < newListings.length) {
@@ -118,13 +121,16 @@ async function runOneSource(source, { dryRun }) {
       try {
         const extracted = await extractListing(listing);
         if (!extracted.role || !extracted.company || !listing.apply_url) {
+          workerErrors.push(`validation: missing fields for ${listing.role}`);
           stats.jobs_failed_validation += 1;
           continue;
         }
         await insertJob(listing, extracted);
         stats.jobs_inserted += 1;
       } catch (err) {
-        console.error(`[jobs] could not process ${listing.role}: ${err.message}`);
+        const msg = `${err?.message || err || "unknown error"}`;
+        if (workerErrors.length < 5) workerErrors.push(`${listing.role}: ${msg}`);
+        console.error(`[jobs] could not process ${listing.role}: ${msg}`);
         stats.jobs_failed_validation += 1;
       }
     }
@@ -158,8 +164,8 @@ async function runOneSource(source, { dryRun }) {
   }
 
   const status = "healthy";
-  await logSourceRun(source.id, { startedAt, status, ...stats, error: null });
-  return { ...stats, status };
+  await logSourceRun(source.id, { startedAt, status, ...stats, error: workerErrors[0] || null });
+  return { ...stats, status, errors: workerErrors };
 }
 
 async function findExisting(listing) {

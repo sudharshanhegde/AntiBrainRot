@@ -11,6 +11,7 @@ import {
 import { resetToGuest } from "../../api/client";
 import { StreakIndicator } from "../ui/StreakIndicator";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { JobProfileSettings } from "../jobs/JobProfileSettings";
 import { useTheme } from "../../hooks/useTheme";
 
 // Primary action button: sky blue, the completion/action color, so
@@ -285,6 +286,11 @@ export function ProfileScreen({ onBack, onDeleted, initialNotice = null }) {
                 sign out
               </button>
             </section>
+
+            {/* Job matching profile: shows the saved selections and lets the
+                user edit them (experience and graduation year change over
+                time, so they are never stuck on the first-answered values). */}
+            <JobProfileSettings />
 
             {/* Destructive action, separated lower on the page, still the
                 same blue action color; the confirmation step is what makes

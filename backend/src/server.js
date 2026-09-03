@@ -16,6 +16,7 @@ import { jobsRouter } from "./routes/jobs.js";
 import { syncQueue } from "./generate/job.js";
 import { syncWorthARead } from "./generate/worthARead.js";
 import { syncJobSources } from "./jobs/registry.js";
+import { scheduleJobCleanup } from "./jobs/cleanup.js";
 
 const app = express();
 
@@ -78,4 +79,7 @@ app.listen(port, () => {
   syncJobSources()
     .then(() => console.log("[jobs] source registry synced"))
     .catch((err) => console.warn("[jobs] startup registry sync failed:", err.message));
+  // Automatic jobs-table retention: one pass now and every ~24h removes stale,
+  // unreferenced jobs so the table does not grow without bound.
+  scheduleJobCleanup();
 });

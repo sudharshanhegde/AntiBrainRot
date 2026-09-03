@@ -2,6 +2,7 @@ import { Router } from "express";
 import { query, pool } from "../db.js";
 import { requireAuth } from "../auth.js";
 import { runJobsJob } from "../jobs/sync.js";
+import { cleanupOldJobs } from "../jobs/cleanup.js";
 import { requirementsExcerpt } from "../jobs/extract.js";
 
 // Jobs board routes.
@@ -483,7 +484,17 @@ jobsRouter.post("/sync", async (req, res) => {
   try {
     const dryRun = req.query.dry_run === "1";
     const result = await runJobsJob({ dryRun });
-    res.json(result);
+    // After a real scrape, also drop stale, unreferenced jobs past the
+    // retention window so the table does not grow without bound.
+    let cleanup = null;
+    if (!dryRun) {
+      try {
+        cleanup = await cleanupOldJobs();
+      } catch (err) {
+        console.error("[jobs] cleanup failed during sync:", err.message);
+      }
+    }
+    res.json({ ...result, cleanup });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "jobs sync failed" });

@@ -2,7 +2,7 @@
 // system as the rest of the app. Used by the feed and the topic list.
 // Static text only, no spinners and no animation beyond the shared
 // screen-in fade.
-export function StatusScreen({ label, title, accent, onAction, actionLabel }) {
+export function StatusScreen({ label, title, accent, onAction, actionLabel, description }) {
   return (
     <div className="screen-in flex h-dvh flex-col items-center justify-center gap-3 bg-paper px-6 text-center">
       {accent && (
@@ -18,6 +18,11 @@ export function StatusScreen({ label, title, accent, onAction, actionLabel }) {
       {title && (
         <p className="font-sans text-lg font-semibold tracking-tight text-ink">
           {title}
+        </p>
+      )}
+      {description && (
+        <p className="max-w-xs font-sans text-[14px] leading-relaxed text-muted">
+          {description}
         </p>
       )}
       {onAction && (

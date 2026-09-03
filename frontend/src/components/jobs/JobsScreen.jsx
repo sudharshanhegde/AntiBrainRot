@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { StatusScreen } from "../ui/StatusScreen";
 import { AppMenu } from "../ui/AppMenu";
 import { useAuth } from "../../auth/AuthContext";
@@ -387,6 +387,9 @@ function JobCard({ job, index, onApply, onFlag, onBack, onOpenProfile, onOpenApp
             {job.interested ? "Interested ✓" : "Interested"}
           </button>
         </div>
+        <p className="mt-2 max-w-[24rem] font-sans text-[12px] leading-relaxed text-muted">
+          Not interested removes this role from your feed for good. Interested saves it for now; more options arrive later.
+        </p>
         <div className="mt-3 flex items-center justify-between gap-3">
           {job.applied ? (
             <span className="font-sans text-[14px] font-semibold" style={{ color: JOBS_ACCENT }}>
@@ -461,6 +464,9 @@ function ApplicationVerifier({ items, onAnswer, onSkip, onBack }) {
         <p className="mt-2 max-w-md font-sans text-[15px] leading-relaxed text-muted">
           A quick check on jobs you opened. It only lands in My applications if you actually applied.
         </p>
+        <p className="mt-3 max-w-md font-sans text-[14px] leading-relaxed text-muted">
+          Could you apply tells us the posting was still live and reachable. Did you apply confirms you actually sent one; answering Yes to it is what adds the job to My applications.
+        </p>
       </header>
 
       <div className="mt-6 flex flex-col gap-3 px-6 pb-[calc(max(2.5rem,env(safe-area-inset-bottom))+var(--tabbar-h))]">
@@ -533,6 +539,42 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
   const [verifyDone, setVerifyDone] = useState(false);
   const scrollRef = useRef(null);
 
+  // The jobs feed is a plain stack of full-height cards. Its position is kept
+  // across tab switches and across the "did you apply?" check so that
+  // returning to Jobs resumes where the user left off instead of snapping
+  // back to the first card.
+  const SAVED_INDEX_KEY = "antibrainrot:jobs:index";
+  const readSavedIndex = () => {
+    try {
+      const n = Number(sessionStorage.getItem(SAVED_INDEX_KEY));
+      return Number.isFinite(n) ? n : 0;
+    } catch {
+      return 0;
+    }
+  };
+  const writeSavedIndex = (n) => {
+    try {
+      sessionStorage.setItem(SAVED_INDEX_KEY, String(Math.round(n)));
+    } catch {
+      // Storage may be unavailable; resuming still works for the session.
+    }
+  };
+  const savedIndexRef = useRef(readSavedIndex());
+  // Set when the user taps Apply and the posting opens elsewhere; on returning
+  // to this tab the pending check for that job is surfaced.
+  const appliedRef = useRef(false);
+
+  // True when the matched feed (not a loading / empty / verifier state) is the
+  // active content. Drives scroll restoration each time the feed (re)appears.
+  const feedVisible =
+    Boolean(user) &&
+    profile !== undefined &&
+    profile !== null &&
+    pending !== null &&
+    !(pending.length > 0 && !verifyDone) &&
+    !error &&
+    !empty;
+
   useSwipeExit(scrollRef, onBack);
 
   const loadJobs = useCallback(async () => {
@@ -595,6 +637,11 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
       // NOT saved to My applications until the user later confirms "Did you
       // apply? = Yes" in the verifier.
       const url = await applyToJob(job.id);
+      // Remember this apply so that when the user comes back to the app
+      // (window focus) the "Could you apply? / Did you apply?" check appears.
+      appliedRef.current = true;
+      // Reflect the apply locally so the card reads "Applied" without a refetch.
+      setJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, applied: true } : j)));
       if (url) window.open(url, "_blank", "noopener,noreferrer");
     } catch (err) {
       console.warn("could not record application", err);
@@ -646,6 +693,50 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
     return result;
   }, []);
 
+  // Save the feed position as the user scrolls so it can be resumed later.
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!feedVisible || !scroller) return;
+    const onScroll = () => {
+      const idx = scroller.scrollTop / scroller.clientHeight;
+      if (Number.isFinite(idx) && idx >= 0) {
+        savedIndexRef.current = idx;
+        writeSavedIndex(idx);
+      }
+    };
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    return () => scroller.removeEventListener("scroll", onScroll);
+  }, [feedVisible]);
+
+  // Restore the saved position each time the feed becomes the active content
+  // (after the pending check, or when returning to the Jobs tab), so it does
+  // not start over from the first card.
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current;
+    if (!feedVisible || !scroller || jobs.length === 0) return;
+    const idx = Math.min(Math.max(savedIndexRef.current, 0), jobs.length - 1);
+    scroller.scrollTop = idx * scroller.clientHeight;
+  }, [feedVisible, jobs.length]);
+
+  // Applying opens the posting in another window/tab. When the user comes back
+  // (window focus returns), refetch the pending list and surface the "Could
+  // you apply? / Did you apply?" check for the job they just applied to.
+  useEffect(() => {
+    if (!user || profile === undefined || profile === null) return;
+    const onFocus = () => {
+      if (!appliedRef.current) return;
+      appliedRef.current = false;
+      setVerifyDone(false);
+      fetchPendingApplications()
+        .then((list) => setPending(list))
+        .catch(() => {
+          // Never block the feed if the check cannot load.
+        });
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [user, profile]);
+
   // Needs an account: matching is personal.
   if (!user) {
     return (
@@ -653,6 +744,7 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
         label="jobs need an account"
         title="Sign in to see matching roles"
         accent="job"
+        description="Role matching is personal. Sign in so we can match listings to your profile and keep a record of the jobs you apply to."
         onAction={onOpenProfile}
         actionLabel="go to profile"
       />
@@ -710,8 +802,9 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
         label="no jobs match your profile right now"
         title="Nothing to show at the moment"
         accent="job"
+        description="No roles currently match your profile. Broaden your answers in the job matching section of Profile, or come back tomorrow when new roles land."
         onAction={onBack}
-        actionLabel="back to topics"
+        actionLabel="back to subjects"
       />
     );
   }
@@ -730,6 +823,23 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
           onOpenApplications={onOpenApplications}
         />
       ))}
+      {/* End of today's feed: a deliberate stopping point, not a dead end. */}
+      <div className="feed-card flex flex-col items-center justify-center gap-3 px-6 pb-[env(safe-area-inset-bottom)] text-center">
+        <span
+          className="inline-block h-2 w-2 rounded-[2px]"
+          style={{ backgroundColor: JOBS_ACCENT }}
+          aria-hidden="true"
+        />
+        <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+          end of today's roles
+        </p>
+        <h2 className="font-sans text-2xl font-semibold tracking-tight text-ink">
+          That's all for today
+        </h2>
+        <p className="max-w-xs font-sans text-[14px] leading-relaxed text-muted">
+          New listings are checked overnight. Come back tomorrow to check for more.
+        </p>
+      </div>
     </div>
   );
 }

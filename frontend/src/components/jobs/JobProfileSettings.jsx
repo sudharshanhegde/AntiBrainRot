@@ -227,7 +227,7 @@ export function JobProfileSettings() {
         />
       </div>
       <p className="mt-2 font-sans text-[13px] leading-relaxed text-muted">
-        Used to filter which job listings show up for you.
+        Filters which roles appear in Jobs. Change these anytime you start looking for something different and your matches refresh.
       </p>
 
       {error && job === null && (

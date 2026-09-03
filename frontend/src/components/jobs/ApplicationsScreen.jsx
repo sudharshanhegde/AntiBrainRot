@@ -49,6 +49,7 @@ export function ApplicationsScreen({ onBack, onOpenProfile = () => {} }) {
         label="sign in to see your applications"
         title="My applications"
         accent="job"
+        description="Applying for roles needs an account so we can keep track of them for you. Sign in to see everything you've applied to."
         onAction={onOpenProfile}
         actionLabel="go to profile"
       />
@@ -77,8 +78,9 @@ export function ApplicationsScreen({ onBack, onOpenProfile = () => {} }) {
         label="no applications yet"
         title="You haven't applied to anything"
         accent="job"
+        description="The jobs you confirm you applied to will show up here, newest first. Tap Apply on a role in Jobs, then confirm you sent it when asked."
         onAction={onBack}
-        actionLabel="back"
+        actionLabel="go to jobs"
       />
     );
   }

@@ -396,15 +396,13 @@ function JobCard({ job, index, onApply, onFlag, onBack, onOpenProfile, onOpenApp
               Applied ✓
             </span>
           ) : (
-            <a
-              href={job.apply_url}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
               onClick={() => onApply(job)}
               className="rounded-lg bg-ink px-4 py-2.5 text-center font-sans text-[14px] font-semibold text-paper"
             >
               Apply
-            </a>
+            </button>
           )}
           <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">swipe</span>
         </div>
@@ -532,11 +530,15 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
   const { user } = useAuth();
   const [profile, setProfile] = useState(undefined); // undefined = loading
   const [jobs, setJobs] = useState([]);
+  const [jobsLoading, setJobsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [empty, setEmpty] = useState(false);
   // Pending "did this job still exist?" applications (null = not yet loaded).
   const [pending, setPending] = useState(null);
   const [verifyDone, setVerifyDone] = useState(false);
+  // Shown when recording an application fails, so the user knows the tap was
+  // not saved instead of it silently doing nothing.
+  const [applyError, setApplyError] = useState(null);
   const scrollRef = useRef(null);
 
   // The jobs feed is a plain stack of full-height cards. Its position is kept
@@ -580,6 +582,7 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
   const loadJobs = useCallback(async () => {
     setError(null);
     setEmpty(false);
+    setJobsLoading(true);
     try {
       const data = await fetchJobs();
       if (data.status === "needs_profile") {
@@ -594,6 +597,8 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
       setEmpty((data.jobs || []).length === 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : "could not load the jobs feed");
+    } finally {
+      setJobsLoading(false);
     }
   }, []);
 
@@ -632,19 +637,45 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
   }, []);
 
   const handleApply = useCallback(async (job) => {
+    // Reserve a new window synchronously (inside the user's click gesture) so
+    // opening the posting is not treated as a blocked popup after the async
+    // record call. In environments where new tabs are forced to the same tab
+    // (or popups are blocked), the fallback navigates this tab instead. Either
+    // way the record is saved first, so the check is never lost to navigation.
+    let win = null;
     try {
-      // Opens the posting. This only marks the job as "pending a check"; it is
-      // NOT saved to My applications until the user later confirms "Did you
-      // apply? = Yes" in the verifier.
+      win = window.open("", "_blank", "noopener,noreferrer");
+    } catch {
+      win = null;
+    }
+    const open = (url) => {
+      if (!url) {
+        if (win) win.close();
+        return;
+      }
+      if (win) {
+        win.location.href = url;
+      } else {
+        window.location.assign(url);
+      }
+    };
+    try {
+      // This only marks the job as "pending a check"; it is NOT saved to My
+      // applications until the user later confirms "Did you apply? = Yes".
       const url = await applyToJob(job.id);
-      // Remember this apply so that when the user comes back to the app
-      // (window focus) the "Could you apply? / Did you apply?" check appears.
+      // Remember this apply so that when the user comes back (window focus, or
+      // the next open of the Jobs tab) the check appears.
       appliedRef.current = true;
+      setApplyError(null);
       // Reflect the apply locally so the card reads "Applied" without a refetch.
       setJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, applied: true } : j)));
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
+      open(url || job.apply_url);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "could not record application";
       console.warn("could not record application", err);
+      setApplyError(msg);
+      // Even if recording failed, still take the user to the posting.
+      open(job.apply_url);
     }
   }, []);
 
@@ -661,6 +692,13 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
       console.warn("could not save your interest", err);
     }
   }, []);
+
+  // Auto-dismiss the apply-recording error after a few seconds.
+  useEffect(() => {
+    if (!applyError) return;
+    const t = setTimeout(() => setApplyError(null), 6000);
+    return () => clearTimeout(t);
+  }, [applyError]);
 
   // Once a profile is known, fetch the applications that still need the
   // "did this job still exist?" answer, so it can be asked before the feed.
@@ -791,6 +829,12 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
     );
   }
 
+  // The feed is backend-heavy and can take a second or two, so show a real
+  // loading state rather than flashing the empty feed ("no jobs") meanwhile.
+  if (jobsLoading) {
+    return <StatusScreen label="loading matching roles" title="jobs" accent="job" />;
+  }
+
   if (error) {
     return (
       <StatusScreen label={error} title="jobs" accent="job" onAction={loadJobs} actionLabel="try again" />
@@ -810,36 +854,48 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
   }
 
   return (
-    <div ref={scrollRef} className="feed-scroll" role="region" aria-label="Jobs">
-      {jobs.map((job, i) => (
-        <JobCard
-          key={job.id}
-          job={job}
-          index={i}
-          onApply={handleApply}
-          onFlag={handleFlag}
-          onBack={onBack}
-          onOpenProfile={onOpenProfile}
-          onOpenApplications={onOpenApplications}
-        />
-      ))}
-      {/* End of today's feed: a deliberate stopping point, not a dead end. */}
-      <div className="feed-card flex flex-col items-center justify-center gap-3 px-6 pb-[env(safe-area-inset-bottom)] text-center">
-        <span
-          className="inline-block h-2 w-2 rounded-[2px]"
-          style={{ backgroundColor: JOBS_ACCENT }}
-          aria-hidden="true"
-        />
-        <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
-          end of today's roles
-        </p>
-        <h2 className="font-sans text-2xl font-semibold tracking-tight text-ink">
-          That's all for today
-        </h2>
-        <p className="max-w-xs font-sans text-[14px] leading-relaxed text-muted">
-          New listings are checked overnight. Come back tomorrow to check for more.
-        </p>
+    <>
+      {applyError && (
+        <div
+          role="alert"
+          className="fixed inset-x-4 top-4 z-50 rounded-lg border border-hairline bg-paper px-4 py-3 shadow-lg"
+        >
+          <p className="font-sans text-[13px] leading-relaxed text-ink/90">
+            Could not record your application. {applyError}
+          </p>
+        </div>
+      )}
+      <div ref={scrollRef} className="feed-scroll" role="region" aria-label="Jobs">
+        {jobs.map((job, i) => (
+          <JobCard
+            key={job.id}
+            job={job}
+            index={i}
+            onApply={handleApply}
+            onFlag={handleFlag}
+            onBack={onBack}
+            onOpenProfile={onOpenProfile}
+            onOpenApplications={onOpenApplications}
+          />
+        ))}
+        {/* End of today's feed: a deliberate stopping point, not a dead end. */}
+        <div className="feed-card flex flex-col items-center justify-center gap-3 px-6 pb-[env(safe-area-inset-bottom)] text-center">
+          <span
+            className="inline-block h-2 w-2 rounded-[2px]"
+            style={{ backgroundColor: JOBS_ACCENT }}
+            aria-hidden="true"
+          />
+          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+            end of today's roles
+          </p>
+          <h2 className="font-sans text-2xl font-semibold tracking-tight text-ink">
+            That's all for today
+          </h2>
+          <p className="max-w-xs font-sans text-[14px] leading-relaxed text-muted">
+            New listings are checked overnight. Come back tomorrow to check for more.
+          </p>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

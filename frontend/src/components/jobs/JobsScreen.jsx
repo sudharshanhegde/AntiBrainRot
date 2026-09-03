@@ -141,7 +141,7 @@ function JobProfileForm({ onSave, onBack }) {
         </p>
       </header>
 
-      <div className="mt-6 flex flex-col gap-5 px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
+      <div className="mt-6 flex flex-col gap-5 px-6 pb-[calc(max(2.5rem,env(safe-area-inset-bottom))+var(--tabbar-h))]">
         <div className="flex flex-col gap-2">
           <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">Field of interest</p>
           <button
@@ -316,7 +316,6 @@ function JobCard({ job, index, onApply, onFlag, onBack, onOpenProfile, onOpenApp
           <AppMenu
             entries={[
               { label: "My applications", onSelect: onOpenApplications },
-              { label: "Profile", onSelect: onOpenProfile },
               { label: "Topics", onSelect: onBack },
               { label: theme === "dark" ? "Dark mode: on" : "Dark mode: off", onSelect: toggleTheme },
             ]}
@@ -364,7 +363,7 @@ function JobCard({ job, index, onApply, onFlag, onBack, onOpenProfile, onOpenApp
         </p>
       </div>
 
-      <footer className="shrink-0 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <footer className="shrink-0 px-5 pb-[calc(max(0.75rem,env(safe-area-inset-bottom))+var(--tabbar-h))]">
         <div className="h-px bg-hairline" />
         {/* Interest: "Not interested" permanently hides this job for the user;
             "Interested" records it (shown as a marker). */}
@@ -464,7 +463,7 @@ function ApplicationVerifier({ items, onAnswer, onSkip, onBack }) {
         </p>
       </header>
 
-      <div className="mt-6 flex flex-col gap-3 px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
+      <div className="mt-6 flex flex-col gap-3 px-6 pb-[calc(max(2.5rem,env(safe-area-inset-bottom))+var(--tabbar-h))]">
         {items.map((item) => {
           const a = answers[item.job_id] || {};
           return (

@@ -81,6 +81,12 @@
    (e.g. accent="accent-os" resolves to var(--accent-os)); no dynamic
    Tailwind class names are constructed at runtime. */
 :root {
+  /* --- bottom tab bar ---
+     Height of the fixed five-tab bar. Exposed so tab screens can pad
+     their scroll content by the same amount and nothing sits hidden
+     behind the persistent overlay. */
+  --tabbar-h: 3.5rem;
+
   --accent-os: #b4470b;
   --accent-net: #1e5a8a;
   --accent-dsa: #5b3a8e;

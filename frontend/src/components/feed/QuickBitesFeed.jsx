@@ -32,7 +32,6 @@ const QuickBiteCard = memo(function QuickBiteCard({ bite, index, onBack, onOpenP
         <div className="mb-2 flex items-center justify-between">
           <AppMenu
             entries={[
-              { label: "Profile", onSelect: onOpenProfile },
               { label: "Topics", onSelect: onBack },
               {
                 label: theme === "dark" ? "Dark mode: on" : "Dark mode: off",
@@ -66,7 +65,7 @@ const QuickBiteCard = memo(function QuickBiteCard({ bite, index, onBack, onOpenP
         <p className="font-sans text-lg leading-relaxed text-ink">{bite.body}</p>
       </div>
 
-      <footer className="shrink-0 px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <footer className="shrink-0 px-5 pb-[calc(max(0.75rem,env(safe-area-inset-bottom))+var(--tabbar-h))]">
         <div className="h-px bg-hairline" />
         <div className="mt-3 flex items-baseline justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
           <span>quick bites</span>

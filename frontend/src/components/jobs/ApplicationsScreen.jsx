@@ -107,7 +107,7 @@ export function ApplicationsScreen({ onBack, onOpenProfile = () => {} }) {
         </p>
       </header>
 
-      <div className="mt-6 flex flex-col gap-3 px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
+      <div className="mt-6 flex flex-col gap-3 px-6 pb-[calc(max(2.5rem,env(safe-area-inset-bottom))+var(--tabbar-h))]">
         {apps.map((a) => (
           <div key={a.job_id} className="rounded-lg border border-hairline bg-paper px-5 py-4">
             <div className="flex items-baseline justify-between gap-3">

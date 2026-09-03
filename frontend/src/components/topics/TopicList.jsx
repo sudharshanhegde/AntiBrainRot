@@ -63,7 +63,17 @@ export function TopicList({
   }, [nicheSlug, refreshProfile, user]);
 
   if (!niche) {
-    return <StatusScreen label="unknown niche" title="Nothing to show here" />;
+    // A brand-new user lands on Quick Bites first, so the Subjects tab can
+    // be opened before any niche is chosen. Offer
+    // a way to pick one instead of a dead end.
+    return (
+      <StatusScreen
+        label="no subjects yet"
+        title="Pick a subject to get started"
+        onAction={onChangeNiche}
+        actionLabel="choose a subject"
+      />
+    );
   }
   if (!topicSlugs) {
     return <StatusScreen label="loading topics" title={niche.name} />;
@@ -103,13 +113,6 @@ export function TopicList({
         >
           Leaderboard
         </button>
-        <button
-          type="button"
-          onClick={onOpenProfile}
-          className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
-        >
-          profile
-        </button>
       </div>
 
       {notice && (
@@ -128,37 +131,11 @@ export function TopicList({
         </div>
       )}
 
-      {/* Quick Bites: a separate entry point from the topic picker, not a
-          topic nested inside the grid. It is a genuinely different mode
-          (SKILL_quick_bites.md), so it is framed honestly as the thing to
-          open when bored rather than dressed up as another lesson. */}
+      {/* Worth a Read is the one non-tab destination left on this screen:
+          a curated list of links worth reading, framed honestly as the
+          thing to open when you want to go deeper rather than as another
+          lesson. Quick Bites and Jobs live on the bottom bar now. */}
       <div className="mt-6 px-6">
-        <button
-          type="button"
-          onClick={onOpenQuickBites}
-          className="group flex w-full items-center gap-4 rounded-lg border border-hairline bg-panel px-5 py-4 text-left transition-colors hover:border-ink"
-        >
-          <span
-            className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]"
-            style={{ backgroundColor: "var(--accent-bite)" }}
-            aria-hidden="true"
-          />
-          <span className="flex flex-col gap-1">
-            <span className="font-sans text-[17px] font-semibold tracking-tight text-ink">
-              Quick Bites
-            </span>
-            <span className="font-sans text-[14px] leading-relaxed text-muted">
-              Bored? Get a quick CS refresh.
-            </span>
-          </span>
-        </button>
-      </div>
-
-      {/* Worth a Read: the third entry point, alongside the topic picker
-          and Quick Bites. A curated list of links worth reading, framed
-          honestly as the thing to open when you want to go deeper rather
-          than as another lesson. */}
-      <div className="mt-3 px-6">
         <button
           type="button"
           onClick={onOpenWorthARead}
@@ -180,32 +157,7 @@ export function TopicList({
         </button>
       </div>
 
-      {/* Jobs: the fourth entry point, alongside the topic picker, Quick
-          Bites, and Worth a Read. A separate section surfacing scraped job
-          listings matched to the signed-in user's profile. */}
-      <div className="mt-3 px-6">
-        <button
-          type="button"
-          onClick={onOpenJobs}
-          className="group flex w-full items-center gap-4 rounded-lg border border-hairline bg-panel px-5 py-4 text-left transition-colors hover:border-ink"
-        >
-          <span
-            className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]"
-            style={{ backgroundColor: "var(--accent-job)" }}
-            aria-hidden="true"
-          />
-          <span className="flex flex-col gap-1">
-            <span className="font-sans text-[17px] font-semibold tracking-tight text-ink">
-              Jobs
-            </span>
-            <span className="font-sans text-[14px] leading-relaxed text-muted">
-              Roles matched to your profile.
-            </span>
-          </span>
-        </button>
-      </div>
-
-      <div className="mt-6 flex flex-col gap-3 px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
+      <div className="mt-6 flex flex-col gap-3 px-6 pb-[calc(max(2.5rem,env(safe-area-inset-bottom))+var(--tabbar-h))]">
         {topicSlugs.map((slug) => {
           const t = topicPalette[slug];
           if (!t) return null;

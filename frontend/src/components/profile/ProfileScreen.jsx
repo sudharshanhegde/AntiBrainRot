@@ -164,7 +164,7 @@ export function ProfileScreen({ onBack, onDeleted, initialNotice = null }) {
         </div>
       )}
 
-      <div className="mt-6 flex flex-col gap-6 px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
+      <div className="mt-6 flex flex-col gap-6 px-6 pb-[calc(max(2.5rem,env(safe-area-inset-bottom))+var(--tabbar-h))]">
         {/* Theme toggle: always available, signed in or out. */}
         <section className="flex items-center justify-between rounded-lg border border-hairline bg-paper px-5 py-4">
           <span className="flex flex-col gap-1">

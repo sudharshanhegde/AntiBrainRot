@@ -10,6 +10,7 @@ import { ApplicationsScreen } from "./components/jobs/ApplicationsScreen";
 import { ProfileScreen } from "./components/profile/ProfileScreen";
 import { LeaderboardScreen } from "./components/leaderboard/LeaderboardScreen";
 import { StatusScreen } from "./components/ui/StatusScreen";
+import { BottomTabBar, isTabView } from "./components/ui/BottomTabBar";
 import { findNiche } from "./data/topics";
 import { markDeckCompleted, getResumeCardIndex } from "./api/progress";
 import { hasGuestId, hasVisited, markVisited, resetToGuest } from "./api/client";
@@ -72,7 +73,9 @@ export default function App() {
   const { user, loading } = useAuth();
   const [nicheSlug, setNicheSlug] = useState(() => readStored(STORAGE_KEYS.niche));
   const [topicSlug, setTopicSlug] = useState(() => readStored(STORAGE_KEYS.topic));
-  const [view, setView] = useState(() => (nicheSlug ? "topics" : "niche"));
+  // Quick Bites is the app's default landing tab, whatever a user sees
+  // first after the first-visit gate resolves.
+  const [view, setView] = useState("quickBites");
   const [revisionDeckIndex, setRevisionDeckIndex] = useState(null);
   // Which card within the deck to resume at (0 = start of deck).
   const [initialCardIndex, setInitialCardIndex] = useState(0);
@@ -95,12 +98,30 @@ export default function App() {
     window.location.hash = hash;
   }
 
+  // Moves between the five primary destinations via the bottom tab bar.
+  // Notices that only make sense on the screen that raised them are
+  // cleared so they never carry over to another tab.
+  const TAB_HASH = {
+    quickBites: "#/quick-bites",
+    jobs: "#/jobs",
+    topics: "#/topics",
+    applications: "#/applications",
+    profile: "#/profile",
+  };
+  const selectTab = (id) => {
+    const hash = TAB_HASH[id];
+    if (!hash) return;
+    setSurpriseNotice(null);
+    setAuthNotice(null);
+    navigate(hash);
+  };
+
   // Applies the current hash to the view state (also runs on back/forward).
   useEffect(() => {
     const onHash = () => {
       const route = parseRoute(window.location.hash);
       if (!route) {
-        setView(readStored(STORAGE_KEYS.niche) ? "topics" : "niche");
+        setView("quickBites");
         setRevisionDeckIndex(null);
         return;
       }
@@ -136,19 +157,19 @@ export default function App() {
           markVisited();
           setGateChosen(true);
           setAuthNotice(null);
-          navigate("#/profile");
+          navigate("#/quick-bites");
         }}
         onLogin={() => {
           markVisited();
           setGateChosen(true);
           setAuthNotice(null);
-          navigate("#/profile");
+          navigate("#/quick-bites");
         }}
         onGuest={() => {
           resetToGuest();
           markVisited();
           setGateChosen(true);
-          navigate(readStored(STORAGE_KEYS.niche) ? "#/topics" : "#/niche");
+          navigate("#/quick-bites");
         }}
       />
     );
@@ -219,7 +240,7 @@ export default function App() {
     setRevisionDeckIndex(null);
     writeStored(STORAGE_KEYS.niche, "");
     writeStored(STORAGE_KEYS.topic, "");
-    navigate("#/niche");
+    navigate("#/quick-bites");
   };
 
   // Called when the user reaches the end card of a deck. Records
@@ -243,23 +264,21 @@ export default function App() {
     pickTopic(pick);
   };
 
+  let screen;
   if (view === "niche") {
-    return <NichePicker onPick={pickNiche} />;
-  }
-  if (view === "profile") {
-    return (
+    screen = <NichePicker onPick={pickNiche} />;
+  } else if (view === "profile") {
+    screen = (
       <ProfileScreen
         onBack={backToTopics}
         onDeleted={handleDeleted}
         initialNotice={authNotice}
       />
     );
-  }
-  if (view === "leaderboard") {
-    return <LeaderboardScreen onBack={backToTopics} />;
-  }
-  if (view === "topics") {
-    return (
+  } else if (view === "leaderboard") {
+    screen = <LeaderboardScreen onBack={backToTopics} />;
+  } else if (view === "topics") {
+    screen = (
       <TopicList
         nicheSlug={nicheSlug}
         onPick={pickTopic}
@@ -273,35 +292,45 @@ export default function App() {
         onDismissNotice={() => setSurpriseNotice(null)}
       />
     );
-  }
-  if (view === "quickBites") {
-    return <QuickBitesFeed onBack={backToTopics} onOpenProfile={openProfile} />;
-  }
-  if (view === "worthARead") {
-    return <WorthAReadList onBack={backToTopics} />;
-  }
-  if (view === "jobs") {
-    return (
+  } else if (view === "quickBites") {
+    screen = <QuickBitesFeed onBack={backToTopics} onOpenProfile={openProfile} />;
+  } else if (view === "worthARead") {
+    screen = <WorthAReadList onBack={backToTopics} />;
+  } else if (view === "jobs") {
+    screen = (
       <JobsScreen
         onBack={backToTopics}
         onOpenProfile={openProfile}
         onOpenApplications={openApplications}
       />
     );
+  } else if (view === "applications") {
+    screen = <ApplicationsScreen onBack={backToJobs} onOpenProfile={openProfile} />;
+  } else {
+    screen = (
+      <Feed
+        topicSlug={topicSlug}
+        onBack={backToTopics}
+        onExplore={backToTopics}
+        onDeckComplete={handleDeckComplete}
+        onSurprise={handleSurprise}
+        onOpenProfile={openProfile}
+        revisionDeckIndex={revisionDeckIndex}
+        initialCardIndex={initialCardIndex}
+      />
+    );
   }
-  if (view === "applications") {
-    return <ApplicationsScreen onBack={backToJobs} onOpenProfile={openProfile} />;
+
+  // The five primary destinations carry the persistent bottom tab bar;
+  // drilled-down screens (topic deck, Worth a Read, leaderboard, niche
+  // picker) render full-screen without it.
+  if (isTabView(view)) {
+    return (
+      <>
+        {screen}
+        <BottomTabBar active={view} onSelect={selectTab} />
+      </>
+    );
   }
-  return (
-    <Feed
-      topicSlug={topicSlug}
-      onBack={backToTopics}
-      onExplore={backToTopics}
-      onDeckComplete={handleDeckComplete}
-      onSurprise={handleSurprise}
-      onOpenProfile={openProfile}
-      revisionDeckIndex={revisionDeckIndex}
-      initialCardIndex={initialCardIndex}
-    />
-  );
+  return screen;
 }

@@ -37,7 +37,6 @@ export const FeedCard = memo(function FeedCard({
           <AppMenu
             entries={[
               { label: "Days", onSelect: onOpenDays },
-              { label: "Profile", onSelect: onOpenProfile },
               {
                 label: theme === "dark" ? "Dark mode: on" : "Dark mode: off",
                 onSelect: toggleTheme,

@@ -387,9 +387,13 @@ function JobCard({ job, index, onApply, onFlag, onBack, onOpenProfile, onOpenApp
             {job.interested ? "Interested ✓" : "Interested"}
           </button>
         </div>
-        <p className="mt-2 max-w-[24rem] font-sans text-[12px] leading-relaxed text-muted">
-          Not interested removes this role from your feed for good. Interested saves it for now; more options arrive later.
-        </p>
+        {/* Explain the interest buttons once, on the first card only, so the
+            note does not eat space on every card of the feed. */}
+        {index === 0 && (
+          <p className="mt-2 max-w-[24rem] font-sans text-[12px] leading-relaxed text-muted">
+            Not interested removes this role from your feed for good. Interested saves it for now; more options arrive later.
+          </p>
+        )}
         <div className="mt-3 flex items-center justify-between gap-3">
           {job.applied ? (
             <span className="font-sans text-[14px] font-semibold" style={{ color: JOBS_ACCENT }}>

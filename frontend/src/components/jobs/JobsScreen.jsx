@@ -352,8 +352,24 @@ function JobCard({ job, index, onApply, onFlag, onBack, onOpenProfile, onOpenApp
         <div className="mt-4 flex flex-col gap-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
           <p>{location}</p>
           <p>{gradYear}</p>
-          <p>Required: {describePaths(job.qualification_paths)}</p>
+          <p className="flex items-start gap-1.5">
+            <span>Required: {describePaths(job.qualification_paths)}</span>
+            <button
+              type="button"
+              onClick={() => setShowNote((v) => !v)}
+              aria-expanded={showNote}
+              aria-label="Why these requirements may be off"
+              className="font-sans text-[15px] font-bold leading-none text-red-600 transition-colors hover:text-red-500"
+            >
+              *
+            </button>
+          </p>
         </div>
+        {showNote && (
+          <p className="mt-3 font-sans text-[13px] leading-relaxed text-muted">
+            These details are auto-extracted and can be off sometimes. Read the role name and open the posting to confirm it matches you before applying. This is a beta; we cannot always pull perfect data yet.
+          </p>
+        )}
 
         <div className="my-4 h-px bg-hairline" />
 
@@ -364,22 +380,6 @@ function JobCard({ job, index, onApply, onFlag, onBack, onOpenProfile, onOpenApp
             job.raw_requirements_text ||
             "No requirement text supplied with this posting."}
         </p>
-        <div className="mt-3 flex items-start gap-2 border-t border-hairline pt-3">
-          <button
-            type="button"
-            onClick={() => setShowNote((v) => !v)}
-            aria-expanded={showNote}
-            aria-label="About these auto-extracted details"
-            className="shrink-0 font-sans text-[13px] leading-6 text-muted underline decoration-dotted underline-offset-4 transition-colors hover:text-ink"
-          >
-            *
-          </button>
-          {showNote && (
-            <p className="font-sans text-[13px] leading-relaxed text-muted">
-              These details are auto-extracted and can be off sometimes. Read the role name and open the posting to confirm it matches you before applying. This is a beta; we cannot always pull perfect data yet.
-            </p>
-          )}
-        </div>
       </div>
 
       <footer className="shrink-0 px-5 pb-[calc(max(0.75rem,env(safe-area-inset-bottom))+var(--tabbar-h))]">

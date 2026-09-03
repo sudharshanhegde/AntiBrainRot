@@ -641,45 +641,25 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
   }, []);
 
   const handleApply = useCallback(async (job) => {
-    // Reserve a new window synchronously (inside the user's click gesture) so
-    // opening the posting is not treated as a blocked popup after the async
-    // record call. In environments where new tabs are forced to the same tab
-    // (or popups are blocked), the fallback navigates this tab instead. Either
-    // way the record is saved first, so the check is never lost to navigation.
-    let win = null;
+    // Record the tap first so it survives the navigation that follows. This
+    // only marks the job as "pending a check"; it is NOT saved to My
+    // applications until the user later confirms "Did you apply? = Yes".
     try {
-      win = window.open("", "_blank", "noopener,noreferrer");
-    } catch {
-      win = null;
-    }
-    const open = (url) => {
-      if (!url) {
-        if (win) win.close();
-        return;
-      }
-      if (win) {
-        win.location.href = url;
-      } else {
-        window.location.assign(url);
-      }
-    };
-    try {
-      // This only marks the job as "pending a check"; it is NOT saved to My
-      // applications until the user later confirms "Did you apply? = Yes".
-      const url = await applyToJob(job.id);
-      // Remember this apply so that when the user comes back (window focus, or
-      // the next open of the Jobs tab) the check appears.
+      await applyToJob(job.id);
       appliedRef.current = true;
       setApplyError(null);
       // Reflect the apply locally so the card reads "Applied" without a refetch.
       setJobs((prev) => prev.map((j) => (j.id === job.id ? { ...j, applied: true } : j)));
-      open(url || job.apply_url);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "could not record application";
       console.warn("could not record application", err);
       setApplyError(msg);
-      // Even if recording failed, still take the user to the posting.
-      open(job.apply_url);
+    }
+    // Always land the user on the posting. Which tab it opens in does not
+    // matter; the record is saved above, so when they come back the check is
+    // asked for that job.
+    if (job.apply_url) {
+      window.location.assign(job.apply_url);
     }
   }, []);
 

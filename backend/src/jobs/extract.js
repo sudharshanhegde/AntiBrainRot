@@ -16,6 +16,7 @@ import {
   authoritativeSingleYears,
   extractRequirementsSection,
   overallYears,
+  titleExperienceFloor,
 } from "./experience.js";
 
 // Ordered country/city recognizers. Order matters: the first country whose
@@ -108,6 +109,25 @@ function seniorityDefaultYears(role) {
     if (hit) return years;
   }
   return 0;
+}
+
+// A role title is a strong seniority signal in its own right. Regardless of
+// what the free text or a model says, a clearly senior title (manager,
+// director, president, head, staff, principal, senior, ...) must never resolve
+// to a 0-year minimum, or the role would leak into a fresher's feed. This
+// applies the title's floor as a hard LOWER BOUND on the parsed minimum — a
+// figure from the text or model can raise it, but can never undercut a senior
+// title below what the role actually demands.
+function applyTitleFloor(paths, role) {
+  const floor = titleExperienceFloor(role);
+  if (floor <= 0) return paths;
+  return (paths || []).map((p) => ({
+    ...p,
+    min_experience_years: Math.max(
+      Number.isInteger(p.min_experience_years) ? p.min_experience_years : 0,
+      floor
+    ),
+  }));
 }
 
 // The degree level(s) a posting will accept, as distinct tracks. When no
@@ -310,7 +330,7 @@ export function parseListing(listing) {
     is_remote: isRemote,
     remote_restricted_to,
     target_grad_year,
-    qualification_paths: structured.qualification_paths,
+    qualification_paths: applyTitleFloor(structured.qualification_paths, role),
     requirements_summary: structured.requirements_summary || requirementsExcerpt(rawText, 900),
   };
 }
@@ -435,8 +455,10 @@ async function extractWithModel(listing) {
     is_remote: isRemote,
     remote_restricted_to: isRemote ? remoteRestrictedTo(location) : null,
     target_grad_year: p.is_new_grad_only === true ? years(p.target_grad_year) : null,
-    qualification_paths:
+    qualification_paths: applyTitleFloor(
       reconciled.length > 0 ? reconciled : detectQualificationPaths(role, requirementsText),
+      role
+    ),
     requirements_summary: String(p.requirements_summary || "").trim() || requirementsExcerpt(String(listing.raw_text || ""), 900),
   };
   return parsed;

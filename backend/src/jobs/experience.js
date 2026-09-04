@@ -27,14 +27,56 @@
 // category of "it broke on X phrasing" bugs disappear instead of requiring a
 // new pattern.
 // ---------------------------------------------------------------------------
+// Cardinal words used by postings that spell the requirement out ("a minimum
+// of five years"). They are folded to digits in normalize(), the same way
+// "yrs" -> "years" is, so they are absorbed by the single general parser
+// instead of needing a whole second set of patterns.
+const CARDINAL_WORDS = {
+  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
+  eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13,
+  fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18,
+  nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60,
+  seventy: 70, eighty: 80, ninety: 90,
+};
+const TENS_WORDS = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+const UNIT_WORDS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+const SINGLE_WORDS = Object.keys(CARDINAL_WORDS).filter((w) => !TENS_WORDS.includes(w));
+
+// Folds spelled-out cardinals into digits: "five years" -> "5 years",
+// "three to five years" -> "3 to 5 years", "ten+ years" -> "10+ years",
+// "twenty five years" -> "25 years". Word-boundary matching keeps it from
+// corrupting ordinary words ("someone", "fourth", "years"). Only ever used on
+// the lowercased, whitespace-collapsed normalize() output.
+export function expandNumberWords(text) {
+  const s = String(text || "");
+  // Tens + optional unit first ("twenty five", "twenty-five", "twenty").
+  let out = s.replace(
+    new RegExp(`\\b(${TENS_WORDS.join("|")})(?:[ -](${UNIT_WORDS.join("|")}))?\\b`, "g"),
+    (whole, ten, unit) => {
+      const base = CARDINAL_WORDS[ten];
+      return String(base + (unit ? CARDINAL_WORDS[unit] : 0));
+    }
+  );
+  // Then the remaining single words (zero..nineteen) that were not consumed.
+  out = out.replace(
+    new RegExp(`\\b(${SINGLE_WORDS.join("|")})\\b`, "g"),
+    (whole, word) => String(CARDINAL_WORDS[word])
+  );
+  return out;
+}
+
 export function normalize(text) {
-  return String(text || "")
+  const s = String(text || "")
     .toLowerCase()
     .replace(/[\u2012\u2013\u2014\u2015]/g, "-") // en-dash, em-dash, etc -> hyphen
     .replace(/\byrs?\.?\b/g, "years") // yr, yrs, yr. -> years
     .replace(/\byoe\b/g, "years of experience") // yoe -> spelled out
+    .replace(/\byear\b/g, "years") // singular "1 year" -> "1 years" so it matches
     .replace(/\s+/g, " ") // collapse whitespace
     .trim();
+  // Fold spelled-out cardinals ("five years" -> "5 years") last, so the single
+  // general parser only ever has to deal with digits.
+  return expandNumberWords(s);
 }
 
 // ---------------------------------------------------------------------------
@@ -188,12 +230,45 @@ export function authoritativeSingleYears(sectionText) {
 export function overallYears(sectionText) {
   const r = extractYears(sectionText);
   if (r.multiple) {
-    const mins = r.multiple.map((y) => y.min).filter(Number.isInteger);
-    if (mins.length === 0) return null;
-    return { min: Math.min(...mins), max: null };
+    const figures = r.multiple.map((y) => y.min).filter(Number.isInteger);
+    if (figures.length === 0) return null;
+    // A posting that lists several figures is usually stating cumulative,
+    // sub-requirements ("10+ years total ... with 3+ years managing a team"),
+    // not interchangeable alternatives. The role is gated by the STRONGEST of
+    // them, so err to the larger figure: understating a requirement is exactly
+    // how a senior role leaks to a fresher. (Genuine multi-degree alternatives
+    // are handled as separate rows by the model path, not collapsed here.)
+    return { min: Math.max(...figures), max: null };
   }
   if ((r.confidence === "high" || r.confidence === "medium") && Number.isInteger(r.min)) {
     return { min: r.min, max: Number.isInteger(r.max) ? r.max : null };
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Role-title seniority floor.
+//
+// A role title is a strong seniority signal in its own right. A listing called
+// "Data Science Manager" or "Director, Engineering" is senior no matter what
+// the free text or a model happens to say, so it must NEVER resolve to a
+// 0-year minimum — that is how clearly experienced roles leak into a fresher's
+// feed. Returns a positive floor for clearly senior titles and 0 for genuinely
+// junior/neutral ones (intern, fresher, junior, analyst, engineer, ...), so it
+// can be used as a hard lower bound on the parsed experience minimum.
+// ---------------------------------------------------------------------------
+export function titleExperienceFloor(role) {
+  const r = String(role || "").toLowerCase();
+  // Explicitly junior / entry titles are never floored.
+  if (/\b(intern|internship|trainee|fresher|graduate|entry.?level|junior|assistant)\b/.test(r)) {
+    return 0;
+  }
+  const rules = [
+    [/president|director|principal|head|chief|\bvp\b|founder|co-?founder|staff|fellow|owner|senior\b/, 8],
+    [/\b(manager|lead|architect|head)\b/, 6],
+  ];
+  for (const [re, years] of rules) {
+    if (re.test(r)) return years;
+  }
+  return 0;
 }

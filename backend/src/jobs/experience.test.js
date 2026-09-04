@@ -16,6 +16,7 @@ import {
   authoritativeSingleYears,
   splitQualificationPaths,
   extractRequirementsSection,
+  titleExperienceFloor,
 } from "./experience.js";
 
 // Runs the whole SKILL test-case table through extractYears and checks the
@@ -40,6 +41,23 @@ test("normalize collapses dash variants, abbreviations and case", () => {
   assert.equal(normalize("5\u2014 8 Yrs"), "5- 8 years"); // em-dash -> hyphen
   assert.equal(normalize("3+ YOE"), "3+ years of experience");
   assert.equal(normalize("  0-1  Yr  "), "0-1 years");
+});
+
+test("normalize folds spelled-out cardinals into digits", () => {
+  assert.equal(normalize("five years"), "5 years");
+  assert.equal(normalize("ten+ years"), "10+ years");
+  assert.equal(normalize("three to five years"), "3 to 5 years");
+  assert.equal(normalize("twenty five years"), "25 years");
+  assert.equal(normalize("one year"), "1 years"); // singular pluralized too
+  // Word-boundary safety: ordinary words are never corrupted.
+  assert.equal(normalize("someone in the fourth row, done and none"), "someone in the fourth row, done and none");
+});
+
+test("spelled-out numbers drive experience (Stripe 'five years' case)", () => {
+  assertYears("A minimum of five years of experience conducting advanced data analysis", 5, null, "high");
+  assertYears("at least eight years of experience", 8, null, "high");
+  assertYears("three to five years of relevant experience", 3, 5, "high");
+  assertYears("ten+ years in enterprise presales", 10, null, "high");
 });
 
 test("SKILL test-case table: plus, range, to, at-least, minimum, up-to, 0-N", () => {
@@ -101,13 +119,33 @@ test("internal leveling with no plain-language years is genuinely 'none'", () =>
   assert.equal(overallYears("L5 (internal leveling, no years stated)"), null);
 });
 
-test("overallYears collapses multiple mentions to the lowest floor (safe fallback)", () => {
-  // Two figures in one section with no degree split available: the lowest
-  // floor is stored so a strict filter never over-gates the role.
+test("overallYears treats multiple mentions as cumulative, using the strongest figure", () => {
+  // "10+ years total ... with 3+ years managing a team" is gated by 10, not 3.
+  // Collapsing to the lowest figure is how a senior role leaks to a fresher.
+  assert.deepEqual(
+    overallYears("10+ years of experience, with 3+ years in a people management role"),
+    { min: 10, max: null }
+  );
   assert.deepEqual(
     overallYears("5+ years with Java and 3+ years with Kubernetes"),
-    { min: 3, max: null }
+    { min: 5, max: null }
   );
+});
+
+test("titleExperienceFloor never lets clearly senior titles resolve to 0 years", () => {
+  const senior = ["Data Science Manager", "Director, Engineering", "President, Sales",
+                  "VP of Data", "Principal Engineer", "Head of Platform", "Staff Engineer",
+                  "Senior Software Engineer", "Engineering Manager"];
+  for (const role of senior) {
+    assert.ok(titleExperienceFloor(role) > 0, `expected a positive floor for "${role}"`);
+  }
+  const junior = ["Software Engineer Intern", "Junior Analyst", "Fresher - Associate Engineer",
+                  "Entry Level Engineer", "Data Analyst", "Backend Engineer", "Trainee"];
+  for (const role of junior) {
+    assert.equal(titleExperienceFloor(role), 0, `expected no floor for "${role}"`);
+  }
+  // A senior title + an explicit stronger text figure -> the text figure wins.
+  assert.equal(overallYears("10+ years of experience in data science").min, 10);
 });
 
 test("extractRequirementsSection scopes numbers out of boilerplate", () => {

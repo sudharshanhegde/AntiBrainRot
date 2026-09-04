@@ -176,7 +176,7 @@ export function requirementsExcerpt(rawText, max = 1600) {
 
   // Headings that mark role/requirement content (good place to start).
   const isReqHeading = (l) =>
-    /^(requirements?|qualifications?|minimum qualifications?|must haves?|you(?:'ll| will| would| should)? (?:need|have|bring|be able to)|we (?:need|require|look for|are looking for)|skills?(?: and experience| required| needed)?|experience (?:required|needed)|responsibilities|what you(?:'ll| will) do|about the role|about this role|the role|role overview|job (?:summary|description)|key (?:skills|responsibilities))$/i.test(
+    /^(requirements?|qualifications?|minimum qualifications?|must haves?|you(?:'ll| will| would| should)? (?:need|have|bring|be able to)|we (?:need|require|look for|are looking for)|about you|who you are|(?:the )?ideal candidate|what you bring|skills?(?: and experience| required| needed)?|experience (?:required|needed)|responsibilities|what you(?:'ll| will) do|about the role|about this role|the role|role overview|job (?:summary|description)|key (?:skills|responsibilities))$/i.test(
       l
     );
   // Headings that mark boilerplate / apply sections (stop here).
@@ -224,7 +224,7 @@ export function requirementsExcerpt(rawText, max = 1600) {
 function classifyHeading(line) {
   const t = line.replace(/[:.,]+$/, "").trim().toLowerCase();
   if (
-    /^(requirements?|job requirements?|minimum requirements?|qualifications?|mandatory (?:skills?|requirements?|qualifications?)|must have|essential|you (?:must|should|need to) have|what we look for|what you(?:'ll| will)? need|skills?(?: and experience| required)?$|experience (?:required|needed|qualifications?)|experience and qualifications?|additional requirements?|key (?:skills|requirements))$/i.test(
+    /^(requirements?|job requirements?|minimum requirements?|qualifications?|mandatory (?:skills?|requirements?|qualifications?)|must have|essential|you (?:must|should|need to) have|what we look for|what you(?:'ll| will)? need|about you|who you are|(?:the )?ideal candidate|what you bring|skills?(?: and experience| required)?$|experience (?:required|needed|qualifications?)|experience and qualifications?|additional requirements?|key (?:skills|requirements))$/i.test(
       t
     )
   ) {

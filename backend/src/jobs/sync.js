@@ -6,7 +6,7 @@ import {
   enableSource,
 } from "./registry.js";
 import { fetchSourceListings, isSupportedSourceType } from "./adapters.js";
-import { extractListing } from "./extract.js";
+import { extractListing, parseListing } from "./extract.js";
 import { jobConcurrency, resetGroqExhaustion } from "./llm.js";
 
 // The daily jobs scrape and extraction pipeline.
@@ -37,7 +37,7 @@ function sleep(ms) {
 
 // Runs one source: fetch, then per-listing categorize (new vs seen), and for
 // new listings extract + validate + insert. Returns run stats.
-async function runOneSource(source, { dryRun }) {
+async function runOneSource(source, { dryRun, noModel = false }) {
   const startedAt = Date.now();
   const stats = {
     jobs_found: 0,
@@ -109,8 +109,13 @@ async function runOneSource(source, { dryRun }) {
   // key pool. extractListing picks the least-loaded key, so these workers fan
   // out in parallel instead of serializing behind one key. Bounded by
   // jobConcurrency() (one in-flight call per key by default) so no single
-  // key's per-minute rate limit is exceeded.
-  const limit = Math.min(jobConcurrency(), Math.max(1, newListings.length));
+  // key's per-minute rate limit is exceeded. A noModel run never calls the
+  // model (no per-key rate limit), so it fans out across a few DB workers
+  // instead of staying serial behind Groq's forced concurrency of 1.
+  const baseConcurrency = noModel
+    ? Number(process.env.NO_MODEL_CONCURRENCY || 4)
+    : jobConcurrency();
+  const limit = Math.min(baseConcurrency, Math.max(1, newListings.length));
   // Surface the actual per-listing error(s) in the run result so a silent
   // insert/model failure is visible in the API response, not just logs.
   const workerErrors = [];
@@ -119,7 +124,12 @@ async function runOneSource(source, { dryRun }) {
     while (cursor < newListings.length) {
       const listing = newListings[cursor++];
       try {
-        const extracted = await extractListing(listing);
+        // noModel -> skip the model entirely and use the deterministic parser
+        // (pure CPU, no network, no rate limits). Used for bulk cold-start
+        // backfills that would otherwise stall the sequential model path.
+        const extracted = noModel
+          ? parseListing(listing)
+          : await extractListing(listing);
         if (!extracted.role || !extracted.company || !listing.apply_url) {
           workerErrors.push(`validation: missing fields for ${listing.role}`);
           stats.jobs_failed_validation += 1;
@@ -259,7 +269,7 @@ async function logSourceRun(sourceId, { startedAt, status, jobs_found, jobs_inse
 
 // Runs the full jobs job: sync the registry, then scrape each enabled
 // source. Called from the daily generation run and an on-demand endpoint.
-export async function runJobsJob({ dryRun = false } = {}) {
+export async function runJobsJob({ dryRun = false, noModel = false } = {}) {
   // Fresh run: forget which Groq extraction models got rate-limited in the
   // previous run so their budgets can be retried today.
   resetGroqExhaustion();
@@ -268,7 +278,7 @@ export async function runJobsJob({ dryRun = false } = {}) {
   const results = [];
   for (const source of sources) {
     try {
-      const r = await runOneSource(source, { dryRun });
+      const r = await runOneSource(source, { dryRun, noModel });
       results.push({ source: sourceKey(source), ...r });
     } catch (err) {
       console.error(`[jobs] ${sourceKey(source)} run error: ${err.message}`);

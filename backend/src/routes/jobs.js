@@ -483,7 +483,10 @@ jobsRouter.post("/sync", async (req, res) => {
   }
   try {
     const dryRun = req.query.dry_run === "1";
-    const result = await runJobsJob({ dryRun });
+    // no_model=1 uses the deterministic extractor (no LLM) — for bulk
+    // cold-start backfills that would stall the slow sequential model path.
+    const noModel = req.query.no_model === "1";
+    const result = await runJobsJob({ dryRun, noModel });
     // After a real scrape, also drop stale, unreferenced jobs past the
     // retention window so the table does not grow without bound.
     let cleanup = null;

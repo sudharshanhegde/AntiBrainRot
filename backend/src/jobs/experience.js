@@ -91,7 +91,7 @@ export function extractRequirementsSection(text) {
   // extractYears, which is case-insensitive, so lowercasing here is harmless.
   const s = String(text || "").toLowerCase();
   const startPatterns =
-    /(?:requirements?|qualifications?|what you.?ll need|who you are|you have|must have|minimum qualifications)/;
+    /(?:requirements?|qualifications?|what you.?ll need|who you are|about you|you have|must have|minimum qualifications)/;
   const endPatterns =
     /(?:what we offer|benefits|perks|compensation|what .*can offer|equal opportunity)/;
   const startMatch = s.search(startPatterns);

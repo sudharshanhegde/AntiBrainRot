@@ -138,3 +138,69 @@ order by j.company, j.role;
 --   and not exists (select 1 from applied_jobs     a where a.job_id = <job_id>)
 --   and not exists (select 1 from job_apply_checks c where c.job_id = <job_id>)
 --   and not exists (select 1 from job_user_flags   f where f.job_id = <job_id>);
+
+
+-- ===========================================================================
+-- 4) MISSED BY BLOCK 2 — wrongly-LOW minimums (the Anthropic case).
+--    Block 2 only flags inflated minimums (stored min > 0 but not stated in
+--    the text); it deliberately leaves stored min = 0 alone. But when a
+--    posting EXPLICITLY says "10+ years" (a plus-form is always a FLOOR) and
+--    the stored minimum is 0 (or anything other than 10), the old code failed
+--    to read the figure and under-gated the role. This block flags every job
+--    whose text states an "N+ years" floor (N > 0) but whose stored
+--    qualification minimum does not equal N.
+-- ===========================================================================
+
+-- 4a) DRY RUN — jobs with a stated "N+ years" floor whose stored minimum does
+--     not match that floor:
+with plus_floor as (
+  select j.id as job_id, min(fl) as floor_years
+  from jobs j
+  cross join lateral (
+    select (regexp_matches(
+             lower(regexp_replace(coalesce(j.raw_requirements_text, ''),
+                                  E'[\u2012\u2013\u2014\u2015]', '-', 'g')),
+             E'(\\d{1,2})\\s*\\+\\s*years', 'g'))[1]::int as fl
+  ) t
+  where j.expired = false
+  group by j.id
+  having min(fl) > 0
+)
+select j.id as job_id, j.company, j.role,
+       qp.education_level, qp.min_experience_years, qp.max_experience_years,
+       pf.floor_years as "stated_Nplus_floor"
+from jobs j
+join plus_floor pf on pf.job_id = j.id
+join job_qualification_paths qp on qp.job_id = j.id
+where qp.min_experience_years <> pf.floor_years
+  and not exists (select 1 from applied_jobs     a where a.job_id = j.id)
+  and not exists (select 1 from job_apply_checks c where c.job_id = j.id)
+  and not exists (select 1 from job_user_flags   f where f.job_id = j.id)
+order by j.company, j.role;
+
+-- 4b) DELETE — run after reviewing 4a. Regenerates these jobs on the next
+--     scrape with the correct figure:
+with plus_floor as (
+  select j.id as job_id, min(fl) as floor_years
+  from jobs j
+  cross join lateral (
+    select (regexp_matches(
+             lower(regexp_replace(coalesce(j.raw_requirements_text, ''),
+                                  E'[\u2012\u2013\u2014\u2015]', '-', 'g')),
+             E'(\\d{1,2})\\s*\\+\\s*years', 'g'))[1]::int as fl
+  ) t
+  where j.expired = false
+  group by j.id
+  having min(fl) > 0
+),
+bad as (
+  select distinct j.id
+  from jobs j
+  join plus_floor pf on pf.job_id = j.id
+  join job_qualification_paths qp on qp.job_id = j.id
+  where qp.min_experience_years <> pf.floor_years
+    and not exists (select 1 from applied_jobs     a where a.job_id = j.id)
+    and not exists (select 1 from job_apply_checks c where c.job_id = j.id)
+    and not exists (select 1 from job_user_flags   f where f.job_id = j.id)
+)
+delete from jobs j using bad b where j.id = b.id returning j.id;

@@ -12,6 +12,11 @@
 // location string (the model is not needed for those). The raw requirement
 // text is always preserved so a user can verify against the original.
 import { jobChat } from "./llm.js";
+import {
+  authoritativeSingleYears,
+  extractRequirementsSection,
+  overallYears,
+} from "./experience.js";
 
 // Ordered country/city recognizers. Order matters: the first country whose
 // token matches the location string wins, so the more specific/common
@@ -81,13 +86,12 @@ function detectTargetGradYear(role, rawText) {
 // curated (no infinite scroll of everything). No model is used.
 
 // The smallest "N years" figure stated in the text (the minimum a candidate
-// needs). Ranges like "3-5 years" naturally resolve to their lower bound.
+// needs). Uses the robust normalized parser so dash/abbreviation variants
+// ("5–8 yrs", "0-1 Yr", "3 to 5 years") all resolve instead of silently
+// failing. Ranges like "3-5 years" naturally resolve to their lower bound.
 function explicitMinYears(text) {
-  const m = text.match(/(\d{1,2})\s*(?:\+)?\s*years?/gi);
-  if (!m) return null;
-  const nums = m.map((s) => Number(s.replace(/\D/g, ""))).filter((n) => n < 60);
-  if (nums.length === 0) return null;
-  return Math.min(...nums);
+  const overall = overallYears(extractRequirementsSection(text));
+  return overall && Number.isInteger(overall.min) ? overall.min : null;
 }
 
 // Fallback minimum experience from role seniority when the text is silent.
@@ -251,21 +255,16 @@ function parseStructuredRequirements(role, rawText) {
   const reqAndRole = `${buckets.required.join(" ")} ${buckets.role.join(" ")}`;
   const requiredText = buckets.required.join(" ");
 
-  // Experience: collect ranges/plus statements and pick the one with the
-  // largest minimum (the overall years requirement, not a sub-skill line).
-  const candidates = [];
-  const rangeRe = /(\d{1,2})\s*(?:to|-|–|and)\s*(\d{1,2})\s*\+?\s*years?/gi;
-  let m;
-  while ((m = rangeRe.exec(reqAndRole))) candidates.push({ min: +m[1], max: +m[2] });
-  const atLeastRe = /(?:at least|minimum|min\.?|over|plus|\+)\s*(\d{1,2})\s*(?:\+)?\s*years?/gi;
-  while ((m = atLeastRe.exec(reqAndRole))) candidates.push({ min: +m[1], max: null });
-  let chosen = null;
-  for (const c of candidates) {
-    if (!chosen || c.min > chosen.min) chosen = c;
-  }
-
-  const minExp = chosen ? chosen.min : seniorityDefaultYears(role);
-  const maxExp = chosen ? chosen.max : null;
+  // Experience: one robust figure derived from the normalized requirements/
+  // role text, so "5–8 years", "0-1 Yr", "3 to 5 yrs", "minimum of 3" all
+  // resolve instead of silently failing on a phrasing variant. When a posting
+  // lists several mentions (multiple accepted paths) the smallest stated floor
+  // is used — never a guessed larger number — so a strict filter cannot
+  // over-gate the role. A bounded range keeps its ceiling; a bare or plus
+  // figure stays open-ended so a more-senior candidate is not wrongly capped.
+  const overall = overallYears(reqAndRole);
+  const minExp = overall && Number.isInteger(overall.min) ? overall.min : seniorityDefaultYears(role);
+  const maxExp = overall && Number.isInteger(overall.max) ? overall.max : null;
 
   // Degree: only a degree stated inside a REQUIRED section gates matching.
   // A degree that only appears under "Good to have / Preferred" must not hide
@@ -382,6 +381,27 @@ function extractionMessages(listing) {
   ];
 }
 
+// Reconciles model-provided qualification paths against the deterministic
+// text parse.
+//
+// The model is good at structure (how many accepted paths, and which degree
+// each needs) but a model can also hallucinate a number that the posting does
+// not actually state — the exact failure that once routed a role on a guessed
+// value. The deterministic regex over the real requirement text is the source
+// of truth for a NUMBER, so whenever the text states one concrete overall
+// figure it overrides the model's figure on every path. When the text lists
+// several mentions (a true multi-path posting) or states no number at all, the
+// model's own per-path structure is kept rather than collapsing it.
+function reconcileModelPaths(paths, requirementsText) {
+  const authoritative = authoritativeSingleYears(requirementsText);
+  if (!authoritative) return paths;
+  return (paths || []).map((p) => ({
+    ...p,
+    min_experience_years: authoritative.min,
+    max_experience_years: authoritative.max,
+  }));
+}
+
 async function extractWithModel(listing) {
   const res = await jobChat(extractionMessages(listing), {
     temperature: 0,
@@ -398,6 +418,11 @@ async function extractWithModel(listing) {
         .filter((x) => x.education_level !== "any" || true)
     : [];
 
+  // The deterministic text parse always runs too, so a hallucinated or missing
+  // model figure is corrected against what the posting actually says.
+  const requirementsText = extractRequirementsSection(String(listing.raw_text || ""));
+  const reconciled = reconcileModelPaths(paths, requirementsText);
+
   // Country/remote stay deterministic (a model is not needed for them).
   const location = String(listing.location || "").trim();
   const role = String(listing.role || "Untitled role").trim();
@@ -410,7 +435,8 @@ async function extractWithModel(listing) {
     is_remote: isRemote,
     remote_restricted_to: isRemote ? remoteRestrictedTo(location) : null,
     target_grad_year: p.is_new_grad_only === true ? years(p.target_grad_year) : null,
-    qualification_paths: paths.length > 0 ? paths : detectQualificationPaths(role, String(listing.raw_text || "")),
+    qualification_paths:
+      reconciled.length > 0 ? reconciled : detectQualificationPaths(role, requirementsText),
     requirements_summary: String(p.requirements_summary || "").trim() || requirementsExcerpt(String(listing.raw_text || ""), 900),
   };
   return parsed;

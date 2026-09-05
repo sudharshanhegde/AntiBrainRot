@@ -22,18 +22,30 @@ import {
 // Ordered country/city recognizers. Order matters: the first country whose
 // token matches the location string wins, so the more specific/common
 // recognizers come first. Tokens deliberately avoid short ambiguous ones.
+// Tokens deliberately avoid short ambiguous ones, but a few country short
+// forms are unambiguous enough in a location string ("US", "UK", "UAE").
+// Every country a user can pick in the job profile is represented, plus a
+// wide net of office cities, so an on-site role's country and a remote role's
+// country restriction ("Remote · Poland", "Remote (US)") are captured instead
+// of silently falling through as "open worldwide".
 const COUNTRY_RECOGNIZERS = [
-  { country: "India", re: /(india|bengaluru|bangalore|mumbai|bombay|hyderabad|pune|chennai|gurgaon|gurugram|noida|new delhi|delhi|kolkata|ahmedabad|kochi|coimbatore|indore)/i },
-  { country: "United States", re: /(united states|\busa\b|u\.?s\.?a\.?|san francisco|new york|seattle|austin|mountain view|palo alto|redwood city|boston|chicago|atlanta|los angeles)/i },
-  { country: "United Kingdom", re: /(united kingdom|\buk\b|england|britain|london|manchester)/i },
-  { country: "Canada", re: /(canada|toronto|vancouver|ottawa|montreal|waterloo)/i },
-  { country: "Germany", re: /(germany|berlin|munich|hamburg)/i },
+  { country: "India", re: /(india|bengaluru|bangalore|mumbai|bombay|hyderabad|pune|chennai|gurgaon|gurugram|noida|new delhi|delhi|kolkata|ahmedabad|kochi|coimbatore|indore|gandhinagar|jaipur|lucknow)/i },
+  { country: "United States", re: /(united states|\busa\b|\bus\b|\bamerica\b|u\.?s\.?a\.?|san francisco|new york|seattle|austin|mountain view|palo alto|redwood city|boston|chicago|atlanta|los angeles|denver|phoenix|portland|san diego|washington,?\s*d\.?c)/i },
+  { country: "United Kingdom", re: /(united kingdom|\buk\b|england|britain|london|manchester|birmingham|edinburgh|bristol)/i },
+  { country: "Canada", re: /(canada|toronto|vancouver|ottawa|montreal|waterloo|calgary)/i },
+  { country: "Germany", re: /(germany|berlin|munich|hamburg|cologne|frankfurt)/i },
   { country: "Singapore", re: /(singapore)/i },
   { country: "United Arab Emirates", re: /(united arab emirates|\buae\b|dubai|abu dhabi)/i },
-  { country: "Netherlands", re: /(netherlands|amsterdam|rotterdam)/i },
-  { country: "Australia", re: /(australia|sydney|melbourne)/i },
+  { country: "Netherlands", re: /(netherlands|amsterdam|rotterdam|the hague)/i },
+  { country: "Australia", re: /(australia|sydney|melbourne|perth|brisbane)/i },
   { country: "France", re: /(france|paris)/i },
   { country: "Japan", re: /(japan|tokyo)/i },
+  { country: "Poland", re: /(poland|warsaw|krakow|kraków|wroclaw|wrocław|gdansk)/i },
+  { country: "Ireland", re: /(ireland|dublin)/i },
+  { country: "Spain", re: /(spain|madrid|barcelona)/i },
+  { country: "Portugal", re: /(portugal|lisbon)/i },
+  { country: "Sweden", re: /(sweden|stockholm)/i },
+  { country: "Israel", re: /(israel|tel aviv|tel-aviv)/i },
 ];
 
 function detectCountry(text) {
@@ -176,7 +188,7 @@ export function requirementsExcerpt(rawText, max = 1600) {
 
   // Headings that mark role/requirement content (good place to start).
   const isReqHeading = (l) =>
-    /^(requirements?|qualifications?|minimum qualifications?|must haves?|you(?:'ll| will| would| should)? (?:need|have|bring|be able to)|we (?:need|require|look for|are looking for)|about you|who you are|(?:the )?ideal candidate|what you bring|skills?(?: and experience| required| needed)?|experience (?:required|needed)|responsibilities|what you(?:'ll| will) do|about the role|about this role|the role|role overview|job (?:summary|description)|key (?:skills|responsibilities))$/i.test(
+    /^(requirements?|qualifications?|minimum qualifications?|must haves?|you(?:'ll| will| would| should)? (?:need|have|bring|be able to)|we (?:need|require|look for|are looking for)|about you|who you are|(?:the )?ideal candidate|what you(?:'ll| will| would| should)? (?:need|have|bring|be able to)|skills?(?: and experience| required| needed)?|experience (?:required|needed)|responsibilities|what you(?:'ll| will) do|about the role|about this role|the role|role overview|job (?:summary|description)|key (?:skills|responsibilities))$/i.test(
       l
     );
   // Headings that mark boilerplate / apply sections (stop here).
@@ -224,7 +236,7 @@ export function requirementsExcerpt(rawText, max = 1600) {
 function classifyHeading(line) {
   const t = line.replace(/[:.,]+$/, "").trim().toLowerCase();
   if (
-    /^(requirements?|job requirements?|minimum requirements?|qualifications?|mandatory (?:skills?|requirements?|qualifications?)|must have|essential|you (?:must|should|need to) have|what we look for|what you(?:'ll| will)? need|about you|who you are|(?:the )?ideal candidate|what you bring|skills?(?: and experience| required)?$|experience (?:required|needed|qualifications?)|experience and qualifications?|additional requirements?|key (?:skills|requirements))$/i.test(
+    /^(requirements?|job requirements?|minimum requirements?|qualifications?|mandatory (?:skills?|requirements?|qualifications?)|must have|essential|you (?:must|should|need to) have|what we(?:'re| are)? look(?:ing)? for|what you(?:'ll| will| would| should)? (?:need|have|bring|be able to)|about you|who you are|(?:the )?ideal candidate|skills?(?: and experience| required)?$|experience (?:required|needed|qualifications?)|experience and qualifications?|additional requirements?|key (?:skills|requirements))$/i.test(
       t
     )
   ) {

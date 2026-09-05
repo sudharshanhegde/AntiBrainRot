@@ -213,14 +213,24 @@ jobsRouter.get("/", requireAuth, async (req, res) => {
           -- when it actually fits them, so the feed is curated and never an
           -- infinite dump of every listing.
           and (
-            -- 1. Location must match the user's country.
+            -- 1. Location must be genuinely available to the user's country.
+            --    An on-site role must actually be in that country; a remote
+            --    role is shown only when it is open worldwide or restricted to
+            --    the user's country. The restriction is read from
+            --    remote_restricted_to (and, defensively, location_country,
+            --    which some data paths used for remote postings), so a remote
+            --    role explicitly tied to a different country (e.g. "Remote ·
+            --    USA", "Remote · Poland") never shows up for a user in India.
             (
               j.is_remote = false
-              and lower(j.location_country) = $1
+              and lower(btrim(j.location_country)) = $1
             )
             or (
               j.is_remote = true
-              and (j.remote_restricted_to is null or lower(j.remote_restricted_to) = $1)
+              and (
+                lower(btrim(coalesce(j.remote_restricted_to, j.location_country))) is null
+                or lower(btrim(coalesce(j.remote_restricted_to, j.location_country))) = $1
+              )
             )
           )
           -- 2. If a job is new-grad specific, the user's graduation year must

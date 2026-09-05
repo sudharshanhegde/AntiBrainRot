@@ -180,3 +180,12 @@ greenhouse:tide
 # Lever
 lever:hevodata
 lever:thinkahead
+
+greenhouse:sonicwall
+greenhouse:eudia
+greenhouse:prophecysimpledatalabs
+
+lever:dozee
+lever:alifsemi
+lever:extremenetworks
+lever:levelai

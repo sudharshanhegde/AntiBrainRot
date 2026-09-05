@@ -132,6 +132,38 @@ test("overallYears treats multiple mentions as cumulative, using the strongest f
   );
 });
 
+test("an 'at least N' sub-requirement never hides a stronger primary range", () => {
+  // Real leak: a "5-8 years" role whose bullet adds "At least 2 years hands-on
+  // with big data" used to collapse to min 2, so juniors saw a clearly senior
+  // role. The qualifier must NOT short-circuit the general parser before it
+  // sees the primary "5-8 years" figure.
+  const input =
+    "5-8 years of professional experience in software/data engineering with a focus on distributed data systems. " +
+    "At least 2 years of hands-on experience with big data systems including Apache Kafka, Apache Spark.";
+  const r = extractYears(input);
+  assert.equal(r.confidence, "needs-path-splitting");
+  assert.ok(Array.isArray(r.multiple) && r.multiple.length === 2, "expected two mentions to survive");
+  // Gated by the strongest (cumulative) figure, not the weaker sub-requirement.
+  assert.deepEqual(overallYears(input), { min: 5, max: null });
+  // No single authoritative figure -> the deterministic parser must not force
+  // a collapsed low number onto a (possibly correct) model answer.
+  assert.equal(authoritativeSingleYears(input), null);
+});
+
+test("'at least N years' / 'minimum of N' as the lone figure is still a floor", () => {
+  assertYears("You have at least 3+ years of experience in software engineering", 3, null, "high");
+  assertYears("at least 8 years of experience", 8, null, "high");
+  assertYears("minimum of 3 years", 3, null, "high");
+});
+
+test("a lone 'up to N years' remains a cap and is not misread as a floor", () => {
+  assertYears("up to 3 years of experience required", 0, 3, "high");
+  // But a real range plus a separate qualifier must not collapse to the cap.
+  const r = extractYears("5-8 years of experience and up to 3 years managing a team");
+  assert.equal(r.confidence, "needs-path-splitting");
+  assert.deepEqual(overallYears("5-8 years of experience and up to 3 years managing a team"), { min: 5, max: null });
+});
+
 test("titleExperienceFloor never lets clearly senior titles resolve to 0 years", () => {
   const senior = ["Data Science Manager", "Director, Engineering", "President, Sales",
                   "VP of Data", "Principal Engineer", "Head of Platform", "Staff Engineer",

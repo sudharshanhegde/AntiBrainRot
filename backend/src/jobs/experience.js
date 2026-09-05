@@ -125,8 +125,13 @@ function parseYearsMatch(match) {
   return { min, max: null }; // bare "5 years" -> a floor, not a cap
 }
 
-// Two modifier patterns catch phrasing the core pattern does not, checked
-// before falling back to it.
+// Qualifier patterns. "at least N" / "minimum of N" mark a FLOOR and "up to N"
+// marks a CAP ({ min: 0, max: N }). These are deliberately NOT consulted before
+// the general parser: checking them first let an "at least N" sub-requirement
+// anywhere return early and hide a stronger primary range ("5-8 years ...
+// At least 2 years hands-on" collapsed to 2). They are kept as a fallback that
+// only runs when the general parser found nothing, so no phrasing that matched
+// before is ever lost — only its precedence over a real range is.
 const AT_LEAST_PATTERN = /(?:at least|minimum(?: of)?)\s*(\d{1,2})\s*years/;
 const UP_TO_PATTERN = /up to\s*(\d{1,2})\s*years/;
 
@@ -141,14 +146,17 @@ const UP_TO_PATTERN = /up to\s*(\d{1,2})\s*years/;
 // straight in without worrying about dash/abbreviation variants.
 export function extractYears(sectionText) {
   const text = normalize(sectionText);
-  const atLeast = text.match(AT_LEAST_PATTERN);
-  if (atLeast) return { min: parseInt(atLeast[1], 10), max: null, confidence: "high" };
 
-  const upTo = text.match(UP_TO_PATTERN);
-  if (upTo) return { min: 0, max: parseInt(upTo[1], 10), confidence: "high" };
-
+  // Collect every numeric mention with the general parser FIRST, before any
+  // qualifier lookup. This ordering matters: "5-8 years of experience ...
+  // At least 2 years hands-on with X" states TWO figures, and collapsing them
+  // to the weaker sub-requirement ("at least 2") is exactly how a clearly
+  // senior role leaks into a junior feed. Because the general parser runs first
+  // and returns `multiple`, overallYears can gate by the STRONGEST figure while
+  // authoritativeSingleYears returns null so a (possibly correct) model answer
+  // is never forced down to the weak sub-requirement.
   const matches = [...text.matchAll(YEARS_PATTERN)];
-  if (matches.length === 0) return checkFresherKeywords(text);
+
   if (matches.length > 1) {
     // Multiple mentions in the requirements section are usually several
     // qualification paths ("B.Tech with 2+ years, or M.Tech with 0"), so they
@@ -156,7 +164,29 @@ export function extractYears(sectionText) {
     // being collapsed into one guessed number.
     return { multiple: matches.map(parseYearsMatch), confidence: "needs-path-splitting" };
   }
-  return { ...parseYearsMatch(matches[0]), confidence: "high" };
+
+  // A single numeric mention. Flip it to a CAP only when it is truly a lone
+  // "up to N years" (e.g. "up to 3 years of experience"); otherwise a bare /
+  // "at least" / "minimum of" figure is a FLOOR, which parseYearsMatch already
+  // represents (max stays null so a more-senior candidate is never capped).
+  if (matches.length === 1) {
+    const single = matches[0];
+    const upTo = text.match(UP_TO_PATTERN);
+    if (upTo && upTo[1] === single[1] && upTo.index < single.index) {
+      return { min: 0, max: parseInt(single[1], 10), confidence: "high" };
+    }
+    return { ...parseYearsMatch(single), confidence: "high" };
+  }
+
+  // No numeric mention survived the general parser. Qualifiers remain as a
+  // defensive fallback for phrasing the core pattern could miss; running them
+  // only here guarantees they can never shadow a real range above.
+  const atLeast = text.match(AT_LEAST_PATTERN);
+  if (atLeast) return { min: parseInt(atLeast[1], 10), max: null, confidence: "high" };
+  const upTo = text.match(UP_TO_PATTERN);
+  if (upTo) return { min: 0, max: parseInt(upTo[1], 10), confidence: "high" };
+
+  return checkFresherKeywords(text);
 }
 
 // ---------------------------------------------------------------------------

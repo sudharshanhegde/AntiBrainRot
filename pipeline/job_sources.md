@@ -132,3 +132,40 @@ greenhouse:jfrog
 # lever:tiger-analytics          HTTP 404
 # lever:fractal-analytics        HTTP 404
 # lever:zoho                     HTTP 404
+
+
+greenhouse:graphcore
+greenhouse:commerceiq
+greenhouse:harnessinc
+greenhouse:squarepointcapital
+greenhouse:digicert
+greenhouse:udemy
+greenhouse:cloudflare
+# greenhouse:appliedintuition this is not there
+greenhouse:enterpret
+
+lever:100ms
+lever:safe
+lever:rapidai
+lever:employ
+lever:netomi
+lever:veeva
+# lever:upstox this is also not there
+lever:palantir
+# lever:highlevel this also not there
+lever:zimperium
+
+# Greenhouse
+greenhouse:graphcore
+greenhouse:hyreo
+greenhouse:point72
+greenhouse:cloudflare
+# greenhouse:appliedintuition
+greenhouse:enterpret
+
+# Lever
+lever:aeva
+lever:genesis
+lever:neuron7
+lever:doxel
+# lever:wingassistant

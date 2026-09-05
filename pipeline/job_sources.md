@@ -168,4 +168,15 @@ lever:aeva
 lever:genesis
 lever:neuron7
 lever:doxel
-# lever:wingassistant
+# lever:wingassistant does not work
+
+
+# Greenhouse
+greenhouse:skildai-careers
+greenhouse:innophaseiot
+greenhouse:tide
+# greenhouse:hevo not there
+
+# Lever
+lever:hevodata
+lever:thinkahead

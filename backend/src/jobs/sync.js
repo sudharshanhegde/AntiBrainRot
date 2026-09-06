@@ -83,11 +83,13 @@ async function runOneSource(source, { dryRun, noModel = false }) {
   const seenUrls = new Set();
   const seenRefs = new Set();
   // Brand-new listings to insert this run, deduped by posting identity. A
-  // source occasionally returns the same posting twice in one fetch, and
+  // source occasionally returns the same posting twice in one fetch (and two
+  // source records can expose one posting under different source_urls), and
   // without this two identical copies would BOTH be inserted, because none is
-  // committed until Pass 2 finishes (so Pass 1 sees neither in the DB). The
-  // identity key mirrors the DB dedupe keys: source_url first, content_hash as
-  // the fallback for URL-less records, then a company/role/apply composite.
+  // committed until Pass 2 finishes (so Pass 1 sees neither in the DB).
+  // content_hash is the reliable identity: it fingerprints company+role+raw
+  // text, so it is stable even when source_url differs between runs. source_url
+  // is the fallback for the rare URL-less record.
   const newListings = [];
   const seenNew = new Set();
 
@@ -108,8 +110,8 @@ async function runOneSource(source, { dryRun, noModel = false }) {
       stats.jobs_updated += 1;
     } else {
       const key =
-        listing.source_url ||
         listing.content_hash ||
+        listing.source_url ||
         `${listing.company}|${listing.role}|${listing.apply_url || ""}`;
       if (!seenNew.has(key)) {
         seenNew.add(key);
@@ -204,17 +206,22 @@ async function runOneSource(source, { dryRun, noModel = false }) {
 }
 
 async function findExisting(listing) {
+  // content_hash is the reliable dedupe fingerprint (company+role+raw text).
+  // It stays the same even when a posting's source_url differs between runs or
+  // two source records expose the same posting under different URLs — which is
+  // exactly how these duplicates slipped through a source_url-only check. Match
+  // it regardless of source_url. source_url is checked as a fallback.
+  if (listing.content_hash) {
+    const { rows } = await query(
+      "select id from jobs where content_hash = $1 limit 1",
+      [listing.content_hash]
+    );
+    if (rows[0]) return rows[0];
+  }
   if (listing.source_url) {
     const { rows } = await query(
       "select id from jobs where source_url = $1 limit 1",
       [listing.source_url]
-    );
-    if (rows[0]) return rows[0];
-  }
-  if (listing.content_hash) {
-    const { rows } = await query(
-      "select id from jobs where source_url is null and content_hash = $1 limit 1",
-      [listing.content_hash]
     );
     if (rows[0]) return rows[0];
   }
@@ -225,12 +232,13 @@ async function insertJob(listing, extracted) {
   const client = await pool.connect();
   try {
     await client.query("begin");
-    // Idempotent insert: the unique index on source_url is the DB-level guard
-    // against two overlapping runs (e.g. two /sync curls fired together) both
-    // inserting the same posting after each other's findExisting saw nothing.
-    // If another transaction already inserted this source_url, DO NOTHING and
-    // we return false so the caller refreshes the row instead of duplicating it.
-    // This requires the unique index to exist (added by cleanup_duplicates.sql /
+    // Idempotent insert. Two DB-level guards exist (unique source_url, and a
+    // partial unique content_hash for the fingerprint-identical/different-URL
+    // case that caused the leaks). ON CONFLICT can only target one index, so a
+    // plain insert is used and a unique-violation (23505) — whichever index it
+    // comes from — means another run already inserted this posting: roll back
+    // and report false so the caller refreshes instead of duplicating. This
+    // requires the unique indexes to exist (added by cleanup_duplicates.sql /
     // schema.sql) — deploy that migration before this code.
     const { rows } = await client.query(
       `insert into jobs
@@ -238,7 +246,6 @@ async function insertJob(listing, extracted) {
           raw_requirements_text, requirements_summary, target_grad_year,
           location_country, is_remote, remote_restricted_to, last_seen_at)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, now())
-       on conflict (source_url) do nothing
        returning id`,
       [
         `${listing.source_type}:${listing.source_identifier}`,
@@ -256,23 +263,24 @@ async function insertJob(listing, extracted) {
         extracted.remote_restricted_to,
       ]
     );
-    const jobId = rows[0]?.id;
-    if (jobId) {
-      for (const p of extracted.qualification_paths || []) {
-        await client.query(
-          `insert into job_qualification_paths
-             (job_id, education_level, min_experience_years, max_experience_years)
-           values ($1,$2,$3,$4)
-           on conflict (job_id, education_level, min_experience_years, max_experience_years)
-             do nothing`,
-          [jobId, p.education_level, p.min_experience_years, p.max_experience_years]
-        );
-      }
+    const jobId = rows[0].id;
+    for (const p of extracted.qualification_paths || []) {
+      await client.query(
+        `insert into job_qualification_paths
+           (job_id, education_level, min_experience_years, max_experience_years)
+         values ($1,$2,$3,$4)
+         on conflict (job_id, education_level, min_experience_years, max_experience_years)
+           do nothing`,
+        [jobId, p.education_level, p.min_experience_years, p.max_experience_years]
+      );
     }
     await client.query("commit");
-    return Boolean(jobId);
+    return true;
   } catch (err) {
     await client.query("rollback");
+    // Unique violation (23505) = a concurrent/overlapping run already inserted
+    // this posting. Not an error — just not a new insert.
+    if (err && err.code === "23505") return false;
     throw err;
   } finally {
     client.release();

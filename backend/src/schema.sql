@@ -282,6 +282,16 @@ create index if not exists jobs_live_idx on jobs (expired) where not expired;
 -- src/jobs/cleanup_duplicates.sql first to collapse them, then this succeeds.
 create unique index if not exists jobs_source_url_key on jobs (source_url);
 
+-- Fingerprint dedupe. Duplicates turned out NOT to share a source_url — the
+-- same posting was fetched under different source_urls (e.g. two source records
+-- exposing one posting, or a URL that changed between runs) while carrying the
+-- SAME content_hash (company+role+raw text). A unique index on source_url alone
+-- cannot stop that, so content_hash is enforced uniquely too. content_hash is
+-- always set by the adapters; NULLs are excluded so they stay allowed. This also
+-- fails to create if duplicates already exist — run cleanup_duplicates.sql first.
+create unique index if not exists jobs_content_hash_key
+  on jobs (content_hash) where content_hash is not null;
+
 -- requirements_summary is added with a separate ALTER because CREATE TABLE IF
 -- NOT EXISTS does not add columns to a jobs table that already exists (the
 -- schema is re-run against an existing DB), so the additive column must be

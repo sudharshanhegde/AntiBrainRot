@@ -259,7 +259,6 @@ create table if not exists jobs (
   apply_url text,
   source_url text unique,
   content_hash text,
-  raw_requirements_text text,
   requirements_summary text,
   target_grad_year integer,
   location_country text,
@@ -271,6 +270,12 @@ create table if not exists jobs (
   created_at timestamptz not null default now()
 );
 create index if not exists jobs_live_idx on jobs (expired) where not expired;
+
+-- raw_requirements_text is no longer stored (cards show requirements_summary
+-- only, and the raw column was the bulk of the table's bytes). CREATE TABLE no
+-- longer declares it; this DROP makes an existing database converge. Free the
+-- physical space afterward with VACUUM FULL if desired.
+alter table jobs drop column if exists raw_requirements_text;
 
 -- Dedupe guarantee. source_url is the stable posting identity; a unique index
 -- is the DB-level guard that stops a listing ever being inserted twice (the

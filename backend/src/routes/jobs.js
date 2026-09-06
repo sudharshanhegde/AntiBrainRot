@@ -3,7 +3,6 @@ import { query, pool } from "../db.js";
 import { requireAuth } from "../auth.js";
 import { runJobsJob } from "../jobs/sync.js";
 import { cleanupOldJobs } from "../jobs/cleanup.js";
-import { requirementsExcerpt } from "../jobs/extract.js";
 
 // Jobs board routes.
 //
@@ -60,10 +59,8 @@ function toJob(r) {
     location: r.location,
     apply_url: r.apply_url,
     // A concise model-generated summary of the actual requirements/skills for
-    // display. Falls back to the deterministic excerpt, then the raw text.
+    // display (raw requirement text is no longer stored or shipped).
     requirements_summary: r.requirements_summary,
-    requirements_text: requirementsExcerpt(r.raw_requirements_text),
-    raw_requirements_text: r.raw_requirements_text,
     target_grad_year: r.target_grad_year,
     location_country: r.location_country,
     is_remote: r.is_remote,
@@ -198,7 +195,7 @@ jobsRouter.get("/", requireAuth, async (req, res) => {
 
     const { rows } = await query(
       `select j.id, j.company, j.role, j.location, j.apply_url,
-              j.raw_requirements_text, j.requirements_summary, j.target_grad_year,
+              j.requirements_summary, j.target_grad_year,
               j.location_country, j.is_remote, j.remote_restricted_to,
               coalesce(
                 (select jsonb_agg(jsonb_build_object(

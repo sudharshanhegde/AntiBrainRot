@@ -9,8 +9,8 @@ import { query } from "../db.js";
 // a posting is removed).
 //
 // Left alone, every stale listing nobody ever touched stays in the table
-// forever, and `raw_requirements_text` / `requirements_summary` are the
-// bulk of the stored bytes. This cleanup reclaims that space safely: it
+// forever, and `requirements_summary` is the main stored text. This cleanup
+// reclaims that space safely: it
 // permanently deletes only jobs that are
 //   - already expired (no longer surfaced anywhere),
 //   - older than the retention window (not seen in that long), and

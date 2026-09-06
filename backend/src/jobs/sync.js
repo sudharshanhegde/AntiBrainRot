@@ -46,7 +46,12 @@ function sleep(ms) {
 
 // Runs one source: fetch, then per-listing categorize (new vs seen), and for
 // new listings extract + validate + insert. Returns run stats.
-async function runOneSource(source, { dryRun, noModel = false }) {
+// `budget` is an optional shared { remaining } counter. When set (model runs
+// only), each source processes at most `budget.remaining` listings this run, so
+// a large cold backfill can be done in controlled batches (each fitting the
+// daily token budget / request timeout) by re-invoking the sync: listings left
+// unprocessed stay uninserted and are picked up on the next run.
+async function runOneSource(source, { dryRun, noModel = false, budget = null }) {
   const startedAt = Date.now();
   const stats = {
     jobs_found: 0,
@@ -145,12 +150,15 @@ async function runOneSource(source, { dryRun, noModel = false }) {
   const workerErrors = [];
   let cursor = 0;
   async function worker() {
-    while (cursor < newListings.length) {
+    while (true) {
+      if (budget && budget.remaining <= 0) break; // batch budget spent
+      if (cursor >= newListings.length) break;
       const listing = newListings[cursor++];
       try {
         // noModel -> skip the model entirely and use the deterministic parser
         // (pure CPU, no network, no rate limits). Used for bulk cold-start
         // backfills that would otherwise stall the sequential model path.
+        if (!noModel && budget) budget.remaining -= 1; // reserve a model slot
         const extracted = noModel
           ? parseListing(listing)
           : await extractListing(listing);
@@ -328,16 +336,31 @@ export async function runJobsJob({ dryRun = false, noModel = false } = {}) {
   resetGroqExhaustion();
   const synced = await syncJobSources();
   const sources = await loadEnabledSources();
+  // Optional per-run model budget for batched backfills: process at most
+  // MAX_JOBS_PER_RUN listings with the model per invocation, so a large corpus
+  // (e.g. 9000) is filled in controlled batches across repeated runs that each
+  // fit the 4 keys' daily token budget and the request timeout. Unprocessed
+  // listings are left uninserted and picked up by the next run. 0 (default) =
+  // no cap (normal daily behavior).
+  const perRun = Number(process.env.MAX_JOBS_PER_RUN || 0);
+  const budget = !noModel && perRun > 0 ? { remaining: perRun } : null;
   const results = [];
   for (const source of sources) {
     try {
-      const r = await runOneSource(source, { dryRun, noModel });
+      const r = await runOneSource(source, { dryRun, noModel, budget });
       results.push({ source: sourceKey(source), ...r });
     } catch (err) {
       console.error(`[jobs] ${sourceKey(source)} run error: ${err.message}`);
       results.push({ source: sourceKey(source), status: "error", error: err.message });
     }
+    if (budget && budget.remaining <= 0) break; // this batch is done
     await sleep(BETWEEN_SOURCES_MS);
   }
-  return { status: "ok", dryRun, synced, results };
+  return {
+    status: "ok",
+    dryRun,
+    synced,
+    budget: budget ? { perRun, remaining: budget.remaining } : null,
+    results,
+  };
 }

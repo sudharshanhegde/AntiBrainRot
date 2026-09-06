@@ -272,6 +272,16 @@ create table if not exists jobs (
 );
 create index if not exists jobs_live_idx on jobs (expired) where not expired;
 
+-- Dedupe guarantee. source_url is the stable posting identity; a unique index
+-- is the DB-level guard that stops a listing ever being inserted twice (the
+-- sync runs on-demand via /jobs/sync as well as daily, and two overlapping
+-- runs used to both pass their check-then-insert and duplicate a posting).
+-- CREATE TABLE IF NOT EXISTS above only enforces this on a brand-new table, so
+-- this separate statement is what makes an existing database converge too.
+-- NOTE: this fails if duplicate source_urls already exist — run
+-- src/jobs/cleanup_duplicates.sql first to collapse them, then this succeeds.
+create unique index if not exists jobs_source_url_key on jobs (source_url);
+
 -- requirements_summary is added with a separate ALTER because CREATE TABLE IF
 -- NOT EXISTS does not add columns to a jobs table that already exists (the
 -- schema is re-run against an existing DB), so the additive column must be

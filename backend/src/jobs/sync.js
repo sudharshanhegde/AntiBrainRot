@@ -82,8 +82,14 @@ async function runOneSource(source, { dryRun, noModel = false }) {
   stats.jobs_found = listings.length;
   const seenUrls = new Set();
   const seenRefs = new Set();
-
+  // Brand-new listings to insert this run, deduped by posting identity. A
+  // source occasionally returns the same posting twice in one fetch, and
+  // without this two identical copies would BOTH be inserted, because none is
+  // committed until Pass 2 finishes (so Pass 1 sees neither in the DB). The
+  // identity key mirrors the DB dedupe keys: source_url first, content_hash as
+  // the fallback for URL-less records, then a company/role/apply composite.
   const newListings = [];
+  const seenNew = new Set();
 
   // Pass 1: categorize — track what was seen and collect brand-new listings.
   for (const listing of listings) {
@@ -101,7 +107,14 @@ async function runOneSource(source, { dryRun, noModel = false }) {
       );
       stats.jobs_updated += 1;
     } else {
-      newListings.push(listing);
+      const key =
+        listing.source_url ||
+        listing.content_hash ||
+        `${listing.company}|${listing.role}|${listing.apply_url || ""}`;
+      if (!seenNew.has(key)) {
+        seenNew.add(key);
+        newListings.push(listing);
+      }
     }
   }
 
@@ -135,8 +148,20 @@ async function runOneSource(source, { dryRun, noModel = false }) {
           stats.jobs_failed_validation += 1;
           continue;
         }
-        await insertJob(listing, extracted);
-        stats.jobs_inserted += 1;
+        const inserted = await insertJob(listing, extracted);
+        if (inserted) {
+          stats.jobs_inserted += 1;
+        } else if (listing.source_url) {
+          // A concurrent/overlapping sync already inserted this posting (the
+          // unique index on source_url made our insert a no-op). Refresh it as
+          // freshly seen instead of creating a duplicate row.
+          await query(
+            `update jobs set last_seen_at = now(), expired = false
+              where source_url = $1`,
+            [listing.source_url]
+          );
+          stats.jobs_updated += 1;
+        }
       } catch (err) {
         const msg = `${err?.message || err || "unknown error"}`;
         if (workerErrors.length < 5) workerErrors.push(`${listing.role}: ${msg}`);
@@ -200,12 +225,20 @@ async function insertJob(listing, extracted) {
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // Idempotent insert: the unique index on source_url is the DB-level guard
+    // against two overlapping runs (e.g. two /sync curls fired together) both
+    // inserting the same posting after each other's findExisting saw nothing.
+    // If another transaction already inserted this source_url, DO NOTHING and
+    // we return false so the caller refreshes the row instead of duplicating it.
+    // This requires the unique index to exist (added by cleanup_duplicates.sql /
+    // schema.sql) — deploy that migration before this code.
     const { rows } = await client.query(
       `insert into jobs
          (source, company, role, location, apply_url, source_url, content_hash,
           raw_requirements_text, requirements_summary, target_grad_year,
           location_country, is_remote, remote_restricted_to, last_seen_at)
        values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, now())
+       on conflict (source_url) do nothing
        returning id`,
       [
         `${listing.source_type}:${listing.source_identifier}`,
@@ -223,18 +256,21 @@ async function insertJob(listing, extracted) {
         extracted.remote_restricted_to,
       ]
     );
-    const jobId = rows[0].id;
-    for (const p of extracted.qualification_paths || []) {
-      await client.query(
-        `insert into job_qualification_paths
-           (job_id, education_level, min_experience_years, max_experience_years)
-         values ($1,$2,$3,$4)
-         on conflict (job_id, education_level, min_experience_years, max_experience_years)
-           do nothing`,
-        [jobId, p.education_level, p.min_experience_years, p.max_experience_years]
-      );
+    const jobId = rows[0]?.id;
+    if (jobId) {
+      for (const p of extracted.qualification_paths || []) {
+        await client.query(
+          `insert into job_qualification_paths
+             (job_id, education_level, min_experience_years, max_experience_years)
+           values ($1,$2,$3,$4)
+           on conflict (job_id, education_level, min_experience_years, max_experience_years)
+             do nothing`,
+          [jobId, p.education_level, p.min_experience_years, p.max_experience_years]
+        );
+      }
     }
     await client.query("commit");
+    return Boolean(jobId);
   } catch (err) {
     await client.query("rollback");
     throw err;

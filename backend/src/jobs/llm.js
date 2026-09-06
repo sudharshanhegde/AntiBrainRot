@@ -19,11 +19,27 @@ import { chat as sharedChat } from "../generate/deepseek.js";
 //      pipeline still runs out of the box with no job keys at all.
 
 // --- Groq -----------------------------------------------------------------
-const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
 const GROQ_BASE_URL = (process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1").replace(/\/+$/, "");
 
-// Extraction model pool. Each model has its own per-minute token budget, so
-// round-robining across them raises aggregate throughput. Override with
+// Multiple Groq keys (one per account) each carry their OWN daily token budget
+// and per-model rate limits. Load-balancing across accounts multiplies the
+// tokens available for a large regeneration. GROQ_API_KEY is the primary;
+// add GROQ_API_KEY_2..GROQ_API_KEY_N for more accounts (GROQ_KEY_COUNT caps
+// how many are read).
+function collectGroqKeys() {
+  const keys = [];
+  const first = process.env.GROQ_API_KEY;
+  if (first) keys.push(first);
+  const max = Number(process.env.GROQ_KEY_COUNT || 10);
+  for (let i = 2; i <= max; i++) {
+    const k = process.env[`GROQ_API_KEY_${i}`];
+    if (k && !keys.includes(k)) keys.push(k);
+  }
+  return keys;
+}
+
+// Extraction model pool (per key). Each (key, model) pair is an independent
+// rate budget, so every pair is treated as its own endpoint. Override with
 // GROQ_EXTRACT_MODELS (comma-separated). gpt-oss-safeguard-20b is deliberately
 // not here (specialized safety classifier, not a general extractor).
 const GROQ_EXTRACT_MODELS = (
@@ -39,51 +55,80 @@ const GROQ_EXTRACT_MODELS = (
 const GROQ_MAX_TOKENS = Number(process.env.GROQ_MAX_TOKENS || 300);
 
 export function groqConfigured() {
-  return Boolean(GROQ_API_KEY);
+  return collectGroqKeys().length > 0;
 }
 
-// Number of Groq extraction models available (used to size concurrency so
-// requests spread across the per-model budgets).
+// Models available per key.
 export function groqExtractionModelCount() {
   return GROQ_EXTRACT_MODELS.length;
 }
 
-// Per-run Groq health state:
-//   cooldownUntil - a model that got rate-limited waits here (gives it time
-//                   to recover instead of being bombarded), then is retried.
-//   exhausted     - models that failed repeatedly / hit a long retry-after;
-//                   skipped for the whole run.
-//   failCount     - how many times each model has rate-limited this run.
+// Total independent (key, model) endpoints — used to size concurrency so we
+// keep roughly one in-flight per endpoint without stacking 429s on one.
+export function activeGroqEndpointCount() {
+  return collectGroqKeys().length * GROQ_EXTRACT_MODELS.length;
+}
+
+// Per-run Groq health state, tracked per ENDPOINT (key index "::" model) since
+// the same model under a different key is a different budget:
+//   cooldownUntil - an endpoint that got rate-limited waits here, then retried.
+//   exhausted     - endpoints that failed repeatedly / hit a long retry-after.
+//   keyDailyOut   - an ENTIRE key whose daily token budget is spent; all its
+//                   endpoints are skipped for the run.
+//   failCount     - how many times each endpoint has rate-limited this run.
 const GROQ_COOLDOWN_MS = Number(process.env.GROQ_COOLDOWN_MS || 20000);
 let cooldownUntil = new Map();
 let exhausted = new Set();
 let failCount = new Map();
+let keyDailyOut = new Set();
 export function resetGroqExhaustion() {
   cooldownUntil = new Map();
   exhausted = new Set();
   failCount = new Map();
+  keyDailyOut = new Set();
 }
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-let groqClient = null;
-function getGroqClient() {
-  if (!groqClient) groqClient = new OpenAI({ apiKey: GROQ_API_KEY, baseURL: GROQ_BASE_URL });
-  return groqClient;
+// One OpenAI client per key.
+const groqClients = new Map();
+function clientFor(apiKey) {
+  let c = groqClients.get(apiKey);
+  if (!c) {
+    c = new OpenAI({ apiKey, baseURL: GROQ_BASE_URL });
+    groqClients.set(apiKey, c);
+  }
+  return c;
 }
 
 function isRetryableRateLimit(err) {
-  return /429|rate\s?limit|RESOURCE_EXHAUSTED|503|fetch failed|ETIMEDOUT|ECONNRESET|socket hang up/i.test(
+  // 429 / token-limit / transient network errors, plus structured-output
+  // validation failures (json_validate_failed / "failed to validate JSON"):
+  // those are often transient per-model, so retry on another endpoint rather
+  // than dropping the listing to the deterministic fallback on the first try.
+  return /429|rate\s?limit|RESOURCE_EXHAUSTED|503|fetch failed|ETIMEDOUT|ECONNRESET|socket hang up|json_validate_failed|failed to validate json|invalid_request_error/i.test(
     `${err?.message || ""}`
   );
 }
 
-// One completion against a specific Groq model. Respects 429 retry-after with
-// a few bounded retries before giving up on that model.
-async function groqChat(model, messages, opts = {}) {
-  const client = getGroqClient();
+// The full set of (key, model) endpoints.
+function buildEndpoints() {
+  const keys = collectGroqKeys();
+  const eps = [];
+  for (let k = 0; k < keys.length; k++) {
+    for (const model of GROQ_EXTRACT_MODELS) {
+      eps.push({ id: `${k}::${model}`, key: keys[k], model });
+    }
+  }
+  return eps;
+}
+
+// One completion against one (key, model) endpoint. Respects 429 retry-after
+// with a few bounded retries before giving up on that endpoint.
+async function endpointChat(apiKey, model, messages, opts = {}) {
+  const client = clientFor(apiKey);
   let lastError;
   const maxRetries = Number(process.env.GROQ_RETRIES || 3);
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -110,50 +155,55 @@ async function groqChat(model, messages, opts = {}) {
   throw lastError;
 }
 
-// Extraction across the Groq model pool.
-// Round-robins over models that are currently available. When a model gets
+// Extraction across the Groq (key, model) pool.
+// Round-robins over endpoints that are currently available. When an endpoint is
 // rate-limited it is put into a short cooldown (respecting retry-after) so it
-// has time to recover, and the next available model is tried — it is NOT
-// bombarded again in the next second. A model only becomes permanently
-// exhausted for the run after repeated failures or a long retry-after. If no
-// model is available it waits for the soonest cooldown and retries; if all are
-// exhausted it throws so the caller falls over to the failover keys.
+// has time to recover, and the next available endpoint is tried. A long
+// retry-after (daily token cap) retires the WHOLE key for the run. If nothing
+// is available it waits for the soonest cooldown and retries; if every key is
+// out it throws so the caller falls over to the failover keys.
 let rr = 0;
 async function groqExtraction(messages, opts) {
   const now = Date.now();
-  const available = GROQ_EXTRACT_MODELS.filter(
-    (m) => !exhausted.has(m) && now >= (cooldownUntil.get(m) || 0)
+  const eps = buildEndpoints();
+  const available = eps.filter(
+    (e) => !exhausted.has(e.id) && !keyDailyOut.has(e.key) && now >= (cooldownUntil.get(e.id) || 0)
   );
 
   if (available.length === 0) {
-    const cooling = GROQ_EXTRACT_MODELS.filter((m) => !exhausted.has(m));
-    if (cooling.length === 0) {
-      throw new Error("all Groq extraction models exhausted for this run");
+    const possible = eps.filter((e) => !exhausted.has(e.id) && !keyDailyOut.has(e.key));
+    if (possible.length === 0) {
+      // Every key is daily-exhausted or every endpoint errored out.
+      throw new Error("all Groq keys/models exhausted for this run");
     }
-    const soonest = Math.min(...cooling.map((m) => cooldownUntil.get(m) || now));
+    const soonest = Math.min(...possible.map((e) => cooldownUntil.get(e.id) || now));
     if (soonest > now) await sleep(Math.min(soonest - now, 60000));
     return groqExtraction(messages, opts);
   }
 
-  const model = available[rr % available.length];
+  const ep = available[rr % available.length];
   rr += 1;
   try {
-    return await groqChat(model, messages, opts);
+    return await endpointChat(ep.key, ep.model, messages, opts);
   } catch (err) {
     if (!(err && (err.status === 429 || isRetryableRateLimit(err)))) throw err;
     const after = err?.headers?.get?.("retry-after");
     const afterSec = after ? Math.max(Number(after) || 1, 1) : 0;
-    failCount.set(model, (failCount.get(model) || 0) + 1);
-    if (afterSec >= 300 || (failCount.get(model) || 0) >= 4) {
-      // Long retry-after (e.g. daily budget) or repeated failures -> give up
-      // on this model for the rest of the run.
-      exhausted.add(model);
+    failCount.set(ep.id, (failCount.get(ep.id) || 0) + 1);
+    if (afterSec >= 300) {
+      // Long retry-after means this ACCOUNT's daily token budget is spent; all
+      // its models are done for the day, so retire the whole key.
+      keyDailyOut.add(ep.key);
+      exhausted.add(ep.id);
+    } else if ((failCount.get(ep.id) || 0) >= 4) {
+      // Repeated failures -> give up on this endpoint for the rest of the run.
+      exhausted.add(ep.id);
     } else {
-      // Short cooldown so the model can recover before being tried again.
+      // Short cooldown so the endpoint can recover before being tried again.
       const cooldownMs = afterSec > 0 ? afterSec * 1000 : GROQ_COOLDOWN_MS;
-      cooldownUntil.set(model, Date.now() + cooldownMs);
+      cooldownUntil.set(ep.id, Date.now() + cooldownMs);
     }
-    await sleep(300); // brief pause before hitting the next model
+    await sleep(300); // brief pause before hitting the next endpoint
     return groqExtraction(messages, opts);
   }
 }
@@ -196,18 +246,22 @@ export function activeJobKeyCount() {
   return collectKeys().length;
 }
 
-// Concurrency bound. With Groq active we fan out across the extraction-model
-// pool (each model has its own budget), so default to one in-flight per model.
-// The failover pool fans out across its many keys. Override with
-// JOB_CONCURRENCY.
+// Concurrency bound. With Groq active, each (key, model) endpoint has its own
+// rate budget, so we can run roughly one in-flight per endpoint. With a single
+// key this is just its model count; more keys multiply it. Override with
+// GROQ_CONCURRENCY (or JOB_CONCURRENCY). The failover pool fans out across its
+// many keys.
 export function jobConcurrency() {
   const explicit = Number(process.env.JOB_CONCURRENCY);
   if (Number.isInteger(explicit) && explicit > 0) return explicit;
-  // Groq rate-limits requests-per-minute (a 429 arrives immediately, TTFT 0),
-  // so run calls SEQUENTIALLY — one in-flight — and round-robin across the
-  // model pool to still spread the token budget. Raising JOB_CONCURRENCY
-  // above 1 with Groq is what causes the bursts of 429s.
-  if (groqConfigured()) return 1;
+  if (groqConfigured()) {
+    const endpoints = activeGroqEndpointCount();
+    const cap = Number(process.env.GROQ_CONCURRENCY);
+    if (Number.isInteger(cap) && cap > 0) return cap;
+    // Keep it bounded: distinct endpoints only, capped to avoid over-subscribing
+    // a single (key, model) which is what caused bursts of 429s in the past.
+    return Math.max(1, Math.min(endpoints, 8));
+  }
   return Math.max(1, activeJobKeyCount());
 }
 

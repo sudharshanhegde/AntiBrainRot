@@ -15,6 +15,7 @@ import { jobChat } from "./llm.js";
 import {
   authoritativeSingleYears,
   extractRequirementsSection,
+  isolateQualificationSection,
   overallYears,
   titleExperienceFloor,
 } from "./experience.js";
@@ -236,7 +237,7 @@ export function requirementsExcerpt(rawText, max = 1600) {
 function classifyHeading(line) {
   const t = line.replace(/[:.,]+$/, "").trim().toLowerCase();
   if (
-    /^(requirements?|job requirements?|minimum requirements?|qualifications?|mandatory (?:skills?|requirements?|qualifications?)|must have|essential|you (?:must|should|need to) have|what we(?:'re| are)? look(?:ing)? for|what you(?:'ll| will| would| should)? (?:need|have|bring|be able to)|about you|who you are|(?:the )?ideal candidate|skills?(?: and experience| required)?$|experience (?:required|needed|qualifications?)|experience and qualifications?|additional requirements?|key (?:skills|requirements))$/i.test(
+    /^(requirements?|job requirements?|minimum requirements?|qualifications?|required skills?(?: and experience)?|mandatory (?:skills?|requirements?|qualifications?)|must have|essential|you (?:must|should|need to) have|what we(?:'re| are)? look(?:ing)? for|what you(?:'ll| will| would| should)? (?:need|have|bring|be able to)|about you|who you are|(?:the )?ideal candidate|skills?(?: and experience| required)?$|experience (?:required|needed|qualifications?)|experience and qualifications?|additional requirements?|key (?:skills|requirements))$/i.test(
       t
     )
   ) {
@@ -371,11 +372,13 @@ function years(value) {
 }
 
 function extractionMessages(listing) {
-  // Send only the requirements/qualifications excerpt (not the full posting
-  // with company boilerplate, benefits, legal disclaimers), which keeps each
-  // request small so the Groq model pool's per-minute token budget stretches
-  // further. Falls back to the raw text if no requirement section is found.
-  const text = requirementsExcerpt(String(listing.raw_text || ""), 2600);
+  // Send ONLY the qualifications/requirements section (never the full posting) —
+  // that is the only place a posting states the degree/years/skills that gate a
+  // candidate. Company boilerplate, responsibilities, perks and legal disclaimers
+  // are dropped, which keeps each request small (fewer input tokens) and lets the
+  // model reason over the same block the deterministic parser validates against.
+  // Falls back to the raw text when no recognizable section heading exists.
+  const text = isolateQualificationSection(String(listing.raw_text || ""), 2600);
   return [
     {
       role: "system",
@@ -434,12 +437,50 @@ function reconcileModelPaths(paths, requirementsText) {
   }));
 }
 
+// Tolerantly parse the model's structured output. Even with a json_object
+// response_format, a model occasionally wraps the object in prose or a code
+// fence, or the JSON is otherwise malformed enough that a bare JSON.parse throws.
+// This strips fences and pulls the first balanced {...} object so a valid-but-
+// wrapped response is used instead of being thrown away (which would force a
+// deterministic fallback for an otherwise-fine listing).
+function parseJsonLoose(content) {
+  let s = String(content || "").trim();
+  s = s.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/, "");
+  const start = s.indexOf("{");
+  if (start >= 0) {
+    let depth = 0;
+    for (let i = start; i < s.length; i++) {
+      const c = s[i];
+      if (c === "{") depth += 1;
+      else if (c === "}") {
+        depth -= 1;
+        if (depth === 0) {
+          try {
+            return JSON.parse(s.slice(start, i + 1));
+          } catch {
+            break; // fall through to a full parse attempt below
+          }
+        }
+      }
+    }
+  }
+  return JSON.parse(s);
+}
+
 async function extractWithModel(listing) {
-  const res = await jobChat(extractionMessages(listing), {
+  let res = await jobChat(extractionMessages(listing), {
     temperature: 0,
     json: true,
   });
-  const p = JSON.parse(res.content);
+  let p;
+  try {
+    p = parseJsonLoose(res.content);
+  } catch {
+    // One retry: a transient bad/malformed response should not silently drop
+    // the listing to the deterministic fallback on the first try.
+    res = await jobChat(extractionMessages(listing), { temperature: 0, json: true });
+    p = parseJsonLoose(res.content);
+  }
   const paths = Array.isArray(p.qualification_paths)
     ? p.qualification_paths
         .map((x) => ({

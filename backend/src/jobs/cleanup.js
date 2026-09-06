@@ -20,10 +20,10 @@ import { query } from "../db.js";
 // is `on delete cascade`), so no orphan rows are left behind. Anything a user
 // has interacted with is always kept so their history never breaks.
 
-export const JOB_RETENTION_DAYS = 10;
+export const JOB_RETENTION_DAYS = 7;
 
 // Interval between automatic cleanup passes (ms). One pass a day is plenty for
-// a 10-day retention window.
+// a 7-day retention window.
 export const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 // Deletes stale, unreferenced, expired jobs. Returns how many rows were

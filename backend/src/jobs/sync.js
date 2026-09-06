@@ -23,9 +23,18 @@ import { jobConcurrency, resetGroqExhaustion } from "./llm.js";
 // company's jobs. Expiry only ever runs after a source has returned data.
 
 // A listing not seen for this many days is treated as gone (the scrape runs
-// daily, so ~2 missed consecutive runs), rather than a single failed fetch.
-const MISSING_DAYS_TO_EXPIRE = 2;
+// daily, so a listing absent from ~1 successful run is expired), rather than a
+// single failed fetch. Expiry only ever runs after a source returned data, so
+// a failed fetch never expires anything.
+const MISSING_DAYS_TO_EXPIRE = 1;
 const BETWEEN_SOURCES_MS = 1000; // short pause between sources to be polite
+
+// raw_requirements_text is the bulk of the table's bytes (full descriptions,
+// many KB each). The card does not display the whole thing — it shows a bounded
+// excerpt plus a concise summary — so cap what is persisted to keep the table
+// small. The source is re-fetched on every scrape, so nothing is permanently
+// lost; raise this if you need more raw wording for verification/re-extraction.
+const STORED_RAW_TEXT_MAX = 4000;
 
 function sourceKey(source) {
   return `${source.source_type}:${source.source_identifier}`;
@@ -255,7 +264,7 @@ async function insertJob(listing, extracted) {
         listing.apply_url,
         listing.source_url,
         listing.content_hash,
-        listing.raw_text || null,
+        String(listing.raw_text || "").slice(0, STORED_RAW_TEXT_MAX) || null,
         extracted.requirements_summary || null,
         extracted.target_grad_year,
         extracted.location_country,

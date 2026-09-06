@@ -48,3 +48,4 @@ SKILL_codebase.md
 backend/tmp_probe_jobs.mjs
 backend/src/jobs/diagnose_duplicates.sql
 backend/src/jobs/cleanup_duplicates.sql
+plans/job-compact-extraction.md

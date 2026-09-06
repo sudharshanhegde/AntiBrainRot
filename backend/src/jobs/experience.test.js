@@ -16,6 +16,7 @@ import {
   authoritativeSingleYears,
   splitQualificationPaths,
   extractRequirementsSection,
+  isolateQualificationSection,
   titleExperienceFloor,
 } from "./experience.js";
 
@@ -191,4 +192,32 @@ test("extractRequirementsSection scopes numbers out of boilerplate", () => {
   const section = extractRequirementsSection(full);
   assert.ok(!/8 years/.test(section), "perks boilerplate should be cut");
   assert.equal(extractYears(section).min, 5);
+});
+
+test("isolateQualificationSection scopes to the requirement block across phrasings", () => {
+  // "Required Skills and Experience:" was previously NOT recognized, so the
+  // deterministic fallback could collapse the role to a seniority default (0).
+  const a =
+    "About the company\nWe build great software.\n\nRequired Skills and Experience:\n" +
+    "You have at least 3+ years of experience in software engineering\n" +
+    "You write high quality, well tested code.\n\nBenefits\nStock options.";
+  const secA = isolateQualificationSection(a);
+  assert.match(secA, /at least 3\+ years/, "should keep the requirement text");
+  assert.ok(!/Stock options/.test(secA), "benefits boilerplate should be cut");
+  assert.equal(overallYears(secA).min, 3);
+
+  // "What We're Looking For" heading with a primary range + a weaker sub-requirement.
+  const c =
+    "What We're Looking For\n5-8 years of experience in software/data engineering.\n" +
+    "Strong skills in Java, Scala, Python.\n" +
+    "At least 2 years of hands-on experience with big data.\n" +
+    "What we offer\n8 years of stock options";
+  const secC = isolateQualificationSection(c);
+  assert.ok(!/stock options/.test(secC), "what-we-offer boilerplate should be cut");
+  assert.equal(overallYears(secC).min, 5, "should gate by the strongest figure");
+
+  // Heading-less posting falls back to the (bounded) whole text, not empty.
+  const d = "We need a backend engineer with 4+ years of experience building services.";
+  const secD = isolateQualificationSection(d);
+  assert.match(secD, /4\+ years/);
 });

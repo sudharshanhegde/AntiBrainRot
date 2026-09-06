@@ -80,25 +80,153 @@ export function normalize(text) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 2: scope to the requirements section before looking for numbers. This
-// cuts salary figures, travel percentages and "Fortune 500" out of the
-// candidate set entirely, so a "10%" or a stray year in boilerplate is never
-// mistaken for an experience requirement.
+// Step 2: scope to the requirements/qualifications section before looking for
+// numbers or feeding the model. This is the ONLY place a posting's gating data
+// (experience years, education, required skills) lives — company boilerplate,
+// responsibilities, perks and benefits never gate a candidate. So the extractor
+// isolates that section reliably, no matter how the posting words the heading,
+// and both the deterministic experience parser AND the model extraction consume
+// just that block, never the whole raw text.
 // ---------------------------------------------------------------------------
+// A line is treated as a requirements heading when it begins with one of these
+// (trimmed of a trailing colon and punctuation, lowercased). This is the single
+// canonical lexicon shared by every consumer. Word-boundary-safe and anchored so
+// "Requirements" and "Required Skills and Experience" both match while an
+// ordinary sentence does not.
+function heading(word) {
+  return `\\b${word}\\b`;
+}
+const QUAL_HEADING_RE = new RegExp(
+  "^(?:" +
+    [
+      heading("requirements"),
+      heading("qualifications"),
+      "job requirements",
+      "minimum requirements",
+      "minimum qualifications",
+      "required skills and experience",
+      "required skills",
+      "key skills",
+      "key requirements",
+      "skills and experience",
+      "skills required",
+      "skills needed",
+      "experience required",
+      "experience needed",
+      "experience and qualifications",
+      "what you'll need",
+      "what you will need",
+      "what you'll bring",
+      "what you bring",
+      "what you will bring",
+      "must have",
+      heading("essential"),
+      "you must have",
+      "you should have",
+      "you have",
+      "about you",
+      "who you are",
+      "the ideal candidate",
+      "ideal candidate",
+      "what we're looking for",
+      "what we are looking for",
+      "what we look for",
+      "we are looking for",
+      "we're looking for",
+      "we require",
+      "we need",
+      "the role requires",
+      "candidates should have",
+      "what the role needs",
+    ].join("|") +
+    ")" +
+    "(?:[:.\\s(]|$)"
+);
+// Boilerplate / non-gating headings: stop the isolated section here so perks,
+// benefits, culture and "nice-to-have" text never leak into the requirement set.
+const STOP_HEADING_RE = new RegExp(
+  "^(?:" +
+    [
+      "preferred qualifications",
+      "preferred skills",
+      "good to have",
+      "nice to have",
+      "bonus points",
+      heading("bonus"),
+      "would be a plus",
+      "a plus",
+      "desired skills",
+      "desired qualifications",
+      "what would make you stand out",
+      heading("benefits"),
+      heading("perks"),
+      "what we offer",
+      heading("compensation"),
+      "about us",
+      "about the company",
+      "about the organisation",
+      "about the organization",
+      "our company",
+      "our impact",
+      "our culture",
+      "our mission",
+      "our values",
+      "our team",
+      "our story",
+      "who we are",
+      "life at",
+      "why join us",
+      "join us",
+      "equal opportunity",
+      "how to apply",
+      "to apply",
+      "apply now",
+      "apply here",
+      heading("contact"),
+      "additional information",
+      "learn more",
+      "follow us",
+    ].join("|") +
+    ")" +
+    "(?:[:.\\s(]|$)"
+);
+// Normalizes a line for heading comparison: lowercase, trailing colon/punct off.
+function headingForm(line) {
+  return String(line || "").trim().replace(/[:.,;]+$/, "").trim().toLowerCase();
+}
+
+// Returns the qualifications/requirements block of a raw posting, stopping at
+// boilerplate or "nice-to-have" headings, capped at `max` chars. Falls back to
+// the whole text (bounded) when no recognizable heading exists so a heading-less
+// posting is not dropped. Pure and synchronous; safe for both the deterministic
+// parser and as the model's input.
+export function isolateQualificationSection(text, max = 2600) {
+  const lines = String(text || "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (lines.length === 0) return "";
+
+  const start = lines.findIndex((l) => QUAL_HEADING_RE.test(headingForm(l)));
+  if (start === -1) {
+    const whole = lines.join("\n");
+    return whole.length <= max ? whole : whole.slice(0, max);
+  }
+
+  const out = [];
+  for (let i = start; i < lines.length; i++) {
+    const line = lines[i];
+    if (i > start && STOP_HEADING_RE.test(headingForm(line))) break;
+    out.push(line);
+    if (out.join("\n").length >= max) break;
+  }
+  return out.join("\n");
+}
+
+// Kept name/signature for existing callers and tests: returns the requirement
+// block (excluding boilerplate) via the shared locator.
 export function extractRequirementsSection(text) {
-  // Lowercase up front so "Requirements"/"What we offer" headings match
-  // regardless of case. The returned section is normalized later by
-  // extractYears, which is case-insensitive, so lowercasing here is harmless.
-  const s = String(text || "").toLowerCase();
-  const startPatterns =
-    /(?:requirements?|qualifications?|what you.?ll (?:need|bring)|what you (?:will|would|should) (?:need|bring)|who you are|about you|you have|must have|minimum qualifications|what we(?:'re| are) look(?:ing)? for)/;
-  const endPatterns =
-    /(?:what we offer|benefits|perks|compensation|what .*can offer|equal opportunity)/;
-  const startMatch = s.search(startPatterns);
-  if (startMatch === -1) return s;
-  const rest = s.slice(startMatch);
-  const endMatch = rest.search(endPatterns);
-  return endMatch === -1 ? rest : rest.slice(0, endMatch);
+  return isolateQualificationSection(text);
 }
 
 // ---------------------------------------------------------------------------

@@ -220,4 +220,18 @@ test("isolateQualificationSection scopes to the requirement block across phrasin
   const d = "We need a backend engineer with 4+ years of experience building services.";
   const secD = isolateQualificationSection(d);
   assert.match(secD, /4\+ years/);
+
+  // Compound / "Education and Qualifications" headings are recognized too.
+  const e =
+    "About us\nBigCo.\n\nEducation and Qualifications:\nBachelor's in CS with 2+ years of experience.\n\nPerks\nFree lunch.";
+  const secE = isolateQualificationSection(e);
+  assert.match(secE, /Bachelor's in CS/, "should keep the education/qualification content");
+  assert.ok(!/Free lunch/.test(secE), "perks boilerplate should be cut");
+  assert.equal(overallYears(secE).min, 2);
+
+  // "&" and "/" separators normalize to the same heading shape.
+  const f = "Qualifications / Experience\n3 to 5 years of relevant work.\nWhat we offer\nStock options.";
+  const secF = isolateQualificationSection(f);
+  assert.equal(overallYears(secF).min, 3);
+  assert.ok(!/Stock options/.test(secF));
 });

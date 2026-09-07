@@ -114,6 +114,17 @@ const QUAL_HEADING_RE = new RegExp(
       "experience required",
       "experience needed",
       "experience and qualifications",
+      "experience and education",
+      "education and qualifications",
+      "education and experience",
+      "education requirements",
+      "qualifications and experience",
+      "required qualifications",
+      "basic qualifications",
+      "what you will need",
+      "we look for",
+      "your background",
+      "the essentials",
       "what you'll need",
       "what you will need",
       "what you'll bring",
@@ -190,9 +201,43 @@ const STOP_HEADING_RE = new RegExp(
     ")" +
     "(?:[:.\\s(]|$)"
 );
-// Normalizes a line for heading comparison: lowercase, trailing colon/punct off.
+// Normalizes a line for heading comparison. "&", "/" and "+" are folded to
+// spaces so "Education & Qualifications" and "Qualifications/Experience" collapse
+// to the same shape as the wordy forms, then trailing punctuation is dropped and
+// whitespace collapsed. Case is lowered.
 function headingForm(line) {
-  return String(line || "").trim().replace(/[:.,;]+$/, "").trim().toLowerCase();
+  return String(line || "")
+    .trim()
+    .replace(/&/g, " ")
+    .replace(/[\/\\]/g, " ")
+    .replace(/[+:,.;]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+// A "nice-to-have" / boilerplate heading ends the qualification section. This
+// wraps the explicit list plus a negation guard so a "Preferred/Desired/Bonus …"
+// heading is never treated as a hard gate.
+function isStopHeading(line) {
+  const t = headingForm(line);
+  if (STOP_HEADING_RE.test(t)) return true;
+  return /^(?:preferred|good to have|nice to have|would be a plus|a plus|desired|bonus|not required)\b/.test(t);
+}
+
+// A line that carries a real gating noun (qualification/requirement/experience/
+// education/skill) in a heading-like position. This is the generic fallback so
+// compound or un-enumerated phrasings ("Education and Qualifications",
+// "Experience & Education") are still recognized without a bespoke pattern each.
+const GATE_NOUN_RE =
+  /\b(qualifications?|requirements?|experience|education|skills?)\b/;
+function isQualificationHeading(line) {
+  const t = headingForm(line);
+  if (QUAL_HEADING_RE.test(t)) return true;
+  if (isStopHeading(line)) return false;
+  // Only short, heading-shaped lines — not full sentences/bullets.
+  if (t.length === 0 || t.length > 60) return false;
+  return GATE_NOUN_RE.test(t);
 }
 
 // Returns the qualifications/requirements block of a raw posting, stopping at
@@ -207,7 +252,7 @@ export function isolateQualificationSection(text, max = 2600) {
     .filter(Boolean);
   if (lines.length === 0) return "";
 
-  const start = lines.findIndex((l) => QUAL_HEADING_RE.test(headingForm(l)));
+  const start = lines.findIndex(isQualificationHeading);
   if (start === -1) {
     const whole = lines.join("\n");
     return whole.length <= max ? whole : whole.slice(0, max);
@@ -216,7 +261,7 @@ export function isolateQualificationSection(text, max = 2600) {
   const out = [];
   for (let i = start; i < lines.length; i++) {
     const line = lines[i];
-    if (i > start && STOP_HEADING_RE.test(headingForm(line))) break;
+    if (i > start && isStopHeading(line)) break;
     out.push(line);
     if (out.join("\n").length >= max) break;
   }

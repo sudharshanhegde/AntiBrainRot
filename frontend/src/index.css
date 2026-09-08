@@ -86,6 +86,36 @@
     scroll-snap-stop: always;
   }
 
+  /* -------- jobs search board --------
+     The Jobs tab sits a compact, persistent search bar above its swipe
+     feed. The board is a full-viewport flex column: the search bar is a
+     fixed band at the top and the feed fills the space below it. These
+     rules are scoped to .jobs-board so the other full-screen swipe feeds
+     (topic decks, etc.) keep their exact 100dvh behavior. */
+  .jobs-board {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-paper);
+  }
+  .jobs-search {
+    flex: none;
+    padding:
+      max(0.5rem, env(safe-area-inset-top)) 1.25rem 0.75rem;
+    border-bottom: 1px solid var(--color-hairline);
+  }
+  .jobs-feed {
+    /* Override .feed-scroll's fixed height so the snap feed occupies only
+       the remaining room below the search bar, with each card sized to
+       that visible height (height:100% below). */
+    height: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .jobs-feed .feed-card {
+    height: 100%;
+  }
+
   /* ---------------- panels: fixed sizes, zero layout shift ---------------- */
   .panel {
     background: var(--color-panel);

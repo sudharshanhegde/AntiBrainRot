@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { StatusScreen } from "../ui/StatusScreen";
 import { AppMenu } from "../ui/AppMenu";
 import { useAuth } from "../../auth/AuthContext";
@@ -75,6 +75,23 @@ function describePaths(paths) {
       return `${level} + ${exp}`;
     })
     .join(", or ");
+}
+
+// Builds a lowercased blob of every searchable field on a job (role, company,
+// location, remote scope, target graduation year, and the requirement
+// summary) so a search query can match any of them in one pass.
+function jobSearchText(job) {
+  const parts = [
+    job.role,
+    job.company,
+    job.location,
+    job.location_country,
+    job.remote_restricted_to,
+    job.requirements_summary,
+    job.target_grad_year ? String(job.target_grad_year) : null,
+    ...(job.qualification_paths || []).map((p) => p.education_level),
+  ];
+  return parts.filter(Boolean).join(" ").toLowerCase();
 }
 
 // --- First-open questionnaire -------------------------------------------
@@ -559,7 +576,30 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
   // Shown when recording an application fails, so the user knows the tap was
   // not saved instead of it silently doing nothing.
   const [applyError, setApplyError] = useState(null);
+  // Job-board search query ("" = the normal, unmatched feed).
+  const [searchQuery, setSearchQuery] = useState("");
   const scrollRef = useRef(null);
+
+  // Reorders the already-matched feed in place: while the user types, every
+  // job whose role/company/location/summary matches is moved to the top of
+  // the swipe stack, and the remaining (non-matching) jobs follow unchanged.
+  // Matched jobs are never duplicated. A query with no hits (e.g. a typo)
+  // falls back to the normal feed untouched, so a bad search never hides or
+  // empties the board.
+  const { orderedJobs, matchedCount, isSearching } = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return { orderedJobs: jobs, matchedCount: 0, isSearching: false };
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const hits = [];
+    const rest = [];
+    for (const job of jobs) {
+      const blob = jobSearchText(job);
+      if (tokens.every((t) => blob.includes(t))) hits.push(job);
+      else rest.push(job);
+    }
+    if (hits.length === 0) return { orderedJobs: jobs, matchedCount: 0, isSearching: true };
+    return { orderedJobs: [...hits, ...rest], matchedCount: hits.length, isSearching: true };
+  }, [jobs, searchQuery]);
 
   // The jobs feed is a plain stack of full-height cards. Its position is kept
   // across tab switches and across the "did you apply?" check so that
@@ -756,6 +796,19 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
     scroller.scrollTop = idx * scroller.clientHeight;
   }, [feedVisible, jobs.length]);
 
+  // When the user edits a live search the order changes, so jump back to the
+  // top of the stack to land on the first (best) match rather than staying
+  // stranded partway down a now-reordered feed. Only runs while a query is
+  // actually typed — with an empty query this must not clobber the normal
+  // resume-from-saved-position behavior above.
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current;
+    if (!feedVisible || !scroller || scroller.clientHeight === 0) return;
+    if (!searchQuery.trim()) return;
+    scroller.scrollTop = 0;
+    savedIndexRef.current = 0;
+  }, [feedVisible, searchQuery]);
+
   // Applying opens the posting in another window/tab. When the user comes back
   // (window focus returns), refetch the pending list and surface the "Could
   // you apply? / Did you apply?" check for the job they just applied to.
@@ -853,8 +906,24 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
     );
   }
 
+  // Search hint shown under the field so the reordering is not a surprise.
+  let searchNote = null;
+  if (isSearching && matchedCount > 0) {
+    searchNote = (
+      <p className="mt-2 font-sans text-[12px] leading-relaxed text-muted">
+        {matchedCount} matching {matchedCount === 1 ? "role" : "roles"} shown first.
+      </p>
+    );
+  } else if (isSearching && matchedCount === 0) {
+    searchNote = (
+      <p className="mt-2 font-sans text-[12px] leading-relaxed text-muted">
+        No roles match that. Showing the full board instead.
+      </p>
+    );
+  }
+
   return (
-    <>
+    <div className="jobs-board">
       {applyError && (
         <div
           role="alert"
@@ -865,8 +934,46 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
           </p>
         </div>
       )}
-      <div ref={scrollRef} className="feed-scroll" role="region" aria-label="Jobs">
-        {jobs.map((job, i) => (
+      <header className="jobs-search shrink-0">
+        <div className="flex items-center gap-2 rounded-lg border border-hairline bg-panel px-3 py-2.5">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="shrink-0 text-muted"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="7" />
+            <path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search roles, companies, cities…"
+            aria-label="Search jobs"
+            className="min-w-0 flex-1 bg-transparent font-sans text-[15px] text-ink outline-none placeholder:text-muted [&::-webkit-search-cancel-button]:hidden"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              aria-label="Clear search"
+              className="shrink-0 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            >
+              clear
+            </button>
+          )}
+        </div>
+        {searchNote}
+      </header>
+      <div ref={scrollRef} className="feed-scroll jobs-feed" role="region" aria-label="Jobs">
+        {orderedJobs.map((job, i) => (
           <JobCard
             key={job.id}
             job={job}
@@ -896,6 +1003,6 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
           </p>
         </div>
       </div>
-    </>
+    </div>
   );
 }

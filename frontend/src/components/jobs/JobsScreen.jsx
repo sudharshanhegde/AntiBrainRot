@@ -77,21 +77,13 @@ function describePaths(paths) {
     .join(", or ");
 }
 
-// Builds a lowercased blob of every searchable field on a job (role, company,
-// location, remote scope, target graduation year, and the requirement
-// summary) so a search query can match any of them in one pass.
+// Returns the lowercased job title used for searching. Search is deliberately
+// scoped to the role name only — not the company, location, or requirement
+// summary — so a query like "software" never surfaces a job just because its
+// description mentions working "on our software". We only want posts whose
+// actual title matches what the person is looking for.
 function jobSearchText(job) {
-  const parts = [
-    job.role,
-    job.company,
-    job.location,
-    job.location_country,
-    job.remote_restricted_to,
-    job.requirements_summary,
-    job.target_grad_year ? String(job.target_grad_year) : null,
-    ...(job.qualification_paths || []).map((p) => p.education_level),
-  ];
-  return parts.filter(Boolean).join(" ").toLowerCase();
+  return String(job.role || "").toLowerCase();
 }
 
 // --- First-open questionnaire -------------------------------------------
@@ -955,7 +947,7 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
             type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search roles, companies, cities…"
+            placeholder="Search job titles (e.g. intern, sde, trainee)…"
             aria-label="Search jobs"
             className="min-w-0 flex-1 bg-transparent font-sans text-[15px] text-ink outline-none placeholder:text-muted [&::-webkit-search-cancel-button]:hidden"
           />

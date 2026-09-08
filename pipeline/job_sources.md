@@ -157,7 +157,6 @@ lever:zimperium
 
 # Greenhouse
 greenhouse:graphcore
-greenhouse:hyreo
 greenhouse:point72
 greenhouse:cloudflare
 # greenhouse:appliedintuition

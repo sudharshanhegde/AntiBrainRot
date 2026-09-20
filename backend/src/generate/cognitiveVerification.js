@@ -104,9 +104,20 @@ function makesGreater(adj, from, to) {
   return false;
 }
 
+// Coordination words can hide a comparison whose subject is omitted from the
+// second clause (for example "Yara is taller than Ben but shorter than Cara",
+// where the second comparison's subject is Yara). The statement parser only
+// reads complete "<name> is <comparative> than <name>" sentences, so a
+// compound question would be parsed partially and could look more determined
+// than it really is. Rather than risk a wrong verdict from a partial parse,
+// a compound question is left unverified for the LLM pass to judge.
+const COMPOUND_RE = /\b(?:and|but|or|while|whereas|although|however|yet)\b/i;
+
 // Verifies a logical/relational ordering question. Returns
 // { checked, ok, reason, answer }.
 function verifyOrdering(questionText, correctOptionText) {
+  if (COMPOUND_RE.test(questionText)) return { checked: false };
+
   const parsed = parseStatements(questionText);
   if (!parsed) return { checked: false };
 

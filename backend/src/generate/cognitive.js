@@ -40,6 +40,11 @@ const DEFAULT_QUESTION_COUNT = 12;
 // asks for its own output bound rather than the small extraction default.
 const COGNITIVE_MAX_TOKENS = Number(process.env.COGNITIVE_MAX_TOKENS || 2000);
 
+// When deterministic verification rejects individual questions, the rest of
+// the batch is still usable as a slightly shorter test. This is the fraction
+// of the requested count that must survive; below it the batch is retried.
+const MIN_KEPT_RATIO = 0.6;
+
 function cognitiveChat(messages, opts = {}) {
   return jobChat(messages, { ...opts, maxTokens: COGNITIVE_MAX_TOKENS });
 }
@@ -167,8 +172,9 @@ export function checkCognitiveBatch(category, batch) {
 }
 
 // Deterministic verification across a batch. Returns per-question failures
-// for questions the code could parse and that provably contradict their
-// claimed answer. Unparseable questions are simply left to the LLM pass.
+// (with their index) for questions the code could parse and that provably
+// contradict their claimed answer. Unparseable questions are simply left to
+// the LLM pass.
 function deterministicFailures(category, batch) {
   const failures = [];
   for (const [i, q] of (batch.questions || []).entries()) {
@@ -180,7 +186,7 @@ function deterministicFailures(category, batch) {
       q.options.map((o) => o.text)
     );
     if (result.checked && !result.ok) {
-      failures.push(`question ${i} (deterministic check): ${result.reason}`);
+      failures.push({ index: i, reason: `question ${i} (deterministic check): ${result.reason}` });
     }
   }
   return failures;
@@ -279,11 +285,29 @@ export async function runCognitiveJob({
       continue;
     }
 
+    // A question the code can parse and that provably contradicts its own
+    // claimed answer is dropped rather than trusted, but one bad question
+    // should not discard the whole batch: the rest are kept as a slightly
+    // shorter test. Only when too few survive to make a usable test does the
+    // batch get retried.
     const detFailures = deterministicFailures(category, batch);
     if (detFailures.length > 0) {
-      lastError = detFailures.join("; ");
-      console.error(`[cognitive:${category}] attempt ${attempt}: deterministic verification failed`);
-      continue;
+      const bad = new Set(detFailures.map((f) => f.index));
+      const kept = batch.questions.filter((_, i) => !bad.has(i));
+      const minKeep = Math.max(4, Math.ceil(count * MIN_KEPT_RATIO));
+      if (kept.length < minKeep) {
+        lastError = detFailures.map((f) => f.reason).join("; ");
+        console.error(
+          `[cognitive:${category}] attempt ${attempt}: ${detFailures.length} question(s) failed deterministic verification, only ${kept.length} left (need ${minKeep})`
+        );
+        continue;
+      }
+      console.warn(
+        `[cognitive:${category}] dropped ${detFailures.length} question(s) on deterministic verification: ${detFailures
+          .map((f) => f.reason)
+          .join("; ")}`
+      );
+      batch = { ...batch, questions: kept.map((q, i) => ({ ...q, order_index: i })) };
     }
 
     let verdict;

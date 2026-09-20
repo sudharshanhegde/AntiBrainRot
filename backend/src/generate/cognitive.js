@@ -38,11 +38,17 @@ const DEFAULT_QUESTION_COUNT = 12;
 //
 // A batch of questions is far larger than a job-extraction response, so it
 // asks for its own output bound rather than the small extraction default.
-const COGNITIVE_MAX_TOKENS = Number(process.env.COGNITIVE_MAX_TOKENS || 2000);
+// Questions per generation sub-batch. A whole 12-question test in one call
+// produces more JSON than a single completion returns reliably, which surfaces
+// as truncated, unparseable output. The target is therefore generated in
+// bounded sub-batches, the same discipline Quick Bites uses.
+const PER_CALL = Number(process.env.COGNITIVE_PER_CALL || 6);
+
+const COGNITIVE_MAX_TOKENS = Number(process.env.COGNITIVE_MAX_TOKENS || 3000);
 
 // When deterministic verification rejects individual questions, the rest of
-// the batch is still usable as a slightly shorter test. This is the fraction
-// of the requested count that must survive; below it the batch is retried.
+// the sub-batch is still usable. This is the fraction of the requested count
+// that must survive overall; below it the test is reported as a failure.
 const MIN_KEPT_RATIO = 0.6;
 
 function cognitiveChat(messages, opts = {}) {
@@ -249,30 +255,13 @@ async function insertTest(category, questions, generatedDate) {
   }
 }
 
-// Generates and publishes one test for one category. `count` defaults to the
-// standard session length; `dryRun` builds nothing and just reports.
-export async function runCognitiveJob({
-  category,
-  count = DEFAULT_QUESTION_COUNT,
-  dryRun = false,
-} = {}) {
-  if (!CATEGORY_SET.has(category)) {
-    throw new Error(`unknown cognitive category "${category}"`);
-  }
-  const generatedDate = istDateString(Date.now());
-
-  if (dryRun) {
-    const { time_limit_ms, skip_penalty_ms } = timeConfigFor(category, count);
-    return { status: "dry-run", category, count, time_limit_ms, skip_penalty_ms };
-  }
-
-  const covRes = await query(
-    "select question_label from covered_cognitive_questions where category = $1 order by covered_at",
-    [category]
-  );
-  const coveredLabels = covRes.rows.map((r) => r.question_label);
-
+// Generates, mechanically checks, deterministically verifies, and validates
+// one bounded sub-batch. Returns the accepted questions, or throws with the
+// reason. Kept small by the caller so the completion never runs past a
+// reliable response length.
+async function generateChunk(category, count, coveredLabels) {
   let lastError = "unknown failure";
+
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     let batch;
     try {
@@ -296,14 +285,13 @@ export async function runCognitiveJob({
 
     // A question the code can parse and that provably contradicts its own
     // claimed answer is dropped rather than trusted, but one bad question
-    // should not discard the whole batch: the rest are kept as a slightly
-    // shorter test. Only when too few survive to make a usable test does the
-    // batch get retried.
+    // should not discard the whole sub-batch: the rest are kept. Only when too
+    // few survive to make a usable sub-batch does it get retried.
     const detFailures = deterministicFailures(category, batch);
     if (detFailures.length > 0) {
       const bad = new Set(detFailures.map((f) => f.index));
       const kept = batch.questions.filter((_, i) => !bad.has(i));
-      const minKeep = Math.max(4, Math.ceil(count * MIN_KEPT_RATIO));
+      const minKeep = Math.max(2, Math.ceil(count * MIN_KEPT_RATIO));
       if (kept.length < minKeep) {
         lastError = detFailures.map((f) => f.reason).join("; ");
         console.error(
@@ -333,41 +321,110 @@ export async function runCognitiveJob({
     }
 
     if (verdict.verdict !== "pass") {
-      lastError = ((verdict.questions || [])
-        .filter((q) => !q.pass)
-        .map((q) => `question ${q.index}: ${q.reason || "no reason"}`)
-        .concat(verdict.notes ? [`notes: ${verdict.notes}`] : [])
-        .join("; ")) || "validation failed";
+      lastError =
+        (verdict.questions || [])
+          .filter((q) => !q.pass)
+          .map((q) => `question ${q.index}: ${q.reason || "no reason"}`)
+          .concat(verdict.notes ? [`notes: ${verdict.notes}`] : [])
+          .join("; ") || "validation failed";
       console.error(`[cognitive:${category}] attempt ${attempt}: validation failed`);
       continue;
     }
 
+    return batch.questions;
+  }
+
+  throw new Error(lastError);
+}
+
+// Generates and publishes one test for one category. `count` defaults to the
+// standard session length; `dryRun` builds nothing and just reports.
+export async function runCognitiveJob({
+  category,
+  count = DEFAULT_QUESTION_COUNT,
+  dryRun = false,
+} = {}) {
+  if (!CATEGORY_SET.has(category)) {
+    throw new Error(`unknown cognitive category "${category}"`);
+  }
+  const generatedDate = istDateString(Date.now());
+
+  if (dryRun) {
+    const { time_limit_ms, skip_penalty_ms } = timeConfigFor(category, count);
+    return { status: "dry-run", category, count, time_limit_ms, skip_penalty_ms };
+  }
+
+  const covRes = await query(
+    "select question_label from covered_cognitive_questions where category = $1 order by covered_at",
+    [category]
+  );
+  const coveredLabels = covRes.rows.map((r) => r.question_label);
+
+  // Split the target into sub-batches of at most PER_CALL.
+  const chunks = [];
+  for (let n = count; n > 0; n -= PER_CALL) {
+    chunks.push(Math.min(PER_CALL, n));
+  }
+
+  const accepted = [];
+  const failures = [];
+  for (const chunkSize of chunks) {
+    // Refresh covered labels per chunk so a label accepted by an earlier chunk
+    // is not generated again by a later one.
+    const coveredNow = accepted
+      .map((q) => q.question_label)
+      .filter(Boolean)
+      .concat(coveredLabels);
     try {
-      const published = await insertTest(category, batch.questions, generatedDate);
-      await logRun({
-        status: "success",
-        reason: `test ${published.test_index} (id ${published.id}) published`,
-      });
-      console.log(
-        `[cognitive:${category}] published Test ${published.test_index} (id ${published.id}) with ${batch.questions.length} questions`
-      );
-      return {
-        status: "success",
-        category,
-        test_id: published.id,
-        day: published.test_index,
-        questions: batch.questions.length,
-      };
+      const questions = await generateChunk(category, chunkSize, coveredNow);
+      accepted.push(...questions);
     } catch (err) {
-      lastError = `insert error: ${err.message}`;
-      console.error(`[cognitive:${category}] ${lastError}`);
-      continue;
+      failures.push(err.message);
+      // A chunk failure does not silently drop the whole test: it is recorded,
+      // and questions that already passed are still published.
+      console.error(`[cognitive:${category}] chunk of ${chunkSize} failed: ${err.message}`);
     }
   }
 
-  await logRun({ status: "failure", reason: lastError });
-  sendFailureAlert({ reason: lastError, category });
-  return { status: "failure", category, reason: lastError };
+  const minTotal = Math.max(4, Math.ceil(count * MIN_KEPT_RATIO));
+  if (accepted.length < minTotal) {
+    const reason =
+      failures.length > 0 ? failures.join("; ") : "generation produced no questions";
+    await logRun({ status: "failure", reason });
+    sendFailureAlert({ reason, category });
+    return { status: "failure", category, reason };
+  }
+
+  // Re-number 0..n-1 so a dropped question or a failed chunk never leaves a
+  // gap in order_index.
+  const questions = accepted.map((q, i) => ({ ...q, order_index: i }));
+
+  try {
+    const published = await insertTest(category, questions, generatedDate);
+    await logRun({
+      status: "success",
+      reason: `test ${published.test_index} (id ${published.id}) published`,
+    });
+    console.log(
+      `[cognitive:${category}] published Test ${published.test_index} (id ${published.id}) with ${questions.length} questions` +
+        (failures.length ? ` (${failures.length} chunk(s) failed)` : "")
+    );
+    return {
+      status: "success",
+      category,
+      test_id: published.id,
+      day: published.test_index,
+      questions: questions.length,
+      chunks: chunks.length,
+      failed_chunks: failures.length,
+    };
+  } catch (err) {
+    const reason = `insert error: ${err.message}`;
+    console.error(`[cognitive:${category}] ${reason}`);
+    await logRun({ status: "failure", reason });
+    sendFailureAlert({ reason, category });
+    return { status: "failure", category, reason };
+  }
 }
 
 // Runs the job for every category, one after another. Used by the daily run.

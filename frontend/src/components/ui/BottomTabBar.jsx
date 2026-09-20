@@ -1,19 +1,22 @@
-// Persistent five-tab bottom bar.
+// Persistent six-tab bottom bar.
 //
-// Fixed to the bottom of the viewport and shown only on the five primary
-// destinations: Quick Bites, Jobs, Subjects, My Applications, and Profile.
-// Every other screen (topic deck, Worth a Read, leaderboard, onboarding) is
-// reached from one of these tabs and does not carry the bar.
+// Fixed to the bottom of the viewport and shown only on the six primary
+// destinations: Quick Bites, Jobs, Tests, Subjects, My Applications, and
+// Profile. Every other screen (topic deck, Worth a Read, leaderboard,
+// onboarding) is reached from one of these tabs and does not carry the bar.
 //
 // Each tab is an icon plus a short label beneath it, in the same mono
 // register language as the rest of the chrome. The active tab is drawn in
-// ink, the rest in muted. Because the bar overlays the bottom of content
-// (including the full-height swipe feeds), tab screens pad their scroll
-// content by var(--tabbar-h) so nothing sits hidden underneath.
+// ink, the rest in muted. With six tabs there is no true center position, so
+// every tab is equal weight: no elevated or floating treatment on any one.
+// Because the bar overlays the bottom of content (including the full-height
+// swipe feeds), tab screens pad their scroll content by var(--tabbar-h) so
+// nothing sits hidden underneath.
 
 const TABS = [
   { id: "quickBites", hash: "#/quick-bites", label: "Quick Bites" },
   { id: "jobs", hash: "#/jobs", label: "Jobs" },
+  { id: "tests", hash: "#/tests", label: "Tests" },
   { id: "topics", hash: "#/topics", label: "Subjects" },
   { id: "applications", hash: "#/applications", label: "Applications" },
   { id: "profile", hash: "#/profile", label: "Profile" },
@@ -29,9 +32,10 @@ export function isTabView(view) {
 
 // Icons signal the thing behind each tab rather than reusing a generic
 // set: a lightning bolt for the quick refresh feed, a briefcase for the
-// job board, a book for subjects, a checklist for applications, and a
-// person for the profile. Same 24px stroke language as the other chrome
-// icons (e.g. the hamburger), fill none, sized by currentColor.
+// job board, a stopwatch for the timed tests, a book for subjects, a
+// checklist for applications, and a person for the profile. Same 24px stroke
+// language as the other chrome icons (e.g. the hamburger), fill none, sized
+// by currentColor.
 function TabIcon({ name, className }) {
   const common = {
     width: 20,
@@ -57,6 +61,14 @@ function TabIcon({ name, className }) {
           <rect x="3" y="7" width="18" height="13" rx="2" />
           <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
           <path d="M3 13h18" />
+        </svg>
+      );
+    case "tests":
+      return (
+        <svg {...common} className={className}>
+          <circle cx="12" cy="13" r="8" />
+          <path d="M12 9v4l2.5 2" />
+          <path d="M9 2h6" />
         </svg>
       );
     case "topics":

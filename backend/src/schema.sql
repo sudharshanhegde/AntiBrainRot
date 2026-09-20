@@ -379,3 +379,88 @@ create index if not exists job_apply_checks_user_idx
 -- can be removed or manually validated against this table at end of day.
 alter table applied_jobs add column if not exists feedback_job_existed boolean;
 alter table applied_jobs add column if not exists feedback_given_at timestamptz;
+
+-- ============================================================
+-- Cognitive speed and accuracy tests
+-- ============================================================
+-- A module structurally and interactionally separate from every other feed
+-- in the app (one question per screen, tap to answer, no swipe-card feed):
+-- timed multiple-choice tests scored on both correctness and speed, split
+-- into four genuinely distinct categories so each is comparable against
+-- itself over time. A test is one generated batch for one category, always a
+-- single category per session rather than a mix, so the measurement stays
+-- clean. time_limit_ms and skip_penalty_ms are stored per test (not derived
+-- at read time) because both are tunable per category and question count.
+create table if not exists cognitive_tests (
+  id serial primary key,
+  category text not null, -- numerical | verbal | abstract | logical
+  generated_date date not null,
+  question_count integer not null,
+  time_limit_ms integer not null,
+  skip_penalty_ms integer not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists cognitive_tests_category_idx
+  on cognitive_tests (category, generated_date desc);
+
+-- One row per question in a test. options_json is an array of
+-- { id, text } objects (ids "a".."d"); correct_option_id is never sent to the
+-- client, so answers are graded on the server and the client cannot read the
+-- key out of the payload.
+create table if not exists cognitive_questions (
+  id serial primary key,
+  test_id integer not null references cognitive_tests(id) on delete cascade,
+  order_index integer not null,
+  question_text text not null,
+  options_json jsonb not null,
+  correct_option_id text not null,
+  difficulty text,
+  explanation text,
+  unique (test_id, order_index)
+);
+
+-- One row per completed test session. score is the raw count correct;
+-- rating is the short descriptive read shown at the top of the results
+-- screen (fast and mostly accurate, accurate but slower than average, ...),
+-- deliberately not a percentile or a verdict.
+create table if not exists cognitive_attempts (
+  id serial primary key,
+  user_id text not null,
+  test_id integer not null references cognitive_tests(id) on delete cascade,
+  category text not null,
+  started_at timestamptz not null default now(),
+  completed_at timestamptz,
+  total_time_ms integer,
+  score integer not null default 0,
+  question_count integer not null default 0,
+  rating text
+);
+create index if not exists cognitive_attempts_user_idx
+  on cognitive_attempts (user_id, category, completed_at desc);
+
+-- One row per question in an attempt, including skipped ones
+-- (was_skipped = true, selected_option_id null, is_correct false), so the
+-- per-question breakdown can show exactly what was missed and how long it
+-- took.
+create table if not exists cognitive_answers (
+  id serial primary key,
+  attempt_id integer not null references cognitive_attempts(id) on delete cascade,
+  question_id integer not null references cognitive_questions(id) on delete cascade,
+  selected_option_id text,
+  is_correct boolean not null default false,
+  time_taken_ms integer not null default 0,
+  was_skipped boolean not null default false
+);
+create index if not exists cognitive_answers_attempt_idx
+  on cognitive_answers (attempt_id);
+
+-- Dedupe registry for generation, the same idea as covered_facts for Quick
+-- Bites and covered_concepts for topic decks: one short label per question
+-- already used, per category, checked before generating so a new test never
+-- repeats a question that has already been published.
+create table if not exists covered_cognitive_questions (
+  id serial primary key,
+  category text not null,
+  question_label text not null unique,
+  covered_at timestamptz not null default now()
+);

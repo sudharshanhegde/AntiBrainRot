@@ -12,6 +12,7 @@ import {
 import { insertReviewedDeck } from "./insert.js";
 import { loadSources } from "./sources.js";
 import { runQuickBitesJob } from "./quickBites.js";
+import { runCognitiveBatchJob } from "./cognitive.js";
 import { syncWorthARead } from "./worthARead.js";
 
 // The automated daily generation job.
@@ -381,6 +382,11 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
   // It is gated by the same time window and once-per-IST-day guard above.
   const quickBites = await runQuickBitesJob({ dryRun });
 
+  // Cognitive tests ride on the same daily run, additive like Quick Bites,
+  // and are also gated by the once-per-IST-day guard above. One fresh test
+  // per category per run, deduped against covered_cognitive_questions.
+  const cognitive = await runCognitiveBatchJob({ dryRun });
+
   const activeRes = await query(
     "select slug, target_decks, decks_generated from topics where status <> 'complete' order by queue_position"
   );
@@ -391,7 +397,13 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
     activeRows = activeRows.filter((t) => topics.includes(t.slug));
   }
   if (activeRows.length === 0) {
-    return { status: "all-complete", message: "no matching active topics", quickBites, worthARead };
+    return {
+      status: "all-complete",
+      message: "no matching active topics",
+      quickBites,
+      cognitive,
+      worthARead,
+    };
   }
 
   const state = { calls: 0, totalTokens: 0 };
@@ -465,5 +477,5 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
     decksAttempted += 1;
   }
 
-  return { status: "success", results, quickBites, worthARead };
+  return { status: "success", results, quickBites, cognitive, worthARead };
 }

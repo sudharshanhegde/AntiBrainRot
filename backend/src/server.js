@@ -13,7 +13,9 @@ import { leaderboardRouter } from "./routes/leaderboard.js";
 import { quickBitesRouter } from "./routes/quickBites.js";
 import { worthAReadRouter } from "./routes/worthARead.js";
 import { jobsRouter } from "./routes/jobs.js";
+import { cognitiveRouter } from "./routes/cognitive.js";
 import { syncQueue } from "./generate/job.js";
+import { ensureCognitiveSeed } from "./generate/cognitive.js";
 import { syncWorthARead } from "./generate/worthARead.js";
 import { syncJobSources } from "./jobs/registry.js";
 import { scheduleJobCleanup } from "./jobs/cleanup.js";
@@ -58,6 +60,7 @@ app.use("/api/leaderboard", leaderboardRouter);
 app.use("/api/quick-bites", quickBitesRouter);
 app.use("/api", worthAReadRouter);
 app.use("/api/jobs", jobsRouter);
+app.use("/api/cognitive", cognitiveRouter);
 
 const port = Number(process.env.PORT) || 4000;
 
@@ -82,4 +85,14 @@ app.listen(port, () => {
   // Automatic jobs-table retention: one pass now and every ~24h removes stale,
   // unreferenced jobs so the table does not grow without bound.
   scheduleJobCleanup();
+  // Bootstrap the cognitive tests module: insert the small hardcoded seed
+  // test per category when a category has none yet, so the
+  // prefetch-then-run-locally client loop has content before the first
+  // generated batch exists. Never overwrites a category that already has a
+  // test.
+  ensureCognitiveSeed()
+    .then(({ inserted }) => {
+      if (inserted > 0) console.log(`[cognitive] seeded ${inserted} categories`);
+    })
+    .catch((err) => console.warn("[cognitive] seed failed:", err.message));
 });

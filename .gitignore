@@ -52,3 +52,4 @@ plans/job-compact-extraction.md
 backend/src/jobs/clear_unapplied.sql
 backend/src/jobs/drop_raw_requirements_text.sql
 backend/tmp_probe_compare.mjs
+SKILL_cognitive_tests.md

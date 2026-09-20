@@ -7,6 +7,7 @@ import { QuickBitesFeed } from "./components/feed/QuickBitesFeed";
 import { WorthAReadList } from "./components/worthARead/WorthAReadList";
 import { JobsScreen } from "./components/jobs/JobsScreen";
 import { ApplicationsScreen } from "./components/jobs/ApplicationsScreen";
+import { TestsScreen } from "./components/tests/TestsScreen";
 import { ProfileScreen } from "./components/profile/ProfileScreen";
 import { LeaderboardScreen } from "./components/leaderboard/LeaderboardScreen";
 import { StatusScreen } from "./components/ui/StatusScreen";
@@ -52,6 +53,7 @@ const STATIC_ROUTES = {
   "#/quick-bites": "quickBites",
   "#/worth-a-read": "worthARead",
   "#/jobs": "jobs",
+  "#/tests": "tests",
   "#/applications": "applications",
 };
 
@@ -98,12 +100,13 @@ export default function App() {
     window.location.hash = hash;
   }
 
-  // Moves between the five primary destinations via the bottom tab bar.
+  // Moves between the six primary destinations via the bottom tab bar.
   // Notices that only make sense on the screen that raised them are
   // cleared so they never carry over to another tab.
   const TAB_HASH = {
     quickBites: "#/quick-bites",
     jobs: "#/jobs",
+    tests: "#/tests",
     topics: "#/topics",
     applications: "#/applications",
     profile: "#/profile",
@@ -292,6 +295,8 @@ export default function App() {
         onDismissNotice={() => setSurpriseNotice(null)}
       />
     );
+  } else if (view === "tests") {
+    screen = <TestsScreen />;
   } else if (view === "quickBites") {
     screen = <QuickBitesFeed onBack={backToTopics} onOpenProfile={openProfile} />;
   } else if (view === "worthARead") {
@@ -321,7 +326,7 @@ export default function App() {
     );
   }
 
-  // The five primary destinations carry the persistent bottom tab bar;
+  // The six primary destinations carry the persistent bottom tab bar;
   // drilled-down screens (topic deck, Worth a Read, leaderboard, niche
   // picker) render full-screen without it.
   if (isTabView(view)) {

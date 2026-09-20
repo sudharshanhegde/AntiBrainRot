@@ -347,6 +347,37 @@ create table if not exists job_user_flags (
 );
 create index if not exists job_user_flags_user_idx on job_user_flags (user_id);
 
+-- Durable "not interested" store, keyed by a STABLE posting identity instead of
+-- jobs(id). jobs.id is a serial that changes every time a posting is
+-- re-scraped/re-inserted (content_hash fingerprints company+role+raw text, so
+-- any wording change — or a full table regeneration via clear_unapplied.sql —
+-- yields a brand-new id, and the old flag row is deleted outright). The result
+-- was that a dismissed job silently reappeared days later. Hiding by a
+-- normalized company|role key is regeneration-proof: the decision survives the
+-- job row being updated, re-inserted under a new id, or deleted entirely.
+create table if not exists job_hidden_postings (
+  id serial primary key,
+  user_id text not null,
+  posting_key text not null,
+  company text,
+  role text,
+  created_at timestamptz not null default now(),
+  unique (user_id, posting_key)
+);
+create index if not exists job_hidden_postings_user_idx
+  on job_hidden_postings (user_id);
+
+-- Backfill from existing "not interested" flags so decisions already made are
+-- preserved and honoured by the new feed filter. Idempotent.
+insert into job_hidden_postings (user_id, posting_key, company, role)
+select f.user_id,
+       lower(btrim(j.company)) || '|' || lower(btrim(j.role)),
+       j.company, j.role
+  from job_user_flags f
+  join jobs j on j.id = f.job_id
+ where f.interested = false
+on conflict (user_id, posting_key) do nothing;
+
 -- Pending application checks. When a user taps Apply on a job the row is
 -- created (answered=false) but it is NOT yet a real application. On a later
 -- visit the user is asked two questions:

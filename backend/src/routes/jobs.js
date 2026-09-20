@@ -255,6 +255,16 @@ jobsRouter.get("/", requireAuth, async (req, res) => {
             select 1 from job_user_flags f
              where f.user_id = $5 and f.job_id = j.id and f.interested = false
           )
+          -- 5. Also honour the DURABLE hide, matched on the stable company|role
+          --    identity rather than jobs.id. A listing that is regenerated gets a
+          --    brand-new id (and clear_unapplied.sql deletes the old flag rows),
+          --    so the jobs.id-based check above does not survive a re-scrape.
+          --    This key does, so a dismissed posting stays hidden.
+          and not exists (
+            select 1 from job_hidden_postings h
+             where h.user_id = $5
+               and h.posting_key = lower(btrim(j.company)) || '|' || lower(btrim(j.role))
+          )
         order by j.last_seen_at desc, j.id desc
         limit 200`,
       [country, userRank, years, gradYear, req.userId]
@@ -436,6 +446,31 @@ jobsRouter.post("/flag", requireAuth, async (req, res) => {
          interested = excluded.interested, updated_at = now()`,
       [req.userId, jobId, interested]
     );
+
+    // A "not interested" decision must survive regeneration, so it is ALSO
+    // recorded in job_hidden_postings under the stable company|role key (not the
+    // volatile jobs.id). The feed matches on that key, so the posting stays
+    // hidden even after it is re-inserted under a new id or the row is deleted.
+    // interested=true clears any such record (un-hides).
+    if (interested === false) {
+      await query(
+        `insert into job_hidden_postings (user_id, posting_key, company, role)
+         select $1,
+                lower(btrim(company)) || '|' || lower(btrim(role)),
+                company, role
+           from jobs where id = $2
+         on conflict (user_id, posting_key) do nothing`,
+        [req.userId, jobId]
+      );
+    } else {
+      await query(
+        `delete from job_hidden_postings h
+          using jobs j
+          where j.id = $2 and h.user_id = $1
+            and h.posting_key = lower(btrim(j.company)) || '|' || lower(btrim(j.role))`,
+        [req.userId, jobId]
+      );
+    }
     res.json({ ok: true, job_id: jobId, interested });
   } catch (err) {
     console.error(err);

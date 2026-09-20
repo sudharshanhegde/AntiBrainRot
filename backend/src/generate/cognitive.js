@@ -59,11 +59,17 @@ function cognitiveChat(messages, opts = {}) {
 // number the skill warns against hardcoding blindly: it is what the overall
 // session countdown and the skip penalty are derived from. Kept here so the
 // generation job, the seed, and the routes all agree.
+//
+// Deliberately tight. These are Thomas-style speed tests with individually
+// easy items, so a generous per-item budget would turn them into an accuracy
+// test and defeat the point. The items got simpler (see cognitivePrompts.js),
+// so the clock comes down with them: enough to spot the pattern and answer,
+// not enough to carefully re-derive it.
 export const PER_QUESTION_MS = {
-  numerical: 45000,
-  verbal: 45000,
-  abstract: 40000,
-  logical: 40000,
+  numerical: 25000,
+  verbal: 25000,
+  abstract: 20000,
+  logical: 20000,
 };
 
 // The overall budget is per-question budget times question count. The skip
@@ -625,7 +631,7 @@ const SEED = {
         { id: "d", text: "N" },
       ],
       correct_option_id: "b",
-      difficulty: "hard",
+      difficulty: "medium",
     },
     {
       question_text: "Which letter comes next? A, D, G, J, ?",
@@ -715,7 +721,7 @@ const SEED = {
         { id: "d", text: "Cannot be determined" },
       ],
       correct_option_id: "d",
-      difficulty: "hard",
+      difficulty: "medium",
     },
     {
       question_text: "Liam is younger than Mia. Mia is younger than Noah. Who is the youngest?",

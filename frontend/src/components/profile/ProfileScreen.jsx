@@ -27,12 +27,15 @@ const PRIMARY_BTN =
 // the fallback. Signing in routes through Supabase Auth; the AuthContext
 // listener then registers the profile with the backend and runs the
 // one-time anonymous progress migration.
-export function ProfileScreen({ onBack, onDeleted, initialNotice = null }) {
+export function ProfileScreen({ onBack, onDeleted, initialNotice = null, initialMode = "login" }) {
   const { user, profile, streak, refreshProfile, setLeaderboardOptIn } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState("login"); // "login" | "signup"
+  // Which form the signed-out auth panel starts on. The first-visit gate
+  // routes "Register" here as signup and "Log in" as login, so the user lands
+  // on the matching form (Google is offered on both) instead of a blank app.
+  const [mode, setMode] = useState(initialMode === "signup" ? "signup" : "login"); // "login" | "signup"
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState(initialNotice);

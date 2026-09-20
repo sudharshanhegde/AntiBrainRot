@@ -84,6 +84,9 @@ export default function App() {
   // Forces the first-visit gate off once a choice is made, before the
   // persisted "visited" marker is what keeps it off on later loads.
   const [gateChosen, setGateChosen] = useState(false);
+  // Which auth form the profile screen opens on when reached from the
+  // first-visit gate ("Register" -> signup, "Log in" -> login).
+  const [authMode, setAuthMode] = useState("login");
   // A short, dismissible note shown on the topics page, set when
   // "surprise me" cannot find an available topic so the user is told why
   // instead of being left on a dead-end error screen.
@@ -157,16 +160,21 @@ export default function App() {
     return (
       <WelcomeGate
         onRegister={() => {
+          // Do NOT create a guest id: send the user to the real auth UI
+          // (Google + email sign-up) instead of dropping them into the app
+          // anonymously as if they were already signed in.
           markVisited();
           setGateChosen(true);
           setAuthNotice(null);
-          navigate("#/quick-bites");
+          setAuthMode("signup");
+          navigate("#/profile");
         }}
         onLogin={() => {
           markVisited();
           setGateChosen(true);
           setAuthNotice(null);
-          navigate("#/quick-bites");
+          setAuthMode("login");
+          navigate("#/profile");
         }}
         onGuest={() => {
           resetToGuest();
@@ -218,6 +226,9 @@ export default function App() {
   };
   const openProfile = () => {
     setAuthNotice(null);
+    // Opening the profile normally is a sign-in context, not a sign-up one;
+    // only the first-visit gate sets the signup mode.
+    setAuthMode("login");
     navigate("#/profile");
   };
   const openLeaderboard = () => navigate("#/leaderboard");
@@ -276,6 +287,7 @@ export default function App() {
         onBack={backToTopics}
         onDeleted={handleDeleted}
         initialNotice={authNotice}
+        initialMode={authMode}
       />
     );
   } else if (view === "leaderboard") {

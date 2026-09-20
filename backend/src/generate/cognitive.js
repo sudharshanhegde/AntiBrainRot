@@ -1,5 +1,5 @@
 import { pool, query } from "../db.js";
-import { chat } from "./deepseek.js";
+import { jobChat } from "../jobs/llm.js";
 import { EM_DASH_RE, EMOJI_RE } from "./checks.js";
 import { verifyCognitiveQuestion } from "./cognitiveVerification.js";
 import {
@@ -26,6 +26,23 @@ import {
 
 const MAX_ATTEMPTS = 2; // one generation plus one retry, hard cap
 const DEFAULT_QUESTION_COUNT = 12;
+
+// Cognitive generation runs through the Groq-first client (the same one the
+// jobs pipeline uses): it round-robins over a pool of Groq models and keys,
+// parks rate-limited models in a short cooldown instead of hammering them into
+// 429s, and falls back to the job key pool then the shared content client when
+// Groq is unconfigured or every model is down. Generation used to go straight
+// to the shared DeepSeek/Gemini client, which surfaced provider 429s as
+// outright failures; this keeps a single rate-limited provider from stalling
+// the module.
+//
+// A batch of questions is far larger than a job-extraction response, so it
+// asks for its own output bound rather than the small extraction default.
+const COGNITIVE_MAX_TOKENS = Number(process.env.COGNITIVE_MAX_TOKENS || 2000);
+
+function cognitiveChat(messages, opts = {}) {
+  return jobChat(messages, { ...opts, maxTokens: COGNITIVE_MAX_TOKENS });
+}
 
 // Per-question time budget, one entry per category. This is the tunable
 // number the skill warns against hardcoding blindly: it is what the overall
@@ -244,11 +261,10 @@ export async function runCognitiveJob({
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     let batch;
     try {
-      const gen = await chat(buildCognitiveGenerationMessages(category, count, coveredLabels), {
-        temperature: 0.8,
-        json: true,
-        topic: `cognitive-${category}`,
-      });
+      const gen = await cognitiveChat(
+        buildCognitiveGenerationMessages(category, count, coveredLabels),
+        { temperature: 0.8, json: true, topic: `cognitive-${category}` }
+      );
       batch = JSON.parse(gen.content);
     } catch (err) {
       lastError = `generation error: ${err.message}`;
@@ -272,7 +288,7 @@ export async function runCognitiveJob({
 
     let verdict;
     try {
-      const vres = await chat(
+      const vres = await cognitiveChat(
         buildCognitiveValidationMessages(category, batch, coveredLabels),
         { temperature: 0, json: true, topic: `cognitive-${category}` }
       );

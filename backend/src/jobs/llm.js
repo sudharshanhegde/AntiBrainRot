@@ -137,7 +137,10 @@ async function endpointChat(apiKey, model, messages, opts = {}) {
         model,
         messages,
         temperature: opts?.temperature ?? 0,
-        max_tokens: GROQ_MAX_TOKENS,
+        // Callers that produce large structured output (cognitive tests) pass
+        // their own bound; extraction keeps the small default that stretches
+        // the per-minute token budget.
+        max_tokens: opts?.maxTokens ?? GROQ_MAX_TOKENS,
         response_format: opts?.json ? { type: "json_object" } : undefined,
       });
       const content = completion.choices[0]?.message?.content;
@@ -296,6 +299,7 @@ async function runOnKey(key, messages, opts) {
       model: MODEL,
       messages,
       temperature: opts?.temperature ?? 0,
+      max_tokens: opts?.maxTokens,
       response_format: opts?.json ? { type: "json_object" } : undefined,
     });
     const content = completion.choices[0]?.message?.content;

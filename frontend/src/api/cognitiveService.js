@@ -217,6 +217,8 @@ async function mockTest(category) {
     id: `mock-${category}`,
     category,
     label: COGNITIVE_CATEGORY_META[category].label,
+    test_index: 0,
+    day: 0,
     question_count: src.questions.length,
     time_limit_ms: per * src.questions.length,
     skip_penalty_ms: per,
@@ -308,12 +310,15 @@ export async function fetchCognitiveCategories() {
   if (USE_MOCK) {
     await mockDelay();
     return COGNITIVE_CATEGORY_ORDER.map((id) => {
-      const last = (mockHistory.get(id) || [])[0] || null;
+      const attempts = mockHistory.get(id) || [];
+      const last = attempts[0] || null;
       return {
         id,
         label: COGNITIVE_CATEGORY_META[id].label,
         description: COGNITIVE_CATEGORY_META[id].description,
         available: true,
+        total_tests: 1,
+        completed_tests: attempts.length > 0 ? 1 : 0,
         last_attempt: last,
       };
     });
@@ -326,14 +331,46 @@ export async function fetchCognitiveCategories() {
 }
 
 // The single prefetch request: the whole test, questions and timings, with no
-// correct answers included.
-export async function fetchCognitiveTest(category) {
+// correct answers included. Pass a testIndex (day) to load a specific past
+// test; omit it for the newest one.
+export async function fetchCognitiveTest(category, testIndex = null) {
   if (USE_MOCK) return mockTest(category);
-  const res = await apiFetch(`/api/cognitive/tests/${encodeURIComponent(category)}`);
+  const base = `/api/cognitive/tests/${encodeURIComponent(category)}`;
+  const path = testIndex == null ? base : `${base}/${Number(testIndex)}`;
+  const res = await apiFetch(path);
   if (res.status === 404) throw new Error("no test available for this category yet");
   if (!res.ok) throw new Error("could not load the test");
   const data = await res.json();
   return data.test;
+}
+
+// The published tests for a category as numbered days (Test 0, Test 1, ...),
+// each with this user's completion state, so a past test can be reopened and
+// retaken. Mirrors the topic-deck days list.
+export async function fetchCognitiveDays(category) {
+  if (USE_MOCK) {
+    await mockDelay();
+    const attempts = mockHistory.get(category) || [];
+    return [
+      {
+        test_id: `mock-${category}`,
+        test_index: 0,
+        day: 0,
+        generated_date: null,
+        question_count: (MOCK_TESTS[category]?.questions || []).length,
+        completed: attempts.length > 0,
+        attempt_count: attempts.length,
+        best_score: attempts.length ? Math.max(...attempts.map((a) => a.score)) : null,
+      },
+    ];
+  }
+  const userId = getUserId();
+  const res = await apiFetch(
+    `/api/cognitive/days?category=${encodeURIComponent(category)}&user_id=${encodeURIComponent(userId)}`
+  );
+  if (!res.ok) throw new Error("could not load this category's tests");
+  const data = await res.json();
+  return data.days || [];
 }
 
 // The single write: the finished attempt, graded server-side. Returns

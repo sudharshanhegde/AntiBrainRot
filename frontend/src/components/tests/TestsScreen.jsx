@@ -2,21 +2,28 @@ import { useCallback, useEffect, useState } from "react";
 import { StatusScreen } from "../ui/StatusScreen";
 import { TestRunner } from "./TestRunner";
 import { TestResults } from "./TestResults";
+import { TestDays } from "./TestDays";
 import {
   COGNITIVE_CATEGORY_ORDER,
   fetchCognitiveCategories,
+  fetchCognitiveDays,
   fetchCognitiveTest,
   submitCognitiveAttempt,
 } from "../../api/cognitiveService";
 
 // The Tests tab: cognitive speed and accuracy tests.
 //
-// A category picker, then a rules screen, then the locally-run test, then a
-// diagnostic results screen. The critical detail is the order of operations:
-// the full test is prefetched while the rules screen is on screen, so by the
-// time the user taps Start the whole question set is in client state and the
-// run loop makes no network calls at all. Network latency is therefore never
-// part of what is being timed. The one write happens after the test ends.
+// Category picker, then the category's numbered days (Test 0, Test 1, ...)
+// with completion state, then a rules screen, then the locally-run test, then
+// a diagnostic results screen. Days work the same way as a topic's day list,
+// so a past test can be reopened and retaken rather than only ever exposing
+// the newest one.
+//
+// The critical detail is the order of operations: the full test is prefetched
+// while the rules screen is on screen, so by the time the user taps Start the
+// whole question set is in client state and the run loop makes no network
+// calls at all. Network latency is therefore never part of what is timed. The
+// one write happens after the test ends.
 //
 // The tests tab is a direct primary destination (position 3 of 6), not a
 // hamburger-menu item, per the navigation skill.
@@ -34,7 +41,7 @@ function accuracyPct(score, count) {
 
 // The rules screen shown before every test. No surprises once the timer is
 // running: the person should know exactly what they are walking into.
-function RulesView({ category, test, testError, loading, onStart, onBack }) {
+function RulesView({ category, day, test, testError, loading, onStart, onBack }) {
   return (
     <main className="screen-in h-dvh overflow-y-auto bg-paper">
       <header className="px-6 pt-[max(2.5rem,env(safe-area-inset-top))]">
@@ -57,6 +64,12 @@ function RulesView({ category, test, testError, loading, onStart, onBack }) {
         <p className="mt-2 max-w-md font-sans text-[15px] leading-relaxed text-muted">
           {category.description}
         </p>
+        {day && (
+          <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.14em]" style={{ color: TESTS_ACCENT }}>
+            test {day.test_index}
+            {day.completed ? " · retake" : ""}
+          </p>
+        )}
       </header>
 
       <section className="mt-6 px-6">
@@ -123,8 +136,13 @@ export function TestsScreen() {
   const [loadError, setLoadError] = useState(null);
 
   const [selectedId, setSelectedId] = useState(null);
-  // pick -> rules -> run -> submitting -> results
+  // pick -> days -> rules -> run -> submitting -> results
   const [phase, setPhase] = useState("pick");
+
+  const [days, setDays] = useState(null);
+  const [daysError, setDaysError] = useState(null);
+  const [selectedDay, setSelectedDay] = useState(null);
+
   const [test, setTest] = useState(null);
   const [testError, setTestError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -154,23 +172,53 @@ export function TestsScreen() {
       }
     : null;
 
-  // Selecting a category starts the prefetch immediately, in parallel with
-  // the rules screen, so the questions are ready before Start is tapped.
-  const chooseCategory = useCallback((id) => {
-    setSelectedId(id);
-    setPhase("rules");
-    setTest(null);
-    setTestError(null);
-    setResult(null);
-    setSubmitError(null);
-    fetchCognitiveTest(id)
-      .then(setTest)
-      .catch((err) => setTestError(err instanceof Error ? err.message : "could not load the test"));
+  const loadDays = useCallback(async (id) => {
+    setDays(null);
+    setDaysError(null);
+    try {
+      setDays(await fetchCognitiveDays(id));
+    } catch (err) {
+      setDaysError(err instanceof Error ? err.message : "could not load these tests");
+      setDays([]);
+    }
   }, []);
+
+  const chooseCategory = useCallback(
+    (id) => {
+      setSelectedId(id);
+      setPhase("days");
+      setSelectedDay(null);
+      setTest(null);
+      setTestError(null);
+      setResult(null);
+      setSubmitError(null);
+      loadDays(id);
+    },
+    [loadDays]
+  );
+
+  // Selecting a day starts the prefetch immediately, in parallel with the
+  // rules screen, so the questions are ready before Start is tapped.
+  const chooseDay = useCallback(
+    (day) => {
+      setSelectedDay(day);
+      setPhase("rules");
+      setTest(null);
+      setTestError(null);
+      setResult(null);
+      setSubmitError(null);
+      fetchCognitiveTest(selectedId, day.test_index)
+        .then(setTest)
+        .catch((err) => setTestError(err instanceof Error ? err.message : "could not load the test"));
+    },
+    [selectedId]
+  );
 
   const backToPicker = useCallback(() => {
     setPhase("pick");
     setSelectedId(null);
+    setDays(null);
+    setSelectedDay(null);
     setTest(null);
     setTestError(null);
     setResult(null);
@@ -178,9 +226,17 @@ export function TestsScreen() {
     loadCategories();
   }, [loadCategories]);
 
-  const retake = useCallback(() => {
-    if (selectedId) chooseCategory(selectedId);
-  }, [selectedId, chooseCategory]);
+  // Back from a test to the category's day list, refreshing it so a just
+  // finished test shows as done.
+  const backToDays = useCallback(() => {
+    setPhase("days");
+    setSelectedDay(null);
+    setTest(null);
+    setTestError(null);
+    setResult(null);
+    setSubmitError(null);
+    if (selectedId) loadDays(selectedId);
+  }, [selectedId, loadDays]);
 
   // The one network write in the whole loop, after the test has ended.
   const handleComplete = useCallback(
@@ -217,7 +273,7 @@ export function TestsScreen() {
         attempt={result.attempt}
         breakdown={result.breakdown}
         trend={result.trend}
-        onRetake={retake}
+        onRetake={backToDays}
         onBack={backToPicker}
       />
     );
@@ -241,19 +297,37 @@ export function TestsScreen() {
   }
 
   if (phase === "run") {
-    return <TestRunner test={test} onComplete={handleComplete} onExit={backToPicker} />;
+    return <TestRunner test={test} onComplete={handleComplete} onExit={backToDays} />;
   }
 
   if (phase === "rules" && selected) {
     return (
       <RulesView
         category={selected}
+        day={selectedDay}
         test={test}
         testError={testError}
         loading={!test}
         onStart={() => {
           if (test) setPhase("run");
         }}
+        onBack={backToDays}
+      />
+    );
+  }
+
+  if (phase === "days" && selected) {
+    const latestIndex = days && days.length > 0
+      ? Math.max(...days.map((d) => d.test_index ?? -1))
+      : null;
+    return (
+      <TestDays
+        category={selected}
+        days={days}
+        error={daysError}
+        loading={!days && !daysError}
+        latestIndex={latestIndex}
+        onSelect={chooseDay}
         onBack={backToPicker}
       />
     );
@@ -285,8 +359,8 @@ export function TestsScreen() {
           Cognitive tests
         </h1>
         <p className="mt-2 max-w-md font-sans text-[15px] leading-relaxed text-muted">
-          Short timed tests scored on both speed and correctness. Pick one category and compare a run
-          against your own past attempts, never against anyone else.
+          Short timed tests scored on both speed and correctness. Pick one category, then any of its
+          days, including ones you have already taken.
         </p>
       </header>
 
@@ -315,21 +389,22 @@ export function TestsScreen() {
                 <span className="font-sans text-[14px] leading-relaxed text-muted">
                   {category.description}
                 </span>
-                {last ? (
-                  <span className="mt-1 flex gap-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                    <span>last {accuracyPct(last.score, last.question_count)}</span>
-                    <span>
-                      pace{" "}
-                      {formatSeconds(
-                        last.question_count ? last.total_time_ms / last.question_count : 0
-                      )}
-                    </span>
+                <span className="mt-1 flex flex-wrap gap-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                  <span>
+                    {category.completed_tests} of {category.total_tests} done
                   </span>
-                ) : (
-                  <span className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                    not taken yet
-                  </span>
-                )}
+                  {last && (
+                    <>
+                      <span>last {accuracyPct(last.score, last.question_count)}</span>
+                      <span>
+                        pace{" "}
+                        {formatSeconds(
+                          last.question_count ? last.total_time_ms / last.question_count : 0
+                        )}
+                      </span>
+                    </>
+                  )}
+                </span>
               </span>
             </button>
           );

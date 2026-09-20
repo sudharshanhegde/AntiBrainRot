@@ -464,3 +464,26 @@ create table if not exists covered_cognitive_questions (
   question_label text not null unique,
   covered_at timestamptz not null default now()
 );
+
+-- Tests are numbered per category, the same way decks are numbered per topic:
+-- Test 0, Test 1, ... in generation order. That number is what lets the module
+-- show a day-by-day list ("Test 3 done, Test 4 available") and lets a past test
+-- be reopened and retaken, instead of only ever exposing the newest one.
+alter table cognitive_tests add column if not exists test_index integer;
+
+-- Backfill existing rows deterministically (oldest first per category) so a
+-- database created before test_index existed converges with no manual work.
+with ranked as (
+  select id, row_number() over (partition by category order by generated_date, id) - 1 as rn
+    from cognitive_tests
+   where test_index is null
+)
+update cognitive_tests t
+   set test_index = r.rn
+  from ranked r
+ where t.id = r.id;
+
+-- One test per index per category. Partial, so rows that predate the backfill
+-- (or any legacy null) can never violate it.
+create unique index if not exists cognitive_tests_category_index_key
+  on cognitive_tests (category, test_index) where test_index is not null;

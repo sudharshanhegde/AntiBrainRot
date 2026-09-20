@@ -199,11 +199,20 @@ async function insertTest(category, questions, generatedDate) {
   try {
     await client.query("begin");
     const { time_limit_ms, skip_penalty_ms } = timeConfigFor(category, questions.length);
+    // Day number: the next free slot in this category (Test 0, Test 1, ...).
+    // Computed inside the transaction so a run that publishes several tests at
+    // once still numbers them in order.
+    const idxRes = await client.query(
+      "select coalesce(max(test_index), -1) + 1 as next_index from cognitive_tests where category = $1",
+      [category]
+    );
+    const testIndex = idxRes.rows[0].next_index;
     const testRes = await client.query(
-      `insert into cognitive_tests (category, generated_date, question_count, time_limit_ms, skip_penalty_ms)
-       values ($1, $2, $3, $4, $5)
+      `insert into cognitive_tests
+         (category, generated_date, question_count, time_limit_ms, skip_penalty_ms, test_index)
+       values ($1, $2, $3, $4, $5, $6)
        returning id`,
-      [category, generatedDate, questions.length, time_limit_ms, skip_penalty_ms]
+      [category, generatedDate, questions.length, time_limit_ms, skip_penalty_ms, testIndex]
     );
     const testId = testRes.rows[0].id;
 
@@ -231,7 +240,7 @@ async function insertTest(category, questions, generatedDate) {
       }
     }
     await client.query("commit");
-    return testId;
+    return { id: testId, test_index: testIndex };
   } catch (err) {
     await client.query("rollback");
     throw err;
@@ -334,10 +343,21 @@ export async function runCognitiveJob({
     }
 
     try {
-      const testId = await insertTest(category, batch.questions, generatedDate);
-      await logRun({ status: "success", reason: `test ${testId} published` });
-      console.log(`[cognitive:${category}] published test ${testId} with ${batch.questions.length} questions`);
-      return { status: "success", category, test_id: testId, questions: batch.questions.length };
+      const published = await insertTest(category, batch.questions, generatedDate);
+      await logRun({
+        status: "success",
+        reason: `test ${published.test_index} (id ${published.id}) published`,
+      });
+      console.log(
+        `[cognitive:${category}] published Test ${published.test_index} (id ${published.id}) with ${batch.questions.length} questions`
+      );
+      return {
+        status: "success",
+        category,
+        test_id: published.id,
+        day: published.test_index,
+        questions: batch.questions.length,
+      };
     } catch (err) {
       lastError = `insert error: ${err.message}`;
       console.error(`[cognitive:${category}] ${lastError}`);
@@ -351,12 +371,26 @@ export async function runCognitiveJob({
 }
 
 // Runs the job for every category, one after another. Used by the daily run.
+// Reports a one-line summary so the daily run output shows what the cognitive
+// module did alongside the deck and Quick Bites results.
 export async function runCognitiveBatchJob(opts = {}) {
   const results = [];
   for (const category of COGNITIVE_CATEGORIES) {
     results.push(await runCognitiveJob({ ...opts, category }));
   }
-  return { status: "ok", results };
+
+  const published = results.filter((r) => r.status === "success");
+  const failed = results.filter((r) => r.status === "failure");
+  const detail = published
+    .map((r) => `${r.category}=day ${r.day} (${r.questions}q)`)
+    .join(", ");
+  console.log(
+    `[cognitive] daily run: ${published.length}/${results.length} categories published` +
+      (detail ? ` [${detail}]` : "") +
+      (failed.length ? ` | failed: ${failed.map((r) => r.category).join(", ")}` : "")
+  );
+
+  return { status: "ok", published: published.length, failed: failed.length, results };
 }
 
 // ---------------------------------------------------------------

@@ -133,18 +133,32 @@ cognitiveRouter.get("/categories", optionalUserId, async (req, res) => {
     );
     const byCategory = new Map(rows.map((r) => [r.category, r]));
 
-    const testRows = await query("select distinct category from cognitive_tests");
-    const withTest = new Set(testRows.rows.map((r) => r.category));
+    // Per-category totals plus how many of those days this user has completed,
+    // so the picker can show "3 of 5 done" without a second round trip.
+    const countRes = await query(
+      `select t.category,
+              count(distinct t.id) as total_tests,
+              count(distinct a.test_id) filter (where a.completed_at is not null) as completed_tests
+         from cognitive_tests t
+         left join cognitive_attempts a
+           on a.test_id = t.id and a.user_id = $1
+        group by t.category`,
+      [userId]
+    );
+    const counts = new Map(countRes.rows.map((r) => [r.category, r]));
 
     res.json({
       status: "ok",
       categories: COGNITIVE_CATEGORIES.map((category) => {
         const last = byCategory.get(category);
+        const c = counts.get(category);
         return {
           id: category,
           label: CATEGORY_LABELS[category],
           description: CATEGORY_DESCRIPTIONS[category],
-          available: withTest.has(category),
+          available: Boolean(c && Number(c.total_tests) > 0),
+          total_tests: c ? Number(c.total_tests) : 0,
+          completed_tests: c ? Number(c.completed_tests) : 0,
           last_attempt: last
             ? {
                 score: last.score,
@@ -163,53 +177,132 @@ cognitiveRouter.get("/categories", optionalUserId, async (req, res) => {
   }
 });
 
+// Loads one test row for a category. A null testIndex means "the newest".
+async function loadTestRow(category, testIndex) {
+  if (testIndex == null) {
+    const { rows } = await query(
+      `select id, category, question_count, time_limit_ms, skip_penalty_ms, test_index
+         from cognitive_tests
+        where category = $1
+        order by test_index desc nulls last, generated_date desc, id desc
+        limit 1`,
+      [category]
+    );
+    return rows[0];
+  }
+  const { rows } = await query(
+    `select id, category, question_count, time_limit_ms, skip_penalty_ms, test_index
+       from cognitive_tests
+      where category = $1 and test_index = $2
+      limit 1`,
+    [category, testIndex]
+  );
+  return rows[0];
+}
+
+// The prefetch payload: the whole test, correct answers excluded.
+async function sendTest(res, test) {
+  const qRes = await query(
+    `select id, order_index, question_text, options_json, difficulty
+       from cognitive_questions
+      where test_id = $1
+      order by order_index asc`,
+    [test.id]
+  );
+  res.json({
+    status: "ok",
+    test: {
+      id: test.id,
+      category: test.category,
+      label: CATEGORY_LABELS[test.category],
+      test_index: test.test_index,
+      day: test.test_index,
+      question_count: test.question_count,
+      time_limit_ms: test.time_limit_ms,
+      skip_penalty_ms: test.skip_penalty_ms,
+      questions: qRes.rows.map(toPublicQuestion),
+    },
+  });
+}
+
 // GET /api/cognitive/tests/:category
-// The most recent published test for the category, questions included and
-// correct answers excluded. This is the single prefetch request the client
-// makes before the timer starts.
+// The newest published test for the category. The single prefetch request the
+// client makes before the timer starts.
 cognitiveRouter.get("/tests/:category", async (req, res) => {
   try {
     const category = String(req.params.category || "");
     if (!isCategory(category)) {
       return res.status(400).json({ error: "unknown category" });
     }
-
-    const testRes = await query(
-      `select id, category, question_count, time_limit_ms, skip_penalty_ms
-         from cognitive_tests
-        where category = $1
-        order by generated_date desc, id desc
-        limit 1`,
-      [category]
-    );
-    const test = testRes.rows[0];
+    const test = await loadTestRow(category, null);
     if (!test) {
       return res.status(404).json({ error: "no test available for this category yet" });
     }
-
-    const qRes = await query(
-      `select id, order_index, question_text, options_json, difficulty
-         from cognitive_questions
-        where test_id = $1
-        order by order_index asc`,
-      [test.id]
-    );
-
-    res.json({
-      status: "ok",
-      test: {
-        id: test.id,
-        category: test.category,
-        label: CATEGORY_LABELS[test.category],
-        question_count: test.question_count,
-        time_limit_ms: test.time_limit_ms,
-        skip_penalty_ms: test.skip_penalty_ms,
-        questions: qRes.rows.map(toPublicQuestion),
-      },
-    });
+    await sendTest(res, test);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "could not load the test" });
+  }
+});
+
+// GET /api/cognitive/tests/:category/:day
+// One specific published test by its day number, so a past test can be opened
+// and retaken exactly as it was generated.
+cognitiveRouter.get("/tests/:category/:day", async (req, res) => {
+  try {
+    const category = String(req.params.category || "");
+    if (!isCategory(category)) {
+      return res.status(400).json({ error: "unknown category" });
+    }
+    const day = Number(req.params.day);
+    if (!Number.isInteger(day) || day < 0) {
+      return res.status(400).json({ error: "invalid day" });
+    }
+    const test = await loadTestRow(category, day);
+    if (!test) return res.status(404).json({ error: "no test for that day" });
+    await sendTest(res, test);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "could not load the test" });
+  }
+});
+
+// GET /api/cognitive/days?category=&user_id=
+// The published tests for a category as numbered days (Test 0, Test 1, ...),
+// each with this user's completion state, so past tests can be reopened and
+// retaken. The same idea as GET /api/days for topic decks.
+cognitiveRouter.get("/days", optionalUserId, async (req, res) => {
+  try {
+    const category = String(req.query.category || "");
+    if (!isCategory(category)) {
+      return res.status(400).json({ error: "unknown category" });
+    }
+    const userId = req.userId || String(req.query.user_id || "");
+    const { rows } = await query(
+      `select t.id, t.test_index, t.generated_date, t.question_count,
+              (select count(*) from cognitive_attempts a
+                where a.test_id = t.id and a.user_id = $2 and a.completed_at is not null) as attempt_count,
+              (select max(a.score) from cognitive_attempts a
+                where a.test_id = t.id and a.user_id = $2 and a.completed_at is not null) as best_score
+         from cognitive_tests t
+        where t.category = $1
+        order by t.test_index nulls last, t.generated_date, t.id`,
+      [category, userId]
+    );
+    const days = rows.map((r) => ({
+      test_id: r.id,
+      test_index: r.test_index,
+      day: r.test_index,
+      generated_date: r.generated_date,
+      question_count: r.question_count,
+      completed: Number(r.attempt_count) > 0,
+      attempt_count: Number(r.attempt_count),
+      best_score: r.best_score,
+    }));
+    res.json({ status: "ok", category, days });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "could not load test days" });
   }
 });
 

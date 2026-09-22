@@ -20,15 +20,18 @@ export function WelcomeGate({ onRegister, onLogin, onGuest }) {
           antibrainrot
         </p>
         <h1 className="mt-4 font-sans text-3xl font-semibold tracking-tight sm:text-4xl">
-          Learn, one card at a time.
+          Learn CS, test yourself, and find your next job.
         </h1>
         <p className="mt-3 font-sans text-[16px] leading-relaxed text-muted">
-          Short, dense lessons with a quiz on every concept. Pick a topic,
-          swipe through a deck, and come back tomorrow for the next day.
+          Quick bites for one idea at a time, day-by-day subject decks with a
+          quiz on every concept, timed tests, and a job board that keeps track
+          of every application you send.
         </p>
 
+        {/* The headline above already says what the app is, so the intro here
+            only carries the account reasoning and the reassurances. */}
         <div className="mt-6">
-          <AuthIntro framed={false} />
+          <AuthIntro framed={false} showOverview={false} />
         </div>
 
         <div className="mt-auto flex flex-col gap-3 pt-8">

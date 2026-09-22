@@ -7,7 +7,7 @@
 // the first-visit gate, so it drops into that screen's minimal layout
 // instead of reading as a boxed-off panel.
 
-export function AuthIntro({ framed = true }) {
+export function AuthIntro({ framed = true, showOverview = true }) {
   return (
     <section
       className={framed ? "rounded-lg border border-hairline bg-panel px-5 py-4" : ""}
@@ -22,11 +22,13 @@ export function AuthIntro({ framed = true }) {
           framed ? "mt-2" : ""
         }`}
       >
-        <p>
-          antibrainrot is a small study app: quick bites for one idea at a
-          time, timed tests, and subject decks you work through a day at a
-          time, each ending in a quiz. None of that needs an account.
-        </p>
+        {showOverview && (
+          <p>
+            antibrainrot is a small study app: quick bites for one idea at a
+            time, timed tests, and subject decks you work through a day at a
+            time, each ending in a quiz. None of that needs an account.
+          </p>
+        )}
         <p>
           An account is only for the jobs side: postings picked for you, and a
           list of what you've applied to. It also keeps your progress, streak,

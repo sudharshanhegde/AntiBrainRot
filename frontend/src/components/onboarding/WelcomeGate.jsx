@@ -1,3 +1,5 @@
+import { AuthIntro } from "../profile/AuthIntro";
+
 // First-visit gate: the one deliberate
 // blocking moment in the app, shown only for genuinely first-time
 // visitors (no active session and no existing guest id). Three equal
@@ -9,7 +11,7 @@ export function WelcomeGate({ onRegister, onLogin, onGuest }) {
     "w-full rounded-lg border border-ink bg-paper px-6 py-3.5 font-sans text-[16px] font-semibold tracking-tight text-ink transition-colors hover:bg-ink hover:text-paper";
 
   return (
-    <main className="screen-in flex h-dvh flex-col bg-paper px-6 pt-[max(4rem,env(safe-area-inset-top))]">
+    <main className="screen-in flex h-dvh flex-col overflow-y-auto bg-paper px-6 pt-[max(4rem,env(safe-area-inset-top))]">
       <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
         antibrainrot
       </p>
@@ -20,6 +22,13 @@ export function WelcomeGate({ onRegister, onLogin, onGuest }) {
         Short, dense lessons with a quiz on every concept. Pick a topic,
         swipe through a deck, and come back tomorrow for the next day.
       </p>
+
+      {/* Why an account, and the reassurance that most of the app stays open
+          without one. Borderless so it slots into this screen's deliberately
+          minimal layout instead of reading as a separate boxed-off panel. */}
+      <div className="mt-6 max-w-md">
+        <AuthIntro framed={false} />
+      </div>
 
       <div className="mt-auto flex flex-col gap-3 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
         <button type="button" onClick={onRegister} className={equalBtn}>

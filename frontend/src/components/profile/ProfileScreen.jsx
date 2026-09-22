@@ -11,6 +11,7 @@ import {
 import { resetToGuest } from "../../api/client";
 import { StreakIndicator } from "../ui/StreakIndicator";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { AuthIntro } from "./AuthIntro";
 import { JobProfileSettings } from "../jobs/JobProfileSettings";
 import { useTheme } from "../../hooks/useTheme";
 
@@ -318,6 +319,11 @@ export function ProfileScreen({ onBack, onDeleted, initialNotice = null, initial
           </>
         ) : (
           <>
+            {/* Why an account: the signed-out profile page is where the
+                login and register forms live, so the reasoning sits above
+                them rather than being assumed. */}
+            <AuthIntro />
+
             {/* Streak while signed out: nothing to count yet. */}
             <section className="flex items-center justify-between rounded-lg border border-hairline bg-paper px-5 py-4">
               <span className="flex flex-col gap-1">

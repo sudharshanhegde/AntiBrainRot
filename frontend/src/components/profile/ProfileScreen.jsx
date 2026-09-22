@@ -144,7 +144,7 @@ export function ProfileScreen({ onBack, onDeleted, initialNotice = null, initial
 
   return (
     <main className="screen-in h-dvh overflow-y-auto bg-paper">
-      <header className="px-6 pt-[max(2.5rem,env(safe-area-inset-top))]">
+      <header className="mx-auto w-full max-w-2xl px-6 pt-[max(2.5rem,env(safe-area-inset-top))]">
         <div className="flex items-baseline justify-between">
           <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
             antibrainrot
@@ -163,12 +163,14 @@ export function ProfileScreen({ onBack, onDeleted, initialNotice = null, initial
       </header>
 
       {notice && (
-        <div className="mx-6 mt-4 flex items-start justify-between gap-3 rounded-lg border border-hairline bg-panel px-4 py-3">
-          <p className="font-sans text-[14px] leading-relaxed text-ink/90">{notice}</p>
+        <div className="mx-auto w-full max-w-2xl px-6">
+          <div className="mt-4 flex items-start justify-between gap-3 rounded-lg border border-hairline bg-panel px-4 py-3">
+            <p className="font-sans text-[14px] leading-relaxed text-ink/90">{notice}</p>
+          </div>
         </div>
       )}
 
-      <div className="mt-6 flex flex-col gap-6 px-6 pb-[calc(max(2.5rem,env(safe-area-inset-bottom))+var(--tabbar-h))]">
+      <div className="mx-auto mt-6 flex w-full max-w-2xl flex-col gap-6 px-6 pb-[calc(max(2.5rem,env(safe-area-inset-bottom))+var(--tabbar-h))]">
         {/* Theme toggle: always available, signed in or out. */}
         <section className="flex items-center justify-between rounded-lg border border-hairline bg-paper px-5 py-4">
           <span className="flex flex-col gap-1">

@@ -34,8 +34,8 @@ export function isTabView(view) {
 // set: a lightning bolt for the quick refresh feed, a briefcase for the
 // job board, a stopwatch for the timed tests, a book for subjects, a
 // checklist for applications, and a person for the profile. Same 24px stroke
-// language as the other chrome icons (e.g. the hamburger), fill none, sized
-// by currentColor.
+// language as the other chrome icons (e.g. the theme toggle), fill none,
+// sized by currentColor.
 function TabIcon({ name, className }) {
   const common = {
     width: 20,

@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { StatusScreen } from "../ui/StatusScreen";
-import { AppMenu } from "../ui/AppMenu";
+import { ThemeToggle } from "../ui/ThemeToggle";
 import { useAuth } from "../../auth/AuthContext";
 import { useSwipeExit } from "../../hooks/useSwipeExit";
-import { useTheme } from "../../hooks/useTheme";
 import {
   fetchJobProfile,
   saveJobProfile,
@@ -308,7 +307,6 @@ function JobProfileForm({ onSave, onBack }) {
 
 // --- A single job card in the feed --------------------------------------
 function JobCard({ job, index, onApply, onFlag, onBack, onOpenProfile, onOpenApplications }) {
-  const { theme, toggleTheme } = useTheme();
   // Auto-extracted details can be off, so the explanation sits behind a small
   // footnote marker and only expands when tapped (keeps the card compact).
   const [showNote, setShowNote] = useState(false);
@@ -325,13 +323,7 @@ function JobCard({ job, index, onApply, onFlag, onBack, onOpenProfile, onOpenApp
     <article className="feed-card flex flex-col" aria-label={`Job ${index + 1}`}>
       <header className="shrink-0 px-5 pt-[max(0.5rem,env(safe-area-inset-top))]">
         <div className="mb-2 flex items-center justify-between">
-          <AppMenu
-            entries={[
-              { label: "My applications", onSelect: onOpenApplications },
-              { label: "Topics", onSelect: onBack },
-              { label: theme === "dark" ? "Dark mode: on" : "Dark mode: off", onSelect: toggleTheme },
-            ]}
-          />
+          <ThemeToggle />
           <button
             type="button"
             onClick={onBack}

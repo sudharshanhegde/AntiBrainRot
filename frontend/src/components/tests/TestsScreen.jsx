@@ -26,7 +26,7 @@ import {
 // one write happens after the test ends.
 //
 // The tests tab is a direct primary destination (position 3 of 6), not a
-// hamburger-menu item, per the navigation skill.
+// secondary menu item, per the navigation skill.
 
 const TESTS_ACCENT = "var(--accent-cog)";
 

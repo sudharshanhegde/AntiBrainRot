@@ -26,8 +26,8 @@ const LEVEL_LABELS = {
 // deck from last_deck_index_completed) and scrolls straight to the card
 // the user was last on, before first paint. As the user scrolls, the
 // position is saved throttled (~1s), reset to 0 automatically when the
-// deck is completed. A hamburger menu in the top chrome opens the days
-// drawer and the profile page.
+// deck is completed. A "days" button in the top-left chrome (where the old
+// hamburger menu used to sit) opens the days drawer.
 export function Feed({
   topicSlug,
   onBack,

@@ -1,8 +1,31 @@
 import { memo } from "react";
 import { CardShell } from "../card/CardShell";
 import { TemplateRenderer } from "../card/TemplateRenderer";
-import { AppMenu } from "../ui/AppMenu";
-import { useTheme } from "../../hooks/useTheme";
+import { ThemeToggle } from "../ui/ThemeToggle";
+
+// Small calendar glyph for the "days" chrome button. When the hamburger
+// menu was retired, its "Days" entry (the only non-obsolete item it still
+// held) moved out here as a direct button in the top-left chrome, where the
+// hamburger icon used to sit. Same 24px stroke language as the rest of the
+// chrome, sized by currentColor.
+function DaysIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M3 10h18M8 2v4M16 2v4" />
+    </svg>
+  );
+}
 
 // Memoized per-card wrapper for the topic feed.
 //
@@ -24,7 +47,6 @@ export const FeedCard = memo(function FeedCard({
   onOpenProfile,
   onOpenDays,
 }) {
-  const { theme, toggleTheme } = useTheme();
   return (
     <CardShell
       topic={topic}
@@ -34,15 +56,18 @@ export const FeedCard = memo(function FeedCard({
       total={total}
       topBar={
         <div className="mb-2 flex items-center justify-between">
-          <AppMenu
-            entries={[
-              { label: "Days", onSelect: onOpenDays },
-              {
-                label: theme === "dark" ? "Dark mode: on" : "Dark mode: off",
-                onSelect: toggleTheme,
-              },
-            ]}
-          />
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onOpenDays}
+              aria-label="Open days"
+              className="flex items-center gap-1.5 p-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            >
+              <DaysIcon />
+              days
+            </button>
+            <ThemeToggle />
+          </div>
           <button
             type="button"
             onClick={onBack}

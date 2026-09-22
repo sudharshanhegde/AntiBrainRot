@@ -1,10 +1,9 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { StatusScreen } from "../ui/StatusScreen";
-import { AppMenu } from "../ui/AppMenu";
+import { ThemeToggle } from "../ui/ThemeToggle";
 import { fetchQuickBites, markBitesSeen } from "../../api/quickBitesService";
 import { useActiveCardIndex } from "../../hooks/useActiveCardIndex";
 import { useSwipeExit } from "../../hooks/useSwipeExit";
-import { useTheme } from "../../hooks/useTheme";
 
 // The Quick Bites feed 
 //
@@ -24,21 +23,12 @@ const QUICK_BITES_ACCENT = "var(--accent-bite)";
 // card changes (for seen-tracking and prefetching), but a bite's own
 // content depends only on its own props, so memoizing keeps the other
 // cards from re-rendering during a scroll, which keeps the feed smooth.
-const QuickBiteCard = memo(function QuickBiteCard({ bite, index, onBack, onOpenProfile }) {
-  const { theme, toggleTheme } = useTheme();
+const QuickBiteCard = memo(function QuickBiteCard({ bite, index, onBack }) {
   return (
     <article className="feed-card flex flex-col" aria-label={`Quick bite ${index + 1}`}>
       <header className="shrink-0 px-5 pt-[max(0.5rem,env(safe-area-inset-top))]">
         <div className="mb-2 flex items-center justify-between">
-          <AppMenu
-            entries={[
-              { label: "Topics", onSelect: onBack },
-              {
-                label: theme === "dark" ? "Dark mode: on" : "Dark mode: off",
-                onSelect: toggleTheme,
-              },
-            ]}
-          />
+          <ThemeToggle />
           <button
             type="button"
             onClick={onBack}

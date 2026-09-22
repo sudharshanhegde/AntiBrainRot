@@ -1,8 +1,8 @@
 import { topicPalette } from "../../data/topics";
 
 // A slide-in drawer listing a topic's days (Day 0, Day 1, ...), opened
-// from the feed's hamburger. Finished days are shown in the sky-blue
-// completion color with a "done" label; every other published day is
+// from the "days" button in the feed's top chrome. Finished days are shown
+// in the sky-blue completion color with a "done" label; every other published day is
 // playable immediately. There is no cooldown and no lock, so every day
 // can be opened directly.
 export function DaysDrawer({ topicSlug, days, onSelect, onClose, onBackToTopics }) {

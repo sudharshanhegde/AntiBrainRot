@@ -23,6 +23,7 @@ const COMMON_RULES = `Hard writing rules, non-negotiable:
 - No em dashes anywhere. No emojis anywhere. Use a period, a comma, or restructure the sentence instead.
 - Every card body must be between 110 and 180 words. Write 130 to 160 words per body, and count them. Never write fewer than 110 words; a body under 100 words fails validation.
 - Explain the mechanism, not just the definition. State what actually happens, step by step.
+- Lead with a relatable, everyday comparison before the technical explanation, then map the comparison onto the real mechanism explicitly instead of leaving the reader to connect it. The comparison must be accurate about how the thing actually works, never merely entertaining. Depth and complexity after the comparison are fine; an unexplained wall of jargon on the first line is not.
 - Titles are specific and name the exact mechanism or structure, not a topic area. Avoid vague titles such as "Why X matters" or "Introduction to X". At most 8 words. Example: "DNS resolves names through a chain of servers".
 - No filler openers such as "in this card we will learn about". Start with the content.
 - Every technical term is either common knowledge for a CS major or explained inline on first use.

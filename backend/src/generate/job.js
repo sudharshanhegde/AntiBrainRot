@@ -44,6 +44,15 @@ const DEFAULT_TARGET_DECKS = Number(process.env.DEFAULT_TARGET_DECKS || 18);
 const DAILY_DECK_BUDGET = Number(process.env.DAILY_DECK_BUDGET || 0);
 const UNLIMITED_DECK_BUDGET = DAILY_DECK_BUDGET <= 0;
 
+// Whether the existing content has been moved later by the one-time
+// migration (see backend/src/jobs/move_existing_content.sql). After it runs,
+// a topic's existing decks all sit at deck_index >= target_decks and the new
+// content fills 0 to target_decks - 1. In that state the generator's next
+// index is the count of decks below target_decks (the new content), not the
+// total deck count, so new decks fill from 0 and the moved content is served
+// afterwards. Leave unset until the migration has been applied.
+const CONTENT_RESCHEDULED = process.env.CONTENT_RESCHEDULED === "1";
+
 // Per-topic deck targets. Deep topics need far more than a few days, so
 // each topic gets a target sized to how long it takes to cover properly.
 // A topic is marked complete only once it reaches its target. Tune these
@@ -192,13 +201,22 @@ export async function syncQueue() {
 
   for (let i = 0; i < lines.length; i++) {
     const slug = lines[i];
+    // Count the decks that make up this topic's new content. Before the
+    // content reschedule that is every deck; after it (CONTENT_RESCHEDULED)
+    // the existing content sits at deck_index >= target_decks, so only the
+    // decks below target_decks count. decks_generated is reconciled to this
+    // on every run so the counter never drifts from what is live and the
+    // next deck generated lands right after the new content.
     const deckCount = await query(
-      "select count(*)::int as n from decks d join topics t on t.id = d.topic_id where t.slug = $1",
+      CONTENT_RESCHEDULED
+        ? `select count(*)::int as n
+             from decks d
+             join topics t on t.id = d.topic_id
+            where t.slug = $1 and d.deck_index < t.target_decks`
+        : "select count(*)::int as n from decks d join topics t on t.id = d.topic_id where t.slug = $1",
       [slug]
     );
-    // Reconcile decks_generated against the actual deck count and the
-    // target on every run so the counter never drifts from what is live.
-    // A topic whose count reached its target is marked complete.
+    // A topic whose new content reached its target is marked complete.
     const target = targetFor(slug);
     await query(
       `insert into topics (slug, name, queue_position, status, decks_generated, target_decks)

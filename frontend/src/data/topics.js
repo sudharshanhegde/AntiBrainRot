@@ -81,6 +81,13 @@ export const topicPalette = {
     blurb:
       "The reasoning, word, and number questions used in aptitude assessments.",
   },
+  "object-oriented-programming": {
+    name: "Object-Oriented Programming",
+    short: "OOP",
+    accent: "accent-oop",
+    blurb:
+      "Classes, inheritance, polymorphism, and the design patterns built on them.",
+  },
 };
 
 // A niche decides which topics appear on the topic list. The content
@@ -102,6 +109,7 @@ export const niches = [
       "network-security",
       "quantitative-aptitude",
       "cognitive-ability",
+      "object-oriented-programming",
     ],
   },
   {
@@ -143,6 +151,7 @@ export const niches = [
       "artificial-intelligence",
       "quantitative-aptitude",
       "cognitive-ability",
+      "object-oriented-programming",
     ],
   },
 ];

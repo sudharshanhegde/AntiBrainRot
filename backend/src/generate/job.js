@@ -76,6 +76,7 @@ const TARGET_BY_SLUG = {
   "system-design": 120,
   "computer-organization-and-architecture": 150,
   "artificial-intelligence": 100,
+  "object-oriented-programming": 100,
   "network-security": 120,
   "network-protocols": 120,
   "quantitative-aptitude": 60,

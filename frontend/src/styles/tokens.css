@@ -31,6 +31,7 @@
   --color-accent-proto: #0E7490; /* deep cyan, network protocols */
   --color-accent-apt: #3730A3; /* deep indigo, numbers and reasoning */
   --color-accent-cog: #475569; /* graphite, reasoning and pattern tests */
+  --color-accent-oop: #8A5A2B; /* copper, object-oriented programming */
 
   /* --- streak flame (SKILL_auth.md) ---
      A dedicated warm accent so the streak indicator reads as one
@@ -98,6 +99,7 @@
   --accent-proto: #0e7490;
   --accent-apt: #3730a3;
   --accent-cog: #475569;
+  --accent-oop: #8a5a2b;
   --accent-flame: #e8590c;
   --accent-complete: #1e88e5;
   --accent-bite: #a16207;
@@ -130,6 +132,7 @@
   --accent-proto: #38bdf8;
   --accent-apt: #818cf8;
   --accent-cog: #a3aab5;
+  --accent-oop: #d9a066;
   --accent-flame: #fb923c;
   --accent-complete: #60a5fa;
   --accent-bite: #eab308;

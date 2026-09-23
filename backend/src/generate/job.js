@@ -2,7 +2,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { query } from "../db.js";
-import { chat, activeKeyCount, keyIndexFor } from "./deepseek.js";
+import { jobChat } from "../jobs/llm.js";
 import { checkDeck } from "./checks.js";
 import {
   buildGenerationMessages,
@@ -21,7 +21,7 @@ import { syncWorthARead } from "./worthARead.js";
 // Each daily run generates one new deck for EVERY topic in the queue
 // that is not yet complete, so every topic advances one deck per day
 // and always has the next deck ready for users. Decks are generated
-// from DeepSeek's own knowledge with a self-check validation pass. On
+// from the model's own knowledge with a self-check validation pass. On
 // success a deck is published in one transaction with its concept
 // labels, decks_generated increments, and the topic is marked complete
 // when it reaches target_decks. Max 2 attempts per deck (one generation
@@ -43,6 +43,17 @@ const DEFAULT_TARGET_DECKS = Number(process.env.DEFAULT_TARGET_DECKS || 18);
 // evenly across topics over time.
 const DAILY_DECK_BUDGET = Number(process.env.DAILY_DECK_BUDGET || 0);
 const UNLIMITED_DECK_BUDGET = DAILY_DECK_BUDGET <= 0;
+
+// Deck generation runs through the Groq-first client (the same one the jobs
+// pipeline and cognitive tests use) so a single rate-limited provider cannot
+// stall a run. A deck is far larger than a job-extraction response, so it
+// asks for its own output bound rather than the small extraction default.
+const DECK_MAX_TOKENS = Number(process.env.DECK_MAX_TOKENS || 6000);
+const DECK_VALIDATION_MAX_TOKENS = Number(process.env.DECK_VALIDATION_MAX_TOKENS || 2000);
+
+function deckChat(messages, opts = {}) {
+  return jobChat(messages, { maxTokens: DECK_MAX_TOKENS, ...opts });
+}
 
 // Whether the existing content has been moved later by the one-time
 // migration (see backend/src/jobs/move_existing_content.sql). After it runs,
@@ -242,15 +253,14 @@ async function generateOneDeck(
   let lastError = "unknown failure";
   const manualQuizzes = await loadManualQuizzes(topicSlug, deckIndex);
 
-  // Multi-key load balancing: each topic is pinned to one API key
-  // (~2 topics per key with 5 keys) so no single key hits its rate limit.
-  console.log(
-    `[generate] ${topicSlug} deck ${deckIndex} assigned to API key ${keyIndexFor(topicSlug) + 1}/${activeKeyCount()}`
-  );
+  // Generation runs through the Groq-first client, which round-robins over its
+  // model pool and keys; a rate-limited model is parked briefly instead of
+  // being hammered into more 429s. The cost cap below still bounds the run.
+  console.log(`[generate] ${topicSlug} deck ${deckIndex} via the Groq-first client`);
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (state.calls >= DAILY_CALL_LIMIT) {
-      const reason = "daily DeepSeek call limit exceeded";
+      const reason = "daily LLM call limit exceeded";
       await logRun({ topicId, topicSlug, deckIndex, status: "aborted", reason, tokens: state.totalTokens });
       sendFailureAlert({ topic_slug: topicSlug, deck_index: deckIndex, reason });
       return { status: "aborted", topic_slug: topicSlug, deck_index: deckIndex, reason };
@@ -267,7 +277,7 @@ async function generateOneDeck(
     let draft;
     try {
       state.calls++;
-      const gen = await chat(messages, { temperature: 0.2, json: true, topic: topicSlug });
+      const gen = await deckChat(messages, { temperature: 0.2, json: true, topic: topicSlug });
       state.totalTokens += gen.tokens;
       draft = JSON.parse(gen.content);
       draft.deck_index = deckIndex;
@@ -293,9 +303,9 @@ async function generateOneDeck(
       continue;
     }
 
-    // Pass 2: LLM validation, separate DeepSeek call with clean context.
+    // Pass 2: LLM validation, separate call with clean context.
     if (state.calls >= DAILY_CALL_LIMIT) {
-      const reason = "daily DeepSeek call limit exceeded";
+      const reason = "daily LLM call limit exceeded";
       await logRun({ topicId, topicSlug, deckIndex, status: "aborted", reason, tokens: state.totalTokens });
       sendFailureAlert({ topic_slug: topicSlug, deck_index: deckIndex, reason });
       return { status: "aborted", topic_slug: topicSlug, deck_index: deckIndex, reason };
@@ -303,9 +313,9 @@ async function generateOneDeck(
     let verdict;
     try {
       state.calls++;
-      const vres = await chat(
+      const vres = await deckChat(
         buildValidationMessages(topicSlug, deckIndex, draft, coveredConcepts, priorTitles, sources),
-        { temperature: 0, json: true, topic: topicSlug }
+        { temperature: 0, json: true, topic: topicSlug, maxTokens: DECK_VALIDATION_MAX_TOKENS }
       );
       state.totalTokens += vres.tokens;
       verdict = JSON.parse(vres.content);

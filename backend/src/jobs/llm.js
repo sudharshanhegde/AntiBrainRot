@@ -3,9 +3,10 @@ import { chat as sharedChat } from "../generate/deepseek.js";
 
 // Jobs-only LLM client.
 //
-// The job extraction job is kept separate from the topic-deck generation pool
-// so each can use its own provider/keys and neither starves the other.
-// Deck generation and Quick Bites keep using DeepSeek untouched.
+// The job extraction job keeps its own key pool so the modules never starve
+// each other. Deck generation, Quick Bites, and cognitive tests all reuse this
+// Groq-first client through jobChat (each with its own output bound), so a
+// rate-limited provider parks briefly instead of failing the run outright.
 //
 // PROVIDER ORDER for job extraction:
 //   1. Groq (default). A single key (GROQ_API_KEY); Groq rate-limits per

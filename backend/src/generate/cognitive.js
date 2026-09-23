@@ -1,5 +1,5 @@
 import { pool, query } from "../db.js";
-import { jobChat } from "../jobs/llm.js";
+import { jobChat, GROQ_CONTENT_MODELS } from "../jobs/llm.js";
 import { EM_DASH_RE, EMOJI_RE } from "./checks.js";
 import { verifyCognitiveQuestion } from "./cognitiveVerification.js";
 import {
@@ -52,7 +52,11 @@ const COGNITIVE_MAX_TOKENS = Number(process.env.COGNITIVE_MAX_TOKENS || 3000);
 const MIN_KEPT_RATIO = 0.6;
 
 function cognitiveChat(messages, opts = {}) {
-  return jobChat(messages, { ...opts, maxTokens: COGNITIVE_MAX_TOKENS });
+  return jobChat(messages, {
+    ...opts,
+    maxTokens: COGNITIVE_MAX_TOKENS,
+    models: GROQ_CONTENT_MODELS,
+  });
 }
 
 // Per-question time budget, one entry per category. This is the tunable

@@ -1,5 +1,5 @@
 import { pool, query } from "../db.js";
-import { jobChat } from "../jobs/llm.js";
+import { chat } from "./deepseek.js";
 import { checkQuickBites } from "./checks.js";
 import {
   buildQuickBitesGenerationMessages,
@@ -32,23 +32,6 @@ const PER_CALL = 20;
 // default now, so it runs at the production volume. Override with
 // QUICK_BITES_BATCH_SIZE to tune.
 const DEFAULT_BATCH = Number(process.env.QUICK_BITES_BATCH_SIZE || 80);
-
-// Quick Bites run through the Groq-first client (the same one the jobs
-// pipeline and cognitive tests use): it round-robins over a pool of Groq
-// models and keys, parks rate-limited models in a short cooldown instead of
-// hammering them into 429s, and falls back to the job key pool then the
-// shared content client when Groq is unconfigured or every model is down.
-// Generation used to go straight to the shared Gemini/DeepSeek client, which
-// surfaced provider 429s as outright failures.
-//
-// A sub-batch is far larger than a job-extraction response, so it asks for
-// its own output bound rather than the small extraction default. Raise it
-// alongside PER_CALL if completions truncate.
-const QUICK_BITES_MAX_TOKENS = Number(process.env.QUICK_BITES_MAX_TOKENS || 3000);
-
-function quickBitesChat(messages, opts = {}) {
-  return jobChat(messages, { ...opts, maxTokens: QUICK_BITES_MAX_TOKENS });
-}
 
 // Scheduling anchors to IST like the rest of the pipeline, so
 // generated_date matches the product timezone.
@@ -109,7 +92,7 @@ async function generateOneChunk(count, coveredLabels, state, dryRun) {
     let batch;
     try {
       state.calls++;
-      const gen = await quickBitesChat(
+      const gen = await chat(
         buildQuickBitesGenerationMessages(count, coveredLabels),
         { temperature: 0.7, json: true, topic: "quick-bites" }
       );
@@ -136,7 +119,7 @@ async function generateOneChunk(count, coveredLabels, state, dryRun) {
     let verdict;
     try {
       state.calls++;
-      const vres = await quickBitesChat(
+      const vres = await chat(
         buildQuickBitesValidationMessages(batch, coveredLabels),
         { temperature: 0, json: true, topic: "quick-bites" }
       );

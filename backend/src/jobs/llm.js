@@ -4,9 +4,10 @@ import { chat as sharedChat } from "../generate/deepseek.js";
 // Jobs-only LLM client.
 //
 // The job extraction job keeps its own key pool so the modules never starve
-// each other. Deck generation, Quick Bites, and cognitive tests all reuse this
-// Groq-first client through jobChat (each with its own output bound), so a
-// rate-limited provider parks briefly instead of failing the run outright.
+// each other. Deck generation and cognitive tests reuse this Groq-first client
+// through jobChat (each with its own output bound), so a rate-limited provider
+// parks briefly instead of failing the run outright. Quick Bites deliberately
+// stays on the shared Gemini/DeepSeek client.
 //
 // PROVIDER ORDER for job extraction:
 //   1. Groq (default). A single key (GROQ_API_KEY); Groq rate-limits per
@@ -42,10 +43,24 @@ function collectGroqKeys() {
 // Extraction model pool (per key). Each (key, model) pair is an independent
 // rate budget, so every pair is treated as its own endpoint. Override with
 // GROQ_EXTRACT_MODELS (comma-separated). gpt-oss-safeguard-20b is deliberately
-// not here (specialized safety classifier, not a general extractor).
+// not here (specialized safety classifier, not a general extractor), and a
+// model the account does not have (a 404) is dropped as soon as it is seen.
 const GROQ_EXTRACT_MODELS = (
   process.env.GROQ_EXTRACT_MODELS ||
-  "openai/gpt-oss-20b,qwen/qwen3.6-27b,qwen/qwen3.8-27b,openai/gpt-oss-120b"
+  "openai/gpt-oss-20b,qwen/qwen3.8-27b,openai/gpt-oss-120b"
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+// Content model pool for deck generation, Quick Bites, and cognitive tests.
+// These outputs carry a strict word/shape requirement (a 110-180 word card, a
+// 40-60 word bite) that the small extraction-oriented models do not reliably
+// meet, so content favors the larger models in the pool. Override with
+// GROQ_CONTENT_MODELS (comma-separated).
+export const GROQ_CONTENT_MODELS = (
+  process.env.GROQ_CONTENT_MODELS ||
+  "openai/gpt-oss-120b,qwen/qwen3.8-27b"
 )
   .split(",")
   .map((s) => s.trim())
@@ -114,12 +129,12 @@ function isRetryableRateLimit(err) {
   );
 }
 
-// The full set of (key, model) endpoints.
-function buildEndpoints() {
+// The full set of (key, model) endpoints for the given model pool.
+function buildEndpoints(models = GROQ_EXTRACT_MODELS) {
   const keys = collectGroqKeys();
   const eps = [];
   for (let k = 0; k < keys.length; k++) {
-    for (const model of GROQ_EXTRACT_MODELS) {
+    for (const model of models) {
       eps.push({ id: `${k}::${model}`, key: keys[k], model });
     }
   }
@@ -169,7 +184,8 @@ async function endpointChat(apiKey, model, messages, opts = {}) {
 let rr = 0;
 async function groqExtraction(messages, opts) {
   const now = Date.now();
-  const eps = buildEndpoints();
+  const models = opts?.models?.length ? opts.models : GROQ_EXTRACT_MODELS;
+  const eps = buildEndpoints(models);
   const available = eps.filter(
     (e) => !exhausted.has(e.id) && !keyDailyOut.has(e.key) && now >= (cooldownUntil.get(e.id) || 0)
   );
@@ -190,6 +206,20 @@ async function groqExtraction(messages, opts) {
   try {
     return await endpointChat(ep.key, ep.model, messages, opts);
   } catch (err) {
+    const status = err?.status;
+    const msg = err?.message || "";
+    if (status === 413 || /request too large/i.test(msg)) {
+      // The prompt exceeds this endpoint's per-minute token budget, which will
+      // not change for the rest of the run, so retire it instead of retrying.
+      exhausted.add(ep.id);
+      return groqExtraction(messages, opts);
+    }
+    if (status === 404 || /does not exist|not have access/i.test(msg)) {
+      // A model that is missing, or not granted to this account, will always
+      // 404; retire it for the run instead of failing every call.
+      exhausted.add(ep.id);
+      return groqExtraction(messages, opts);
+    }
     if (!(err && (err.status === 429 || isRetryableRateLimit(err)))) throw err;
     const after = err?.headers?.get?.("retry-after");
     const afterSec = after ? Math.max(Number(after) || 1, 1) : 0;

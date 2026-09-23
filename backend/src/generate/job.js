@@ -2,7 +2,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { query } from "../db.js";
-import { jobChat } from "../jobs/llm.js";
+import { jobChat, GROQ_CONTENT_MODELS } from "../jobs/llm.js";
 import { checkDeck } from "./checks.js";
 import {
   buildGenerationMessages,
@@ -52,7 +52,7 @@ const DECK_MAX_TOKENS = Number(process.env.DECK_MAX_TOKENS || 6000);
 const DECK_VALIDATION_MAX_TOKENS = Number(process.env.DECK_VALIDATION_MAX_TOKENS || 2000);
 
 function deckChat(messages, opts = {}) {
-  return jobChat(messages, { maxTokens: DECK_MAX_TOKENS, ...opts });
+  return jobChat(messages, { maxTokens: DECK_MAX_TOKENS, models: GROQ_CONTENT_MODELS, ...opts });
 }
 
 // Whether the existing content has been moved later by the one-time

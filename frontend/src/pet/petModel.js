@@ -69,14 +69,17 @@ export function moodOf(stats) {
   return "content";
 }
 
-// Short, warm lines keyed by mood. Never shaming: the pet asks for a
-// little reading, it does not scold.
+// Short, warm, punny lines keyed by mood. Never shaming: the pet asks for
+// a little reading, it does not scold. Kept species-neutral so all four
+// animals read correctly, and free of em dashes and emoji to match the
+// app's copy rules.
 export const MOOD_COPY = {
-  happy: (name) => `${name} is thriving. Keep it up.`,
-  content: (name) => `${name} is doing okay. A little reading goes far.`,
-  hungry: (name) => `${name} is getting hungry. Read a few slides to feed them.`,
-  sick: (name) => `${name} feels sick. Read something today to nurse them back.`,
-  away: (name) => `${name} is waiting for you.`,
+  happy: (name) => `${name} is tail-waggingly happy. Keep the pages turning.`,
+  content: (name) => `${name} is doing fine. A little reading goes a long way.`,
+  hungry: (name) => `${name} is hungry. Feed me some knowledge?`,
+  sick: (name) =>
+    `${name} feels under the weather. A few slides would be just the medicine.`,
+  away: (name) => `${name} is waiting. Do not leave me on read.`,
 };
 
 // Whole feeds reached for a given count of slides read today.
@@ -84,17 +87,17 @@ export function feedCount(cardsToday) {
   return Math.floor((cardsToday || 0) / FEED_EVERY);
 }
 
-// The lines shown when the pet is fed, every FEED_EVERY slides. They
+// The punny lines shown when the pet is fed, every FEED_EVERY slides. They
 // escalate by feed number so each milestone in a day reads as progress
 // rather than a repeat: the first thanks you, the later ones cheer you
 // on. Index is the zero-based feed number for the day.
 export const FEED_LINES = [
-  "You fed me — thanks! Want to keep going?",
-  "I'm happy! You can go further.",
-  "Look at me glow. A few more slides?",
-  "You're on a roll — I'm loving this.",
-  "Another snack! Keep the streak alive.",
-  "I feel stronger. Ready for more?",
+  "You fed me. Thanks! Want to keep going?",
+  "I'm happy! You're a real page-turner.",
+  "Feeling sharp. On to the next chapter?",
+  "You're on a roll. Well, a scroll.",
+  "Another snack! Curiosity fed the cat.",
+  "I feel stronger. No bones about it, keep reading.",
 ];
 
 export function feedMessage(feedNumber = 0) {

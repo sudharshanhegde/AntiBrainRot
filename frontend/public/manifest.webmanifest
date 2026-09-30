@@ -1,0 +1,15 @@
+{
+  "name": "AntiBrainRot",
+  "short_name": "AntiBrainRot",
+  "description": "Learn computer science with short lessons, day-by-day subject decks and quizzes, timed recall tests, and a job board that tracks your applications.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F3F2EC",
+  "theme_color": "#F3F2EC",
+  "icons": [
+    { "src": "/brand/favicon-32.png", "sizes": "32x32", "type": "image/png" },
+    { "src": "/brand/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/brand/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

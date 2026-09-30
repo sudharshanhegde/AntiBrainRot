@@ -5,6 +5,7 @@ import "./index.css";
 import App from "./App";
 import { AuthProvider } from "./auth/AuthContext";
 import { PetProvider } from "./pet/PetContext";
+import { registerServiceWorker } from "./api/notifications";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
@@ -20,3 +21,8 @@ createRoot(document.getElementById("root")).render(
     </AuthProvider>
   </StrictMode>
 );
+
+// Register the push service worker on load (idempotent). Best-effort:
+// unsupported browsers and registration failures are ignored, since push
+// is optional and never blocks the app.
+registerServiceWorker();

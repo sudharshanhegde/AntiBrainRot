@@ -55,6 +55,7 @@ teaches you something real, then the next one.
 | [`backend/`](backend)                  | The Express API: topics, feed, progress, auth, leaderboard. |
 | [`pipeline/`](pipeline)                | Offline content generation and validation.         |
 | `.github/workflows/daily-generate.yml` | Daily trigger that calls the backend generate API. |
+| `.github/workflows/daily-notify.yml`   | Daily trigger that sends reading-reminder push notifications. |
 
 The database schema lives in [`backend/src/schema.sql`](backend/src/schema.sql)
 and is idempotent (safe to re-apply).
@@ -125,6 +126,9 @@ Backend environment variables (`backend/.env`):
 | `CORS_ORIGIN` | Frontend origin(s) allowed to call the API |
 | `SUPABASE_SERVICE_ROLE_KEY` | Optional; required only for account deletion |
 | `QUICK_BITES_BATCH_SIZE` | Quick Bites per daily run (default 10; scale to 80 once the loop works) |
+| `VAPID_PUBLIC_KEY` | Web Push public key for daily reading reminders |
+| `VAPID_PRIVATE_KEY` | Web Push private key for daily reading reminders |
+| `NOTIFY_SECRET` | Optional; protects `POST /api/notifications/daily` (falls back to `GENERATION_SECRET`) |
 
 ### 3. Frontend
 
@@ -142,6 +146,7 @@ Frontend environment variables (`frontend/.env`):
 | `VITE_API_URL` | Base URL of the backend API |
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase public anon key |
+| `VITE_VAPID_PUBLIC_KEY` | Web Push public key for the daily-reminder toggle |
 
 Set `VITE_USE_MOCK=true` to serve local placeholder decks without a running
 backend.
@@ -186,6 +191,13 @@ email/password as a fallback. One-time configuration:
 
 - The frontend deploys to Vercel and the backend to Render. Set the
   environment variables listed above in each platform's settings.
+- Daily reading reminders are sent by a second GitHub Actions workflow
+  (`daily-notify.yml`), which calls `POST /api/notifications/daily` at
+  18:00 IST. It only reaches signed-in users who enabled the reminder and
+  have not completed a deck that day. Generate the VAPID keypair once with
+  `npx web-push generate-vapid-keys` and set the public key on the
+  frontend (`VITE_VAPID_PUBLIC_KEY`) and both keys on the backend. iOS
+  Safari delivers these only when the app is installed to the Home Screen.
 - The `daily-generate` GitHub Actions workflow calls the backend's
   `/api/generate` endpoint once a day at 10:30 UTC (16:00 IST), after the
   main usage peaks. The backend enforces a once-per-day guard and refuses

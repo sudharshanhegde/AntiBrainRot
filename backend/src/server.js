@@ -14,6 +14,7 @@ import { quickBitesRouter } from "./routes/quickBites.js";
 import { worthAReadRouter } from "./routes/worthARead.js";
 import { jobsRouter } from "./routes/jobs.js";
 import { cognitiveRouter } from "./routes/cognitive.js";
+import { notificationsRouter } from "./routes/notifications.js";
 import { syncQueue } from "./generate/job.js";
 import { ensureCognitiveSeed } from "./generate/cognitive.js";
 import { syncWorthARead } from "./generate/worthARead.js";
@@ -61,6 +62,7 @@ app.use("/api/quick-bites", quickBitesRouter);
 app.use("/api", worthAReadRouter);
 app.use("/api/jobs", jobsRouter);
 app.use("/api/cognitive", cognitiveRouter);
+app.use("/api/notifications", notificationsRouter);
 
 const port = Number(process.env.PORT) || 4000;
 

@@ -1,0 +1,38 @@
+
+# Runs once every day and asks the deployed backend to send the daily
+# reading-reminder push notification. Mirrors daily-generate.yml: the
+# schedule lives in GitHub Actions so it is decoupled from the backend's
+# request path.
+#
+# Schedule: 12:30 UTC every day = 18:00 IST (6:00 PM), an evening nudge
+# for users who have not read a deck that day yet. The backend only sends
+# to subscribed, signed-in users with no deck completed today, so a run is
+# a no-op for anyone who already studied.
+#
+# The endpoint is protected by a shared secret (NOTIFY_SECRET, falling
+# back to GENERATION_SECRET). To send on demand:
+#   curl -X POST "https://antibrainrot-cce1.onrender.com/api/notifications/daily" \
+#     -H "Authorization: Bearer <NOTIFY_SECRET>"
+
+name: daily-notify
+
+on:
+  schedule:
+    - cron: "30 12 * * *" # daily at 12:30 UTC = 18:00 IST
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger daily reminders
+        run: |
+          code=$(curl -s -o /tmp/notify_response.json -w "%{http_code}" \
+            -X POST https://antibrainrot-cce1.onrender.com/api/notifications/daily \
+            -H "Authorization: Bearer ${{ secrets.NOTIFY_SECRET || secrets.GENERATION_SECRET }}" \
+            -H "Content-Type: application/json")
+          echo "notifications endpoint responded with HTTP $code"
+          if [ "$code" -ne 200 ]; then
+            cat /tmp/notify_response.json
+            exit 1
+          fi
+          cat /tmp/notify_response.json

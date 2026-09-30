@@ -518,3 +518,24 @@ update cognitive_tests t
 -- (or any legacy null) can never violate it.
 create unique index if not exists cognitive_tests_category_index_key
   on cognitive_tests (category, test_index) where test_index is not null;
+
+-- ============================================================
+-- Web Push (daily reading reminders)
+-- ============================================================
+-- One row per browser/device on which a signed-in user enabled daily
+-- reminders. endpoint is the push service URL and is unique, so the same
+-- browser re-subscribing updates its row instead of adding one. The row
+-- cascades away with the user account; it is also deleted outright when
+-- the push service reports the subscription gone (HTTP 404/410), which is
+-- how dead devices are pruned without any polling.
+create table if not exists push_subscriptions (
+  id serial primary key,
+  user_id text not null references users(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now()
+);
+create index if not exists push_subscriptions_user_idx
+  on push_subscriptions (user_id);

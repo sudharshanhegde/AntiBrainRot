@@ -13,6 +13,7 @@ import { StreakIndicator } from "../ui/StreakIndicator";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { AuthIntro } from "./AuthIntro";
 import { JobProfileSettings } from "../jobs/JobProfileSettings";
+import { NotificationSettings } from "./NotificationSettings";
 import { PetCard } from "../pet/PetCard";
 import { usePet } from "../../pet/PetContext";
 import { useTheme } from "../../hooks/useTheme";
@@ -300,6 +301,9 @@ export function ProfileScreen({ onBack, onDeleted, initialNotice = null, initial
                 sign out
               </button>
             </section>
+
+            {/* Daily push reminder: per-browser, signed-in only. */}
+            <NotificationSettings />
 
             {/* Job matching profile: shows the saved selections and lets the
                 user edit them (experience and graduation year change over

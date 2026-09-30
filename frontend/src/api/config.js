@@ -14,3 +14,8 @@ export const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 // Supabase Auth config (Google + email/password sign-in).
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
 export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+
+// Web Push config: the VAPID public key (from `npx web-push
+// generate-vapid-keys` in backend/). Without it the daily-reminder toggle
+// is unavailable; the key is public and safe to ship in the bundle.
+export const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || "";

@@ -10,6 +10,9 @@ const KEY = "antibrainrot:pet";
 // Once the adoption prompt has been shown and dismissed (or acted on),
 // this records it so it is never shown again for this browser.
 const PROMPT_KEY = "antibrainrot:pet_prompted";
+// Whether the user chose to hide the floating companion on the reading
+// screens. Per browser, like the pet itself.
+const HIDDEN_KEY = "antibrainrot:pet_hidden";
 
 function read() {
   try {
@@ -40,8 +43,31 @@ export function clearPet() {
   try {
     localStorage.removeItem(KEY);
     localStorage.removeItem(PROMPT_KEY);
+    localStorage.removeItem(HIDDEN_KEY);
   } catch {
     // storage unavailable; nothing to clear
+  }
+}
+
+// Whether the floating companion is hidden on the reading screens. Hiding
+// only affects the feeds; the pet and its stats stay in the Profile card.
+export function isPetHidden() {
+  try {
+    return localStorage.getItem(HIDDEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setPetHidden(hidden) {
+  try {
+    if (hidden) {
+      localStorage.setItem(HIDDEN_KEY, "1");
+    } else {
+      localStorage.removeItem(HIDDEN_KEY);
+    }
+  } catch {
+    // storage unavailable; the choice is lost but the session works
   }
 }
 

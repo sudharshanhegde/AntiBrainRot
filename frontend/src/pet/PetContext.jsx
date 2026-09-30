@@ -14,8 +14,10 @@ import {
   applyRead,
   clearPet,
   hasPetPrompted,
+  isPetHidden,
   loadPet,
   markPetPrompted,
+  setPetHidden,
 } from "../api/pet";
 import { computeStats, feedMessage, moodOf } from "./petModel";
 
@@ -37,6 +39,8 @@ export function PetProvider({ children }) {
   // Whether the one-time adoption invitation has been shown and answered
   // (adopted or dismissed) in this browser.
   const [prompted, setPrompted] = useState(() => hasPetPrompted());
+  // Whether the floating companion is hidden on the reading screens.
+  const [hidden, setHidden] = useState(() => isPetHidden());
 
   useEffect(() => {
     const id = setInterval(() => setToday(localDateString()), 60 * 1000);
@@ -54,6 +58,18 @@ export function PetProvider({ children }) {
   const dismissPrompt = useCallback(() => {
     markPetPrompted();
     setPrompted(true);
+  }, []);
+
+  // Hides / shows the floating companion on the reading screens. The pet
+  // itself (and the Profile card) are unaffected; the choice persists.
+  const hideCompanion = useCallback(() => {
+    setPetHidden(true);
+    setHidden(true);
+  }, []);
+
+  const showCompanion = useCallback(() => {
+    setPetHidden(false);
+    setHidden(false);
   }, []);
 
   // Called once per new slide the user actually views. applyRead advances
@@ -84,6 +100,7 @@ export function PetProvider({ children }) {
     setPet(null);
     setFeedEvent(null);
     setPrompted(false);
+    setHidden(false);
   }, []);
 
   const stats = useMemo(
@@ -105,10 +122,13 @@ export function PetProvider({ children }) {
       today,
       feedEvent,
       shouldPrompt,
+      hidden,
       adopt,
       recordRead,
       dismissFeedEvent,
       dismissPrompt,
+      hideCompanion,
+      showCompanion,
       resetPet,
     }),
     [
@@ -118,10 +138,13 @@ export function PetProvider({ children }) {
       today,
       feedEvent,
       shouldPrompt,
+      hidden,
       adopt,
       recordRead,
       dismissFeedEvent,
       dismissPrompt,
+      hideCompanion,
+      showCompanion,
       resetPet,
     ]
   );

@@ -17,10 +17,10 @@ const MOOD_COLOR = {
 // compact panel with the pet's name, a mood line, and its stats. It never
 // covers the card body, and renders nothing until a pet is adopted.
 export function PetCompanion() {
-  const { pet, stats, mood } = usePet();
+  const { pet, stats, mood, hidden, hideCompanion } = usePet();
   const [open, setOpen] = useState(false);
 
-  if (!pet) return null;
+  if (!pet || hidden) return null;
   const color = MOOD_COLOR[mood] || "var(--accent-pet)";
 
   return (
@@ -54,20 +54,42 @@ export function PetCompanion() {
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-label={`${pet.name}, ${mood}`}
-        className="ml-auto flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 bg-panel shadow-md transition-transform hover:scale-105"
-        style={{ borderColor: color }}
-      >
-        <PetArt
-          type={pet.type}
-          title={petLabel(pet.type)}
-          className="h-11 w-11"
-        />
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={hideCompanion}
+          aria-label={`Hide ${pet.name} while reading`}
+          title="Hide while reading"
+          className="flex h-7 w-7 items-center justify-center rounded-full border border-hairline bg-paper text-muted shadow-sm transition-colors hover:text-ink"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-label={`${pet.name}, ${mood}`}
+          className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 bg-panel shadow-md transition-transform hover:scale-105"
+          style={{ borderColor: color }}
+        >
+          <PetArt
+            type={pet.type}
+            title={petLabel(pet.type)}
+            className="h-11 w-11"
+          />
+        </button>
+      </div>
     </div>
   );
 }

@@ -8,7 +8,7 @@ import { PetStatBar } from "./PetStatBar";
 // adoption picker when there is none yet. Local-only (api/pet.js), so it
 // renders for guests and signed-in users alike.
 export function PetCard() {
-  const { pet, stats, mood, adopt } = usePet();
+  const { pet, stats, mood, hidden, adopt, hideCompanion, showCompanion } = usePet();
 
   if (!pet) return <AdoptPet onAdopt={adopt} />;
 
@@ -63,6 +63,32 @@ export function PetCard() {
       <div className="mt-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
         <span>care streak {pet.streak}</span>
         <span>{stats.cardsToday} slides today</span>
+      </div>
+
+      {/* Companion visibility. Hiding it keeps it off the reading screens;
+          the pet and its stats stay right here. */}
+      <div className="mt-4 flex items-center justify-between gap-4">
+        <span className="font-sans text-[13px] leading-relaxed text-muted">
+          Show on the reading screens
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={!hidden}
+          aria-label="Show pet on the reading screens"
+          onClick={() => (hidden ? showCompanion() : hideCompanion())}
+          className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors ${
+            hidden
+              ? "border-hairline bg-panel"
+              : "border-accent-complete bg-accent-complete"
+          }`}
+        >
+          <span
+            className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-paper transition-all ${
+              hidden ? "left-1" : "left-[calc(100%-1.25rem)]"
+            }`}
+          />
+        </button>
       </div>
     </section>
   );

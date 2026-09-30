@@ -1,12 +1,8 @@
-import { useState } from "react";
 import { usePet } from "../../pet/PetContext";
-import { MOOD_COPY, PET_TYPES, petLabel } from "../../pet/petModel";
+import { MOOD_COPY, petLabel } from "../../pet/petModel";
+import { PetAdoptForm } from "./PetAdoptForm";
 import { PetArt } from "./PetArt";
 import { PetStatBar } from "./PetStatBar";
-
-// Primary action button, matching the profile screen's register language.
-const PRIMARY_BTN =
-  "w-full rounded-lg border border-accent-complete bg-accent-complete px-6 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-paper transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
 
 // The profile screen's pet: the adopted companion with its stats, or the
 // adoption picker when there is none yet. Local-only (api/pet.js), so it
@@ -83,12 +79,9 @@ function StatRow({ label, value, warning, danger, inverse }) {
   );
 }
 
-// The adoption picker: choose one of the four animals the tamagotchi
-// project ships artwork for, give it a name, and it is yours.
+// The adoption picker, shown when there is no pet yet: the same form the
+// first-run prompt uses.
 function AdoptPet({ onAdopt }) {
-  const [type, setType] = useState(PET_TYPES[0]);
-  const [name, setName] = useState("");
-
   return (
     <section className="rounded-lg border border-hairline bg-paper px-5 py-4">
       <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
@@ -99,52 +92,7 @@ function AdoptPet({ onAdopt }) {
         you go quiet.
       </p>
 
-      <div className="mt-4 grid grid-cols-4 gap-2">
-        {PET_TYPES.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setType(t)}
-            aria-pressed={type === t}
-            aria-label={petLabel(t)}
-            className="flex flex-col items-center gap-1 rounded-lg border p-2 transition-colors"
-            style={{
-              borderColor:
-                type === t ? "var(--accent-pet)" : "var(--color-hairline)",
-            }}
-          >
-            <PetArt
-              type={t}
-              className="h-10 w-10"
-              style={t === type ? undefined : { opacity: 0.5 }}
-            />
-            <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted">
-              {petLabel(t)}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <label className="mt-4 flex flex-col gap-1">
-        <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-          name
-        </span>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={petLabel(type)}
-          maxLength={24}
-          className="rounded-lg border border-hairline bg-paper px-4 py-2.5 font-sans text-[15px] text-ink outline-none transition-colors focus:border-ink"
-        />
-      </label>
-
-      <button
-        type="button"
-        onClick={() => onAdopt(type, name)}
-        className={`${PRIMARY_BTN} mt-4`}
-      >
-        adopt
-      </button>
+      <PetAdoptForm onAdopt={onAdopt} />
     </section>
   );
 }

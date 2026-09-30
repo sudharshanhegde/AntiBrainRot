@@ -100,6 +100,7 @@ export function resetToGuest() {
     localStorage.removeItem("antibrainrot:progress");
     localStorage.removeItem("antibrainrot:quiz_answers");
     localStorage.removeItem("antibrainrot:pet");
+    localStorage.removeItem("antibrainrot:pet_prompted");
   } catch {
     // storage unavailable; nothing to clear
   }

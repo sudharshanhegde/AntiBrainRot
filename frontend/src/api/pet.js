@@ -7,6 +7,9 @@ import { PET_TYPES, daysBetween, feedCount, petLabel } from "../pet/petModel";
 // (applyRead) is the only thing that advances the pet.
 
 const KEY = "antibrainrot:pet";
+// Once the adoption prompt has been shown and dismissed (or acted on),
+// this records it so it is never shown again for this browser.
+const PROMPT_KEY = "antibrainrot:pet_prompted";
 
 function read() {
   try {
@@ -36,8 +39,27 @@ export function loadPet() {
 export function clearPet() {
   try {
     localStorage.removeItem(KEY);
+    localStorage.removeItem(PROMPT_KEY);
   } catch {
     // storage unavailable; nothing to clear
+  }
+}
+
+// Whether the one-time adoption prompt has already been shown to this
+// browser, so a user who declined it is not asked again on every load.
+export function hasPetPrompted() {
+  try {
+    return localStorage.getItem(PROMPT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function markPetPrompted() {
+  try {
+    localStorage.setItem(PROMPT_KEY, "1");
+  } catch {
+    // storage unavailable; the prompt may show again, acceptable
   }
 }
 

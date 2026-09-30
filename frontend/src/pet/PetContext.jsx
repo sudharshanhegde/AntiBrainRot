@@ -9,7 +9,14 @@ import {
 } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { localDateString } from "../api/auth";
-import { adoptPet, applyRead, clearPet, loadPet } from "../api/pet";
+import {
+  adoptPet,
+  applyRead,
+  clearPet,
+  hasPetPrompted,
+  loadPet,
+  markPetPrompted,
+} from "../api/pet";
 import { computeStats, feedMessage, moodOf } from "./petModel";
 
 // The virtual pet, the same guest-first shape as the rest of the app: the
@@ -27,6 +34,9 @@ export function PetProvider({ children }) {
   const [today, setToday] = useState(() => localDateString());
   // The latest "you fed me" event, consumed by the toast. null when none.
   const [feedEvent, setFeedEvent] = useState(null);
+  // Whether the one-time adoption invitation has been shown and answered
+  // (adopted or dismissed) in this browser.
+  const [prompted, setPrompted] = useState(() => hasPetPrompted());
 
   useEffect(() => {
     const id = setInterval(() => setToday(localDateString()), 60 * 1000);
@@ -35,6 +45,15 @@ export function PetProvider({ children }) {
 
   const adopt = useCallback((type, name) => {
     setPet(adoptPet(type, name));
+    markPetPrompted();
+    setPrompted(true);
+  }, []);
+
+  // Dismisses the one-time adoption invitation without adopting; the
+  // Profile page still offers adoption later.
+  const dismissPrompt = useCallback(() => {
+    markPetPrompted();
+    setPrompted(true);
   }, []);
 
   // Called once per new slide the user actually views. applyRead advances
@@ -64,6 +83,7 @@ export function PetProvider({ children }) {
     clearPet();
     setPet(null);
     setFeedEvent(null);
+    setPrompted(false);
   }, []);
 
   const stats = useMemo(
@@ -72,6 +92,11 @@ export function PetProvider({ children }) {
   );
   const mood = moodOf(stats);
 
+  // A user with no pet who has not yet been asked: the app invites them
+  // once. Anyone, guest or signed in, is asked on their first load after
+  // the feature ships.
+  const shouldPrompt = !pet && !prompted;
+
   const value = useMemo(
     () => ({
       pet,
@@ -79,12 +104,26 @@ export function PetProvider({ children }) {
       mood,
       today,
       feedEvent,
+      shouldPrompt,
       adopt,
       recordRead,
       dismissFeedEvent,
+      dismissPrompt,
       resetPet,
     }),
-    [pet, stats, mood, today, feedEvent, adopt, recordRead, dismissFeedEvent, resetPet]
+    [
+      pet,
+      stats,
+      mood,
+      today,
+      feedEvent,
+      shouldPrompt,
+      adopt,
+      recordRead,
+      dismissFeedEvent,
+      dismissPrompt,
+      resetPet,
+    ]
   );
 
   return <PetContext.Provider value={value}>{children}</PetContext.Provider>;

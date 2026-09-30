@@ -13,6 +13,7 @@ import { LeaderboardScreen } from "./components/leaderboard/LeaderboardScreen";
 import { StatusScreen } from "./components/ui/StatusScreen";
 import { BottomTabBar, isTabView } from "./components/ui/BottomTabBar";
 import { PetCompanion, PetToast } from "./components/pet/PetCompanion";
+import { PetPrompt } from "./components/pet/PetPrompt";
 import { findNiche } from "./data/topics";
 import { markDeckCompleted, getResumeCardIndex } from "./api/progress";
 import { hasGuestId, hasVisited, markVisited, resetToGuest } from "./api/client";
@@ -353,6 +354,7 @@ export default function App() {
         {screen}
         {showPet && <PetCompanion />}
         {showPet && <PetToast />}
+        <PetPrompt />
         <BottomTabBar active={view} onSelect={selectTab} />
       </>
     );
@@ -362,6 +364,7 @@ export default function App() {
       {screen}
       {showPet && <PetCompanion />}
       {showPet && <PetToast />}
+      <PetPrompt />
     </>
   );
 }

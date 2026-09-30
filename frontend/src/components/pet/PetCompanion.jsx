@@ -17,7 +17,7 @@ const MOOD_COLOR = {
 // compact panel with the pet's name, a mood line, and its stats. It never
 // covers the card body, and renders nothing until a pet is adopted.
 export function PetCompanion() {
-  const { pet, stats, mood, hidden, hideCompanion } = usePet();
+  const { pet, stats, mood, hidden, feedEvent, hideCompanion } = usePet();
   const [open, setOpen] = useState(false);
 
   if (!pet || hidden) return null;
@@ -80,12 +80,15 @@ export function PetCompanion() {
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-label={`${pet.name}, ${mood}`}
-          className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 bg-panel shadow-md transition-transform hover:scale-105"
+          className={`flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border-2 bg-panel shadow-md transition-transform hover:scale-105 ${
+            feedEvent ? "pet-celebrate" : ""
+          }`}
           style={{ borderColor: color }}
         >
           <PetArt
             type={pet.type}
             title={petLabel(pet.type)}
+            mood={mood}
             className="h-11 w-11"
           />
         </button>
@@ -97,7 +100,7 @@ export function PetCompanion() {
 // The "you fed me" note, raised by PetContext every fifth slide read on
 // the feeds. Auto-dismisses, and never blocks the scroll behind it.
 export function PetToast() {
-  const { feedEvent, dismissFeedEvent, pet } = usePet();
+  const { feedEvent, dismissFeedEvent, pet, mood } = usePet();
 
   useEffect(() => {
     if (!feedEvent) return;
@@ -114,7 +117,12 @@ export function PetToast() {
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2"
           style={{ borderColor: "var(--accent-pet)" }}
         >
-          <PetArt type={pet.type} title={petLabel(pet.type)} className="h-7 w-7" />
+          <PetArt
+            type={pet.type}
+            title={petLabel(pet.type)}
+            mood={mood}
+            className="h-7 w-7"
+          />
         </div>
         <p className="flex-1 font-sans text-[13px] leading-snug">
           {feedEvent.message}

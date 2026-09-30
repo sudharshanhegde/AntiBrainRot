@@ -34,6 +34,7 @@ export function PetCard() {
           <PetArt
             type={pet.type}
             title={petLabel(pet.type)}
+            mood={mood}
             className="h-16 w-16"
           />
         </div>

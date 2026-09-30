@@ -321,4 +321,81 @@
       animation: none;
     }
   }
+
+  /* ---------------- virtual pet: companion + feed toast ---------------- */
+  /* The companion rides the bottom-right corner of the swipe feeds, above
+     the tab bar. Small by design so it never covers card content; a tap
+     expands it into a compact stat panel. */
+  .pet-companion {
+    position: fixed;
+    right: 0.9rem;
+    bottom: calc(var(--tabbar-h) + 0.9rem + env(safe-area-inset-bottom));
+    z-index: 45;
+  }
+
+  /* The "you fed me" toast: a quiet, non-blocking note after every five
+     slides read. It sits above the tab bar, centered, and never traps
+     focus or blocks the scroll behind it. */
+  .pet-toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(var(--tabbar-h) + 1rem + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 50;
+    width: min(22rem, calc(100vw - 2rem));
+    animation: pet-toast-in 200ms ease-out both;
+  }
+  @keyframes pet-toast-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 8px);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pet-toast {
+      animation: none;
+    }
+  }
+
+  /* Idle life for the vector pets: a slow bob of the whole body plus a
+     blink every few seconds. Both are transform-only, so they stay cheap
+     and never trigger layout. */
+  .pet-bob {
+    animation: pet-bob 3.2s ease-in-out infinite;
+    transform-origin: center bottom;
+  }
+  @keyframes pet-bob {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-3px);
+    }
+  }
+  .pet-eye {
+    animation: pet-blink 4.6s steps(1, end) infinite;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+  @keyframes pet-blink {
+    0%,
+    92%,
+    100% {
+      transform: scaleY(1);
+    }
+    95% {
+      transform: scaleY(0.1);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pet-bob,
+    .pet-eye {
+      animation: none;
+    }
+  }
 }

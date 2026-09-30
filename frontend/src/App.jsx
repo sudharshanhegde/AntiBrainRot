@@ -12,6 +12,7 @@ import { ProfileScreen } from "./components/profile/ProfileScreen";
 import { LeaderboardScreen } from "./components/leaderboard/LeaderboardScreen";
 import { StatusScreen } from "./components/ui/StatusScreen";
 import { BottomTabBar, isTabView } from "./components/ui/BottomTabBar";
+import { PetCompanion, PetToast } from "./components/pet/PetCompanion";
 import { findNiche } from "./data/topics";
 import { markDeckCompleted, getResumeCardIndex } from "./api/progress";
 import { hasGuestId, hasVisited, markVisited, resetToGuest } from "./api/client";
@@ -338,6 +339,11 @@ export default function App() {
     );
   }
 
+  // The pet companion and its "you fed me" toast only make sense on the
+  // two swipe feeds (a topic deck and Quick Bites); they never appear on
+  // the standing screens.
+  const showPet = view === "feed" || view === "quickBites";
+
   // The six primary destinations carry the persistent bottom tab bar;
   // drilled-down screens (topic deck, Worth a Read, leaderboard, niche
   // picker) render full-screen without it.
@@ -345,9 +351,17 @@ export default function App() {
     return (
       <>
         {screen}
+        {showPet && <PetCompanion />}
+        {showPet && <PetToast />}
         <BottomTabBar active={view} onSelect={selectTab} />
       </>
     );
   }
-  return screen;
+  return (
+    <>
+      {screen}
+      {showPet && <PetCompanion />}
+      {showPet && <PetToast />}
+    </>
+  );
 }

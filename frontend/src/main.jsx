@@ -4,16 +4,19 @@ import { Analytics } from "@vercel/analytics/react";
 import "./index.css";
 import App from "./App";
 import { AuthProvider } from "./auth/AuthContext";
+import { PetProvider } from "./pet/PetContext";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
     <AuthProvider>
-      <App />
-      {/* Vercel Web Analytics: first-party, privacy-friendly page view
-          and unique-visitor tracking. No analytics on this screen, the
-          script is injected at build and reports to the project's
-          Analytics tab. */}
-      <Analytics />
+      <PetProvider>
+        <App />
+        {/* Vercel Web Analytics: first-party, privacy-friendly page view
+            and unique-visitor tracking. No analytics on this screen, the
+            script is injected at build and reports to the project's
+            Analytics tab. */}
+        <Analytics />
+      </PetProvider>
     </AuthProvider>
   </StrictMode>
 );

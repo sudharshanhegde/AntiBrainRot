@@ -8,6 +8,7 @@ import { fetchDeckChunk, fetchDays } from "../../api/feedService";
 import { saveViewedCardIndex } from "../../api/progress";
 import { useActiveCardIndex } from "../../hooks/useActiveCardIndex";
 import { useSwipeExit } from "../../hooks/useSwipeExit";
+import { usePet } from "../../pet/PetContext";
 
 // Maps the stored difficulty tier to the friendly name shown in the brief
 // "level" banner when a topic opens (fundamentals -> basics).
@@ -50,6 +51,10 @@ export function Feed({
   const completedRef = useRef(false);
   // Whether the initial card position has been restored for this open.
   const restoredRef = useRef(false);
+  // Cards already counted toward feeding the pet this open, keyed by
+  // order_index, so re-renders and StrictMode double-invokes never feed
+  // the pet twice for the same slide.
+  const countedRef = useRef(new Set());
   // Debounced resume-position write: one per second at most, flushed on
   // unmount. Only meaningful in normal play (deckTarget is null) and
   // never on the end card or after completion.
@@ -60,6 +65,7 @@ export function Feed({
 
   const activeIndex = useActiveCardIndex(scrollRef, cards.length + (hasMore ? 0 : 1));
   const topic = topicPalette[topicSlug] || topicPalette["operating-systems"];
+  const { recordRead } = usePet();
 
   // A clearly horizontal swipe (left or right) exits back to topics
   // without ever touching the vertical scroll that moves between cards.
@@ -110,6 +116,7 @@ export function Feed({
     setHasMore(true);
     completedRef.current = false;
     restoredRef.current = false;
+    countedRef.current.clear();
     loadChunk(0);
   }, [loadChunk]);
 
@@ -185,6 +192,17 @@ export function Feed({
     const t = setTimeout(() => setShowLevelToast(false), 1500);
     return () => clearTimeout(t);
   }, [cards.length]);
+
+  // Feed the pet once per new slide actually viewed (the end card is not
+  // a slide), so reading is what keeps it healthy.
+  useEffect(() => {
+    if (cards.length === 0) return;
+    if (endCardIndex !== -1 && activeIndex >= endCardIndex) return;
+    const card = cards[activeIndex];
+    if (!card || countedRef.current.has(card.order_index)) return;
+    countedRef.current.add(card.order_index);
+    recordRead();
+  }, [activeIndex, cards, endCardIndex, recordRead]);
 
   const handleSelectDay = (day) => {
     // No cooldown and no lock: any published day can be opened directly.

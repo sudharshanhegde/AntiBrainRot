@@ -68,6 +68,14 @@
      as its own thing inside the same token system. */
   --color-accent-job: #4D7C0F; /* olive green, jobs board */
 
+  /* --- pet accent ---
+     A single dusty rose for the virtual pet, distinct from every topic
+     accent and from the streak flame, so the pet reads as a warm, living
+     element rather than another content module. Used for the pet's ring,
+     stat bars, and adoption controls. */
+  --color-accent-pet: #A8557A; /* dusty rose, virtual pet */
+  --color-accent-pet-soft: #E7D2DA; /* solid body fill for the vector pets */
+
   /* --- typefaces ---
      mono is structural (metadata, index, code, diagram labels)
      sans is the reading face for card bodies */
@@ -105,6 +113,8 @@
   --accent-bite: #a16207;
   --accent-read: #a21caf;
   --accent-job: #4d7c0f;
+  --accent-pet: #a8557a;
+  --accent-pet-soft: #e7d2da;
 }
 
 /* Dark mode.
@@ -138,4 +148,6 @@
   --accent-bite: #eab308;
   --accent-read: #e879f9;
   --accent-job: #a3e635;
+  --accent-pet: #e9a9c6;
+  --accent-pet-soft: #43303a;
 }

@@ -99,6 +99,7 @@ export function resetToGuest() {
     localStorage.removeItem(ANON_KEY);
     localStorage.removeItem("antibrainrot:progress");
     localStorage.removeItem("antibrainrot:quiz_answers");
+    localStorage.removeItem("antibrainrot:pet");
   } catch {
     // storage unavailable; nothing to clear
   }

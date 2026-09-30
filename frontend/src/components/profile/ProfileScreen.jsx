@@ -13,6 +13,8 @@ import { StreakIndicator } from "../ui/StreakIndicator";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { AuthIntro } from "./AuthIntro";
 import { JobProfileSettings } from "../jobs/JobProfileSettings";
+import { PetCard } from "../pet/PetCard";
+import { usePet } from "../../pet/PetContext";
 import { useTheme } from "../../hooks/useTheme";
 
 // Primary action button: sky blue, the completion/action color, so
@@ -30,6 +32,7 @@ const PRIMARY_BTN =
 // one-time anonymous progress migration.
 export function ProfileScreen({ onBack, onDeleted, initialNotice = null, initialMode = "login" }) {
   const { user, profile, streak, refreshProfile, setLeaderboardOptIn } = useAuth();
+  const { resetPet } = usePet();
   const { isDark, toggleTheme } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -139,6 +142,7 @@ export function ProfileScreen({ onBack, onDeleted, initialNotice = null, initial
       // sign-out failure is non-fatal; the local state is still reset.
     }
     resetToGuest();
+    resetPet();
     if (onDeleted) onDeleted();
   };
 
@@ -209,6 +213,10 @@ export function ProfileScreen({ onBack, onDeleted, initialNotice = null, initial
             </p>
           </div>
         )}
+
+        {/* The virtual pet: local to this browser, so it is available
+            signed in or out. */}
+        <PetCard />
 
         {user ? (
           <>

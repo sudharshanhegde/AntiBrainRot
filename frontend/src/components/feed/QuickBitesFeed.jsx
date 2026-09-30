@@ -4,6 +4,7 @@ import { ThemeToggle } from "../ui/ThemeToggle";
 import { fetchQuickBites, markBitesSeen } from "../../api/quickBitesService";
 import { useActiveCardIndex } from "../../hooks/useActiveCardIndex";
 import { useSwipeExit } from "../../hooks/useSwipeExit";
+import { usePet } from "../../pet/PetContext";
 
 // The Quick Bites feed 
 //
@@ -76,8 +77,12 @@ export function QuickBitesFeed({ onBack, onOpenProfile = () => {} }) {
   // Ids already reported as seen, so a card is never re-reported on every
   // render as the active index moves.
   const markedRef = useRef(new Set());
+  // Bites already counted toward feeding the pet, so a re-render or
+  // StrictMode double-invoke never counts the same card twice.
+  const countedRef = useRef(new Set());
 
   const activeIndex = useActiveCardIndex(scrollRef, bites.length);
+  const { recordRead } = usePet();
   useSwipeExit(scrollRef, onBack);
 
   const loadMore = useCallback(async (reset) => {
@@ -126,6 +131,15 @@ export function QuickBitesFeed({ onBack, onOpenProfile = () => {} }) {
     toMark.forEach((b) => markedRef.current.add(b.id));
     markBitesSeen(toMark.map((b) => b.id));
   }, [activeIndex, bites]);
+
+  // Feed the pet once per new bite the user actually views. Quick Bites
+  // is reading too, so it counts the same as a topic slide.
+  useEffect(() => {
+    const bite = bites[activeIndex];
+    if (!bite || countedRef.current.has(bite.id)) return;
+    countedRef.current.add(bite.id);
+    recordRead();
+  }, [activeIndex, bites, recordRead]);
 
   // Prefetch the next unseen chunk well before the user runs out of
   // loaded cards, so the feed never visibly stalls. Prefetching earlier

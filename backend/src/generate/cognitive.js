@@ -1,5 +1,5 @@
 import { pool, query } from "../db.js";
-import { jobChat, GROQ_CONTENT_MODELS } from "../jobs/llm.js";
+import { contentChat, GROQ_CONTENT_MODELS } from "../jobs/llm.js";
 import { EM_DASH_RE, EMOJI_RE } from "./checks.js";
 import { verifyCognitiveQuestion } from "./cognitiveVerification.js";
 import {
@@ -34,7 +34,8 @@ const DEFAULT_QUESTION_COUNT = 12;
 // Groq is unconfigured or every model is down. Generation used to go straight
 // to the shared DeepSeek/Gemini client, which surfaced provider 429s as
 // outright failures; this keeps a single rate-limited provider from stalling
-// the module.
+// the module. With CONTENT_LLM=groq there is no fallback: Groq is the only
+// provider and a failure surfaces instead of switching.
 //
 // A batch of questions is far larger than a job-extraction response, so it
 // asks for its own output bound rather than the small extraction default.
@@ -52,7 +53,7 @@ const COGNITIVE_MAX_TOKENS = Number(process.env.COGNITIVE_MAX_TOKENS || 3000);
 const MIN_KEPT_RATIO = 0.6;
 
 function cognitiveChat(messages, opts = {}) {
-  return jobChat(messages, {
+  return contentChat(messages, {
     ...opts,
     maxTokens: COGNITIVE_MAX_TOKENS,
     models: GROQ_CONTENT_MODELS,

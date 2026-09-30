@@ -6,8 +6,15 @@ import { chat as sharedChat } from "../generate/deepseek.js";
 // The job extraction job keeps its own key pool so the modules never starve
 // each other. Deck generation and cognitive tests reuse this Groq-first client
 // through jobChat (each with its own output bound), so a rate-limited provider
-// parks briefly instead of failing the run outright. Quick Bites deliberately
-// stays on the shared Gemini/DeepSeek client.
+// parks briefly instead of failing the run outright.
+//
+// CONTENT_LLM policy: content generation (decks, Quick Bites, cognitive tests)
+// goes through contentChat, which reads CONTENT_LLM. Set CONTENT_LLM=groq to
+// make the Groq model pool the ONLY content provider: no Gemini/DeepSeek
+// failover, so a run that cannot reach Groq fails loudly instead of silently
+// switching provider. Unset (the default) keeps the Groq-first-with-failover
+// behaviour. Quick Bites is the one content module that defaults to the shared
+// Gemini/DeepSeek client, so the policy there is applied by its caller.
 //
 // PROVIDER ORDER for job extraction:
 //   1. Groq (default). A single key (GROQ_API_KEY); Groq rate-limits per
@@ -375,4 +382,24 @@ export async function jobChat(messages, opts = {}) {
     }
   }
   return jobKeyPoolChat(messages, opts);
+}
+
+// True when content generation must use Groq exclusively.
+export function contentGroqOnly() {
+  return (process.env.CONTENT_LLM || "").trim().toLowerCase() === "groq";
+}
+
+// Single entry point for content generation (decks, Quick Bites, cognitive
+// tests) so the CONTENT_LLM policy lives in one place. With CONTENT_LLM=groq
+// the Groq pool is the only provider and an exhausted/unreachable Groq throws
+// instead of falling over to Gemini/DeepSeek; otherwise this is jobChat, the
+// Groq-first-with-failover path.
+export async function contentChat(messages, opts = {}) {
+  if (!contentGroqOnly()) return jobChat(messages, opts);
+  if (!groqConfigured()) {
+    throw new Error(
+      "CONTENT_LLM=groq is set but no Groq key (GROQ_API_KEY) is configured"
+    );
+  }
+  return groqExtraction(messages, opts);
 }

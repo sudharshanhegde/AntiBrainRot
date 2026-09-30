@@ -2,7 +2,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { query } from "../db.js";
-import { jobChat, GROQ_CONTENT_MODELS } from "../jobs/llm.js";
+import { contentChat, GROQ_CONTENT_MODELS } from "../jobs/llm.js";
 import { checkDeck } from "./checks.js";
 import {
   buildGenerationMessages,
@@ -44,15 +44,20 @@ const DEFAULT_TARGET_DECKS = Number(process.env.DEFAULT_TARGET_DECKS || 18);
 const DAILY_DECK_BUDGET = Number(process.env.DAILY_DECK_BUDGET || 0);
 const UNLIMITED_DECK_BUDGET = DAILY_DECK_BUDGET <= 0;
 
-// Deck generation runs through the Groq-first client (the same one the jobs
+// Deck generation runs through the content client (the same one the jobs
 // pipeline and cognitive tests use) so a single rate-limited provider cannot
-// stall a run. A deck is far larger than a job-extraction response, so it
-// asks for its own output bound rather than the small extraction default.
+// stall a run. It is Groq-first with failover, and CONTENT_LLM=groq makes Groq
+// the only provider. A deck is far larger than a job-extraction response, so
+// it asks for its own output bound rather than the small extraction default.
 const DECK_MAX_TOKENS = Number(process.env.DECK_MAX_TOKENS || 6000);
 const DECK_VALIDATION_MAX_TOKENS = Number(process.env.DECK_VALIDATION_MAX_TOKENS || 2000);
 
 function deckChat(messages, opts = {}) {
-  return jobChat(messages, { maxTokens: DECK_MAX_TOKENS, models: GROQ_CONTENT_MODELS, ...opts });
+  return contentChat(messages, {
+    maxTokens: DECK_MAX_TOKENS,
+    models: GROQ_CONTENT_MODELS,
+    ...opts,
+  });
 }
 
 // Whether the existing content has been moved later by the one-time

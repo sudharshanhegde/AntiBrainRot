@@ -1,5 +1,6 @@
 import { pool, query } from "../db.js";
 import { chat } from "./deepseek.js";
+import { contentChat, contentGroqOnly, GROQ_CONTENT_MODELS } from "../jobs/llm.js";
 import { checkQuickBites } from "./checks.js";
 import {
   buildQuickBitesGenerationMessages,
@@ -32,6 +33,25 @@ const PER_CALL = 20;
 // default now, so it runs at the production volume. Override with
 // QUICK_BITES_BATCH_SIZE to tune.
 const DEFAULT_BATCH = Number(process.env.QUICK_BITES_BATCH_SIZE || 80);
+
+// Output bound for a Quick Bites call. Only used on the Groq path (the
+// shared client lets the provider pick); a 20-bite batch needs far more room
+// than the small extraction default, so it gets its own bound.
+const QUICK_BITES_MAX_TOKENS = Number(process.env.QUICK_BITES_MAX_TOKENS || 6000);
+
+// Quick Bites defaults to the shared Gemini/DeepSeek client. Under
+// CONTENT_LLM=groq it switches to the Groq-only content path instead; the
+// retry loop and the self-check validation pass are unchanged either way.
+function quickBitesChat(messages, opts) {
+  if (contentGroqOnly()) {
+    return contentChat(messages, {
+      models: GROQ_CONTENT_MODELS,
+      maxTokens: QUICK_BITES_MAX_TOKENS,
+      ...opts,
+    });
+  }
+  return chat(messages, opts);
+}
 
 // Scheduling anchors to IST like the rest of the pipeline, so
 // generated_date matches the product timezone.
@@ -92,7 +112,7 @@ async function generateOneChunk(count, coveredLabels, state, dryRun) {
     let batch;
     try {
       state.calls++;
-      const gen = await chat(
+      const gen = await quickBitesChat(
         buildQuickBitesGenerationMessages(count, coveredLabels),
         { temperature: 0.7, json: true, topic: "quick-bites" }
       );
@@ -119,7 +139,7 @@ async function generateOneChunk(count, coveredLabels, state, dryRun) {
     let verdict;
     try {
       state.calls++;
-      const vres = await chat(
+      const vres = await quickBitesChat(
         buildQuickBitesValidationMessages(batch, coveredLabels),
         { temperature: 0, json: true, topic: "quick-bites" }
       );

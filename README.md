@@ -126,6 +126,7 @@ Backend environment variables (`backend/.env`):
 | `CORS_ORIGIN` | Frontend origin(s) allowed to call the API |
 | `SUPABASE_SERVICE_ROLE_KEY` | Optional; required only for account deletion |
 | `QUICK_BITES_BATCH_SIZE` | Quick Bites per daily run (default 10; scale to 80 once the loop works) |
+| `CONTENT_LLM` | Set to `groq` to force all content generation through Groq with no Gemini/DeepSeek fallback |
 | `VAPID_PUBLIC_KEY` | Web Push public key for daily reading reminders |
 | `VAPID_PRIVATE_KEY` | Web Push private key for daily reading reminders |
 | `NOTIFY_SECRET` | Optional; protects `POST /api/notifications/daily` (falls back to `GENERATION_SECRET`) |

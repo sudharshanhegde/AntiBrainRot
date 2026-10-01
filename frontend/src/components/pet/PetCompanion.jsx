@@ -49,7 +49,6 @@ export function PetCompanion() {
               danger={20}
               inverse
             />
-            <PetStatBar value={stats.sleep} warning={60} danger={85} />
           </div>
         </div>
       )}

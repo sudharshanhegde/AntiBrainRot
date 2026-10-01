@@ -56,7 +56,6 @@ export function PetCard() {
               danger={20}
               inverse
             />
-            <StatRow label="tiredness" value={stats.sleep} warning={60} danger={85} />
           </div>
         </div>
       </div>

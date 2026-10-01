@@ -1,11 +1,13 @@
 // The virtual pet's stat model, ported from the tamagotchi project
 // (src/animals/index.ts) and reduced to the part that matters here: the
-// hunger / happiness / tiredness stats on a 0-100 scale, with clamping
-// and a sick-not-dead rule. The original decayed the stats every
-// animation frame; real-time decay is wrong for a daily reading habit,
-// so decay is driven by *calendar days of inactivity* instead. Reading a
-// slide resets the clock; a day or two away makes the pet hungry, longer
-// makes it sick.
+// hunger and happiness stats on a 0-100 scale, with clamping and a
+// sick-not-dead rule. The original also carried a third "sleep" stat that
+// rose continuously; it is deliberately omitted, because reading should
+// only ever help the pet rather than tire it out. The original decayed the
+// stats every animation frame; real-time decay is wrong for a daily
+// reading habit, so decay is driven by *calendar days of inactivity*
+// instead. Reading a slide resets the clock; a day or two away makes the
+// pet hungry, longer makes it sick.
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -43,20 +45,17 @@ export function daysBetween(a, b) {
   return Math.max(0, Math.round(diff / DAY_MS));
 }
 
-// hunger rises with idle days; tiredness rises with today's reading and
-// resets overnight; happiness falls with idle days and is lifted by the
-// current streak (the server streak when signed in, the local mirror for
-// guests). The returned values are exactly what the UI reads.
+// hunger rises with idle days; happiness falls with idle days and is
+// lifted by the current streak (the server streak when signed in, the
+// local mirror for guests). The returned values are exactly what the UI
+// reads.
 export function computeStats(pet, today, streakCount = 0) {
   if (!pet) return null;
   const idleDays = daysBetween(pet.lastActiveDate, today);
   const cardsToday = pet.cardsDate === today ? pet.cardsToday || 0 : 0;
   const hunger = clamp(idleDays * 22);
-  const sleep = clamp(cardsToday * 9);
-  const happiness = clamp(
-    70 + streakCount * 6 - idleDays * 28 - Math.max(0, sleep - 70)
-  );
-  return { hunger, happiness, sleep, idleDays, cardsToday };
+  const happiness = clamp(70 + streakCount * 6 - idleDays * 28);
+  return { hunger, happiness, idleDays, cardsToday };
 }
 
 // A single word the UI uses for the pet's current state. "away" is the

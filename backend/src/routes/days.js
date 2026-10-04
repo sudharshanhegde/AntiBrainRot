@@ -10,13 +10,21 @@ export const daysRouter = Router();
 // availability, so the app can show a day-by-day progression:
 //   Day 0 fundamentals, Day 1 intermediate, Day 2 advanced, ...
 //
-// There is no cooldown and no sequential lock: every published day is
-// either already completed (re-readable as a revision) or available to
-// play immediately.
+// There is no cooldown and no sequential lock within the current run of
+// days: every one of them is either already completed (re-readable as a
+// revision) or available to play immediately.
+//
+// Decks at or beyond the topic's target_decks are the pre-existing
+// content the one-time reschedule moved behind the new sequence (see
+// jobs/move_existing_content.sql), so their indices are far above the
+// current days. They are held back from this list until the user actually
+// reaches them, so the drawer shows the days in progress instead of a wall
+// of legacy indices. This is a display filter only: the next deck is still
+// served in sequence by the feed, so nothing is locked and nothing is lost.
 //
 // Status per day:
 //   completed  - already finished, can be re-read (revision)
-//   available  - any published day not yet finished, playable immediately
+//   available  - any listed day not yet finished, playable immediately
 daysRouter.get("/", optionalUserId, async (req, res) => {
   try {
     const topicId = Number(req.query.topic_id);
@@ -26,7 +34,7 @@ daysRouter.get("/", optionalUserId, async (req, res) => {
     }
 
     const topicRes = await query(
-      "select id, name, slug, accent, blurb from topics where id = $1",
+      "select id, name, slug, accent, blurb, target_decks from topics where id = $1",
       [topicId]
     );
     if (topicRes.rows.length === 0) {
@@ -50,18 +58,24 @@ daysRouter.get("/", optionalUserId, async (req, res) => {
 
     const lastCompleted = progress.last_deck_index_completed;
 
-    // No cooldown and no sequential lock: every published day is either
-    // completed (re-readable) or available to play immediately.
-    const days = deckRes.rows.map((d) => {
-      const status = d.deck_index <= lastCompleted ? "completed" : "available";
-      return {
-        day: d.deck_index,
-        deck_index: d.deck_index,
-        difficulty: d.difficulty,
-        status,
-        cooldown_remaining_hours: 0,
-      };
-    });
+    // target_decks marks where the moved pre-existing content begins.
+    // Those decks stay out of the list until the user reaches them (their
+    // next deck is exactly lastCompleted + 1), while the current days are
+    // all listed as before.
+    const legacyFloor = Number(topic.target_decks) || 0;
+
+    const days = deckRes.rows
+      .filter((d) => d.deck_index < legacyFloor || d.deck_index <= lastCompleted + 1)
+      .map((d) => {
+        const status = d.deck_index <= lastCompleted ? "completed" : "available";
+        return {
+          day: d.deck_index,
+          deck_index: d.deck_index,
+          difficulty: d.difficulty,
+          status,
+          cooldown_remaining_hours: 0,
+        };
+      });
 
     res.json({ topic, days });
   } catch (err) {

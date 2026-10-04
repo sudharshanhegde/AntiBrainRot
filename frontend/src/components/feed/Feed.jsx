@@ -4,7 +4,7 @@ import { EndCard } from "./EndCard";
 import { DaysDrawer } from "./DaysDrawer";
 import { FeedCard } from "./FeedCard";
 import { topicPalette } from "../../data/topics";
-import { fetchDeckChunk, fetchDays } from "../../api/feedService";
+import { CHUNK_SIZE, fetchDeckChunk, fetchDays } from "../../api/feedService";
 import { saveViewedCardIndex } from "../../api/progress";
 import { useActiveCardIndex } from "../../hooks/useActiveCardIndex";
 import { useSwipeExit } from "../../hooks/useSwipeExit";
@@ -92,12 +92,12 @@ export function Feed({
   }, [topicSlug]);
 
   const loadChunk = useCallback(
-    async (offset) => {
+    async (offset, limit) => {
       setError(null);
       setLoading(true);
       try {
         const { cards: chunk, hasMore: more, total, difficulty, deckIndex } =
-          await fetchDeckChunk(topicSlug, deckTarget, offset);
+          await fetchDeckChunk(topicSlug, deckTarget, offset, limit);
         setCards((prev) => [...prev, ...chunk]);
         setHasMore(more);
         if (offset === 0) setMeta({ total, difficulty, deckIndex });
@@ -110,28 +110,39 @@ export function Feed({
     [topicSlug, deckTarget]
   );
 
-  // Load the first chunk whenever the topic or target day changes.
+  // Load the first chunk whenever the topic or target day changes. In
+  // normal play the first chunk is widened to cover the saved resume
+  // position, so the position can be restored on the first paint: the feed
+  // loads in chunks of CHUNK_SIZE, so a position of 15 would otherwise not
+  // be loaded yet and the restore would land on the last loaded card.
   useEffect(() => {
     setCards([]);
     setHasMore(true);
     completedRef.current = false;
     restoredRef.current = false;
     countedRef.current.clear();
-    loadChunk(0);
-  }, [loadChunk]);
+    const resume =
+      deckTarget == null &&
+      Number.isInteger(initialCardIndex) &&
+      initialCardIndex > 0
+        ? initialCardIndex
+        : 0;
+    loadChunk(0, resume + CHUNK_SIZE);
+  }, [loadChunk, deckTarget, initialCardIndex]);
 
-  // Restore the resume position before first paint, once the first chunk
-  // of cards exists. Skips if the position is the start or out of range
-  // (clamped to the loaded cards; the prefetch loads the rest).
+  // Restore the resume position before first paint, once the cards it
+  // points at are loaded (the widened first chunk guarantees they are).
+  // Only in normal play: a day picked from the drawer starts at its top.
   useLayoutEffect(() => {
     const scroller = scrollRef.current;
     if (!scroller || cards.length === 0 || restoredRef.current) return;
+    if (deckTarget != null) return;
     const target = Number.isInteger(initialCardIndex) ? initialCardIndex : 0;
     if (target <= 0) return;
     restoredRef.current = true;
     const clamp = Math.min(target, cards.length - 1);
     scroller.scrollTop = clamp * scroller.clientHeight;
-  }, [cards.length, initialCardIndex]);
+  }, [cards.length, initialCardIndex, deckTarget]);
 
   // Prefetch: fetch the next chunk well before the user runs out of
   // loaded cards, so the next 3-5 cards are already in memory.

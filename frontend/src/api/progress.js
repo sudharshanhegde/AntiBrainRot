@@ -154,6 +154,18 @@ export async function saveViewedCardIndex(topicSlug, cardIndex) {
     });
     if (res.status === 401) {
       console.warn("position save requires sign-in; kept locally");
+      return;
+    }
+    // Keep the cached progress map in step with the write. Without this,
+    // re-opening the topic later in the same session reads the position
+    // cached when the topic list last loaded (before any reading), so a
+    // user who read to card 15 resumed at their previous position.
+    const cached = cooldownCache?.get(topicSlug);
+    if (cached) {
+      cooldownCache.set(topicSlug, {
+        ...cached,
+        last_viewed_card_index: cardIndex,
+      });
     }
   } catch (err) {
     console.warn("could not save position", err);

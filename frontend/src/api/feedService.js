@@ -20,10 +20,10 @@ async function mockTopics(nicheSlug) {
   return niche ? niche.topics : [];
 }
 
-async function mockDeckChunk(topicSlug, deckIndex, offset) {
+async function mockDeckChunk(topicSlug, deckIndex, offset, limit = CHUNK_SIZE) {
   await mockDelay();
   const all = deckStore[topicSlug] || [];
-  const slice = all.slice(offset, offset + CHUNK_SIZE);
+  const slice = all.slice(offset, offset + limit);
   return {
     cards: slice,
     hasMore: offset + slice.length < all.length,
@@ -46,7 +46,7 @@ async function apiTopics(nicheSlug) {
   return niche.topics;
 }
 
-async function apiDeckChunk(topicSlug, deckIndex, offset) {
+async function apiDeckChunk(topicSlug, deckIndex, offset, limit = CHUNK_SIZE) {
   const topicId = await getTopicId(topicSlug);
   const userId = getUserId();
   // deckIndex is null for normal play; a concrete index means revision
@@ -74,7 +74,7 @@ async function apiDeckChunk(topicSlug, deckIndex, offset) {
   }
 
   const all = data.deck.cards || [];
-  const slice = all.slice(offset, offset + CHUNK_SIZE);
+  const slice = all.slice(offset, offset + limit);
   return {
     cards: slice,
     hasMore: offset + slice.length < all.length,
@@ -118,8 +118,11 @@ export async function fetchTopics(nicheSlug) {
   return USE_MOCK ? mockTopics(nicheSlug) : apiTopics(nicheSlug);
 }
 
-export async function fetchDeckChunk(topicSlug, deckIndex, offset) {
+// limit widens the first chunk when resuming: the feed is chunked at
+// CHUNK_SIZE, so a saved position of 15 would otherwise not be loaded yet
+// on the first pass and the restore would land on the last loaded card.
+export async function fetchDeckChunk(topicSlug, deckIndex, offset, limit = CHUNK_SIZE) {
   return USE_MOCK
-    ? mockDeckChunk(topicSlug, deckIndex, offset)
-    : apiDeckChunk(topicSlug, deckIndex, offset);
+    ? mockDeckChunk(topicSlug, deckIndex, offset, limit)
+    : apiDeckChunk(topicSlug, deckIndex, offset, limit);
 }

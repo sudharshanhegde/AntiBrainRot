@@ -6,13 +6,16 @@ import { fetchTopics } from "../../api/feedService";
 import { fetchCooldownMap } from "../../api/progress";
 import { useAuth } from "../../auth/AuthContext";
 
-// Topic list for the chosen niche (three-zone layout):
-//   left   - the daily streak indicator, smaller than the profile
-//            version, always visible so the user sees it every time they
-//            pick what to learn next,
-//   center - a plain "Leaderboard" text entry that opens the leaderboard
-//            screen on tap (label, not an icon-only trophy),
-//   main   - the topic grid itself, unchanged from before.
+// Topic picker for the chosen niche, laid out as a ledger rather than a
+// stack of identical boxes:
+//   - a streak strip carrying the day streak (left) and the Leaderboard
+//     entry (right),
+//   - a Worth a Read aside, visually separate from the lesson list,
+//   - the subjects themselves as one bordered table with hairline row
+//     dividers, each row a full-height accent rail, the topic's mono short
+//     code, its name and blurb, and a register-style day counter.
+// The accent is used sparingly per row (the rail and the short code), so a
+// topic keeps its colour association without every name shouting at once.
 // There is no cooldown: tapping a topic always opens its next deck, and
 // the day tracker lets the user jump to any published day freely.
 export function TopicList({
@@ -79,8 +82,10 @@ export function TopicList({
     return <StatusScreen label="loading topics" title={niche.name} />;
   }
 
+  const topicCount = topicSlugs.filter((s) => topicPalette[s]).length;
+
   return (
-    <main className="screen-in h-dvh overflow-y-auto bg-paper">
+    <main className="screen-in h-dvh overflow-y-auto bg-paper pb-[calc(max(2.5rem,env(safe-area-inset-bottom))+var(--tabbar-h))]">
       <header className="px-6 pt-[max(2.5rem,env(safe-area-inset-top))]">
         <div className="flex items-baseline justify-between">
           <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
@@ -98,20 +103,29 @@ export function TopicList({
           {niche.name}
         </h1>
         <p className="mt-2 max-w-md font-sans text-[15px] leading-relaxed text-muted">
-          Pick a topic to open its feed. One day per deck, always available.
+          {niche.description}
         </p>
       </header>
 
-      {/* Three-zone row: streak (left), leaderboard entry (center),
-          profile (right). The topic grid below is the main area. */}
-      <div className="mx-6 mt-4 flex items-center justify-between gap-4 rounded-lg border border-hairline bg-paper px-4 py-3">
-        <StreakIndicator count={user ? (streak?.current_streak ?? 0) : null} label="day streak" />
+      {/* Streak strip: the day streak on the left, the Leaderboard entry on
+          the right. A single hairline box so the two read as one bar. */}
+      <div className="mx-6 mt-5 flex items-center justify-between gap-5 rounded-lg border border-hairline bg-panel px-5 py-3.5">
+        <span className="flex flex-col gap-1">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+            current streak
+          </span>
+          <StreakIndicator
+            count={user ? streak?.current_streak ?? 0 : null}
+            label="day streak"
+          />
+        </span>
         <button
           type="button"
           onClick={onOpenLeaderboard}
-          className="font-sans text-[14px] font-medium tracking-tight text-ink transition-colors hover:text-muted"
+          className="group flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
         >
-          Leaderboard
+          leaderboard
+          <Chevron />
         </button>
       </div>
 
@@ -135,18 +149,19 @@ export function TopicList({
           a curated list of links worth reading, framed honestly as the
           thing to open when you want to go deeper rather than as another
           lesson. Quick Bites and Jobs live on the bottom bar now. */}
-      <div className="mt-6 px-6">
+      <section className="mt-7 px-6">
+        <SectionLabel>worth a read</SectionLabel>
         <button
           type="button"
           onClick={onOpenWorthARead}
-          className="group flex w-full items-center gap-4 rounded-lg border border-hairline bg-panel px-5 py-4 text-left transition-colors hover:border-ink"
+          className="group mt-3 flex w-full items-center gap-4 overflow-hidden rounded-lg border border-hairline bg-panel px-0 py-0 text-left transition-colors hover:border-ink"
         >
           <span
-            className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]"
+            className="w-[3px] shrink-0 self-stretch"
             style={{ backgroundColor: "var(--accent-read)" }}
             aria-hidden="true"
           />
-          <span className="flex flex-col gap-1">
+          <span className="flex flex-1 flex-col gap-1 py-4 pr-5">
             <span className="font-sans text-[17px] font-semibold tracking-tight text-ink">
               Worth a Read
             </span>
@@ -154,48 +169,95 @@ export function TopicList({
               Curated links worth your time.
             </span>
           </span>
+          <span className="pr-5 text-muted transition-colors group-hover:text-ink">
+            <Chevron />
+          </span>
         </button>
-      </div>
+      </section>
 
-      <div className="mt-6 flex flex-col gap-3 px-6 pb-[calc(max(2.5rem,env(safe-area-inset-bottom))+var(--tabbar-h))]">
-        {topicSlugs.map((slug) => {
-          const t = topicPalette[slug];
-          if (!t) return null;
-          const accent = `var(--${t.accent})`;
-          const cd = cooldowns.get(slug);
-          return (
-            <button
-              key={slug}
-              type="button"
-              onClick={() => onPick(slug)}
-              className="group flex items-start gap-4 rounded-lg border border-hairline bg-paper px-5 py-4 text-left transition-colors hover:border-ink"
-            >
-              <span
-                className="mt-1.5 inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]"
-                style={{ backgroundColor: accent }}
-                aria-hidden="true"
-              />
-              <span className="flex flex-col gap-1">
-                <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      {/* The subjects, as one table. Rows are separated by hairlines inside
+          a single border, so the list reads as a register instead of a pile
+          of loose cards. */}
+      <section className="mt-7 px-6">
+        <SectionLabel>
+          {topicCount === 1 ? "1 subject" : `${topicCount} subjects`}
+        </SectionLabel>
+
+        <div className="mt-3 overflow-hidden rounded-lg border border-hairline bg-paper">
+          {topicSlugs.map((slug) => {
+            const t = topicPalette[slug];
+            if (!t) return null;
+            const accent = `var(--${t.accent})`;
+            const day = (cooldowns.get(slug)?.last_deck_index_completed ?? -1) + 1;
+            return (
+              <button
+                key={slug}
+                type="button"
+                onClick={() => onPick(slug)}
+                className="group flex w-full items-stretch border-b border-hairline text-left transition-colors last:border-b-0 hover:bg-panel"
+              >
+                <span
+                  className="w-[3px] shrink-0 self-stretch"
+                  style={{ backgroundColor: accent }}
+                  aria-hidden="true"
+                />
+                <span className="flex min-w-0 flex-1 items-center gap-4 px-4 py-4">
                   <span
-                    className="font-sans text-[17px] font-semibold tracking-tight"
+                    className="w-11 shrink-0 font-mono text-[11px] uppercase tracking-[0.14em]"
                     style={{ color: accent }}
                   >
-                    {t.name}
+                    {t.short}
                   </span>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                    day {(cd?.last_deck_index_completed ?? -1) + 1}
+                  <span className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="font-sans text-[17px] font-semibold tracking-tight text-ink">
+                      {t.name}
+                    </span>
+                    <span className="font-sans text-[14px] leading-relaxed text-muted">
+                      {t.blurb}
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                    day {day}
                   </span>
                 </span>
-                <span className="font-sans text-[14px] leading-relaxed text-muted">
-                  {t.blurb}
-                </span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
+              </button>
+            );
+          })}
+        </div>
+      </section>
     </main>
+  );
+}
+
+// A mono section label paired with a hairline rule, the same register
+// language the card metadata uses.
+function SectionLabel({ children }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+        {children}
+      </span>
+      <span className="h-px flex-1 bg-hairline" />
+    </div>
+  );
+}
+
+// The same 24px stroke language as the rest of the chrome, sized by
+// currentColor so it inherits the row's hover tone.
+function Chevron() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m9 6 6 6-6 6" />
+    </svg>
   );
 }

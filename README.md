@@ -25,8 +25,8 @@ teaches you something real, then the next one.
 - **Resume where you left off.** Opening a topic lands you on the exact
   card you were last on, restored before first paint.
 - **Accounts, streaks, and leaderboard.** Google or email/password sign-in
-  through Supabase, an account-level daily streak, an opt-in leaderboard,
-  and a profile page.
+  through Supabase, an account-level daily streak that counts any slide
+  read (in any feed), an opt-in leaderboard, and a profile page.
 - **Guest mode.** Use the app with no account at all; progress is kept in
   the browser.
 - **Automated content.** Decks are generated and validated by an LLM

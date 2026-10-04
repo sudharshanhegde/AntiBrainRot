@@ -19,16 +19,19 @@ import {
   markPetPrompted,
   setPetHidden,
 } from "../api/pet";
+import { recordReadStreak } from "../api/progress";
 import { computeStats, feedMessage, moodOf } from "./petModel";
 
 // The virtual pet, the same guest-first shape as the rest of the app: the
 // pet lives in localStorage (api/pet.js) so it works signed out, and the
-// only thing that advances it is reading a slide. The signed-in server
-// streak is folded in as a happiness boost, but never required.
+// only thing that advances it is reading a slide. There is a single day
+// streak: the account-level server one for signed-in users (advanced on
+// the first read of each day by recordReadStreak), falling back to the
+// pet's local mirror for guests, who have no account to hold it.
 const PetContext = createContext(null);
 
 export function PetProvider({ children }) {
-  const { streak } = useAuth();
+  const { streak, user, refreshProfile } = useAuth();
   const [pet, setPet] = useState(() => loadPet());
   // The user's local calendar date, refreshed on a slow timer so a
   // session left open across midnight starts a new "day" without a
@@ -72,12 +75,27 @@ export function PetProvider({ children }) {
     setHidden(false);
   }, []);
 
-  // Called once per new slide the user actually views. applyRead advances
-  // the pet; the effect below turns a feed-boundary crossing into the
-  // toast, so state is never set from inside another state updater.
+  // Whether the account streak has already been synced for the current
+  // local day, so a session only ever makes one streak write per day.
+  const streakSyncedRef = useRef(null);
+
+  // Called once per new slide the user actually views. Two things happen:
+  // the pet advances (applyRead), and the account-level day streak is
+  // recorded once per local day, so reading itself advances the streak.
+  // The pet update runs first and independently, so it still applies for
+  // guests and when signed out. The feed-boundary toast is raised by the
+  // effect below, so state is never set from inside another state updater.
   const recordRead = useCallback(() => {
     setPet((prev) => (prev ? applyRead(prev, localDateString()).pet : prev));
-  }, []);
+
+    if (!user) return;
+    const day = localDateString();
+    if (streakSyncedRef.current === day) return;
+    streakSyncedRef.current = day;
+    // Persist the read, then pull the refreshed streak so the profile and
+    // topic-screen indicators update without a manual refresh.
+    recordReadStreak().then(refreshProfile);
+  }, [user, refreshProfile]);
 
   // Raises the "you fed me" toast whenever the stored feed counter grows.
   const prevFeedsRef = useRef(pet?.feeds || 0);
@@ -103,9 +121,13 @@ export function PetProvider({ children }) {
     setHidden(false);
   }, []);
 
+  // One streak number everywhere: the account-level server streak when
+  // signed in, the pet's local mirror for guests.
+  const streakCount = user ? streak?.current_streak ?? 0 : pet?.streak ?? 0;
+
   const stats = useMemo(
-    () => computeStats(pet, today, streak?.current_streak || 0),
-    [pet, today, streak]
+    () => computeStats(pet, today, streakCount),
+    [pet, today, streakCount]
   );
   const mood = moodOf(stats);
 
@@ -123,6 +145,7 @@ export function PetProvider({ children }) {
       feedEvent,
       shouldPrompt,
       hidden,
+      streak: streakCount,
       adopt,
       recordRead,
       dismissFeedEvent,
@@ -139,6 +162,7 @@ export function PetProvider({ children }) {
       feedEvent,
       shouldPrompt,
       hidden,
+      streakCount,
       adopt,
       recordRead,
       dismissFeedEvent,

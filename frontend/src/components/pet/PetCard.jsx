@@ -8,7 +8,8 @@ import { PetStatBar } from "./PetStatBar";
 // adoption picker when there is none yet. Local-only (api/pet.js), so it
 // renders for guests and signed-in users alike.
 export function PetCard() {
-  const { pet, stats, mood, hidden, adopt, hideCompanion, showCompanion } = usePet();
+  const { pet, stats, mood, hidden, streak, adopt, hideCompanion, showCompanion } =
+    usePet();
 
   if (!pet) return <AdoptPet onAdopt={adopt} />;
 
@@ -61,7 +62,7 @@ export function PetCard() {
       </div>
 
       <div className="mt-4 flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-        <span>care streak {pet.streak}</span>
+        <span>day streak {streak}</span>
         <span>{stats.cardsToday} slides today</span>
       </div>
 

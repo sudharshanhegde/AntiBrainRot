@@ -159,3 +159,23 @@ export async function saveViewedCardIndex(topicSlug, cardIndex) {
     console.warn("could not save position", err);
   }
 }
+
+// Records that the user read a slide today, so the account-level daily
+// streak counts reading rather than only completed decks. The caller
+// throttles this to once per local day. Fire and forget, and only
+// meaningful for signed-in users: guests have no account-scoped streak,
+// and their pet keeps a local mirror instead.
+export async function recordReadStreak() {
+  if (USE_MOCK || !isSignedIn()) return;
+  try {
+    const res = await apiFetch("/api/progress/read", {
+      method: "POST",
+      body: JSON.stringify({ local_date: localDateString() }),
+    });
+    if (res.status === 401) {
+      console.warn("reading streak requires sign-in");
+    }
+  } catch (err) {
+    console.warn("could not record reading streak", err);
+  }
+}

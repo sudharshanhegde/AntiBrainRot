@@ -1,8 +1,10 @@
 import "./env.js";
 
-// Account-level daily streak: did this user complete at least one deck,
-// on any topic, today. Runs as a side effect of the deck-completion write,
-// not a separate cron.
+// Account-level daily streak: did this user read at least one slide, in
+// any feed, today. Advanced on the reading path (POST /api/progress/read),
+// not on deck completion and not by a separate cron, so the streak tracks
+// reading itself rather than only finished decks. The same number drives
+// the profile and topic-screen indicators and the leaderboard.
 
 function dateString(date) {
   const y = date.getFullYear();

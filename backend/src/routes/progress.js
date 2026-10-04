@@ -41,14 +41,13 @@ progressRouter.get("/", requireAuth, async (req, res) => {
 });
 
 // POST /api/progress
-// body: { topic_id, deck_index, niche?, local_date? }
-// Marks a deck as completed for the signed-in user. Runs as one
-// transaction: the progress write and the account-level streak side
-// effect commit together, so a partial failure cannot record one without
-// the other.
+// body: { topic_id, deck_index, niche? }
+// Marks a deck as completed for the signed-in user. The account-level
+// streak is no longer advanced here: it now counts any slide read, in any
+// feed, and is advanced by POST /api/progress/read as the user reads.
 progressRouter.post("/", requireAuth, async (req, res) => {
   try {
-    const { topic_id, deck_index, niche, local_date } = req.body || {};
+    const { topic_id, deck_index, niche } = req.body || {};
     if (!Number.isInteger(topic_id) || !Number.isInteger(deck_index)) {
       return res
         .status(400)
@@ -70,9 +69,8 @@ progressRouter.post("/", requireAuth, async (req, res) => {
            last_viewed_card_index = 0`,
         [req.userId, topic_id, deck_index, niche || null]
       );
-      const streak = await updateStreak(client, req.userId, local_date);
       await client.query("commit");
-      res.json({ ok: true, streak });
+      res.json({ ok: true });
     } catch (err) {
       await client.query("rollback");
       throw err;
@@ -82,6 +80,33 @@ progressRouter.post("/", requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "could not record progress" });
+  }
+});
+
+// POST /api/progress/read
+// body: { local_date? }
+//
+// Records that the signed-in user read a slide today and advances the
+// account-level daily streak. Called throttled by the app as slides are
+// viewed, in any feed (topic decks and Quick Bites alike), so the streak
+// counts reading rather than only completed decks. local_date is the
+// user's own calendar date, so a "day" is counted in their timezone;
+// without it the server UTC date is used. Idempotent per day: when today
+// was already counted the streak is left unchanged.
+progressRouter.post("/read", requireAuth, async (req, res) => {
+  const { local_date } = req.body || {};
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+    const streak = await updateStreak(client, req.userId, local_date || null);
+    await client.query("commit");
+    res.json({ ok: true, streak });
+  } catch (err) {
+    await client.query("rollback");
+    console.error(err);
+    res.status(500).json({ error: "could not record reading streak" });
+  } finally {
+    client.release();
   }
 });
 

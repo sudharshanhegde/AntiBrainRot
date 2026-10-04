@@ -117,9 +117,12 @@ create table if not exists users (
   created_at timestamptz not null default now()
 );
 
--- Account-level daily streak: did this user complete at least one deck,
--- on any topic, today. One row per user, keyed by the
--- same Supabase Auth user id as users.id.
+-- Account-level daily streak: did this user read at least one slide, in
+-- any feed, today. Advanced on the reading path (POST
+-- /api/progress/read), so the streak tracks reading rather than only
+-- completed decks, and the same number feeds the profile and topic-screen
+-- indicators and the leaderboard. One row per user, keyed by the same
+-- Supabase Auth user id as users.id.
 create table if not exists user_streaks (
   user_id text primary key references users(id) on delete cascade,
   current_streak integer not null default 0,

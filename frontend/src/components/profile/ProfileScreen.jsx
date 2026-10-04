@@ -9,7 +9,6 @@ import {
   deleteAccount,
 } from "../../api/auth";
 import { resetToGuest } from "../../api/client";
-import { StreakIndicator } from "../ui/StreakIndicator";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { AuthIntro } from "./AuthIntro";
 import { JobProfileSettings } from "../jobs/JobProfileSettings";
@@ -24,15 +23,15 @@ import { useTheme } from "../../hooks/useTheme";
 const PRIMARY_BTN =
   "w-full rounded-lg border border-accent-complete bg-accent-complete px-6 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-paper transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
 
-// The profile screen: the
-// full-size streak indicator, account info, the leaderboard opt-in
-// toggle (default off), log out, and destructive account deletion behind
-// a real confirmation. Google is the default sign-in; email/password is
-// the fallback. Signing in routes through Supabase Auth; the AuthContext
-// listener then registers the profile with the backend and runs the
-// one-time anonymous progress migration.
+// The profile screen: the pet (which now carries the day streak), account
+// info, the leaderboard opt-in toggle (default off), log out, and
+// destructive account deletion behind a real confirmation. Google is the
+// default sign-in; email/password is the fallback. Signing in routes
+// through Supabase Auth; the AuthContext listener then registers the
+// profile with the backend and runs the one-time anonymous progress
+// migration.
 export function ProfileScreen({ onBack, onDeleted, initialNotice = null, initialMode = "login" }) {
-  const { user, profile, streak, refreshProfile, setLeaderboardOptIn } = useAuth();
+  const { user, profile, setLeaderboardOptIn } = useAuth();
   const { resetPet } = usePet();
   const { isDark, toggleTheme } = useTheme();
   const [email, setEmail] = useState("");
@@ -221,26 +220,6 @@ export function ProfileScreen({ onBack, onDeleted, initialNotice = null, initial
 
         {user ? (
           <>
-            {/* Streak: permanent home, large version. */}
-            <section className="flex items-center justify-between rounded-lg border border-hairline bg-paper px-5 py-4">
-              <span className="flex flex-col gap-1">
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                  current streak
-                </span>
-                <StreakIndicator count={streak?.current_streak ?? 0} size="lg" />
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                  best {streak?.longest_streak ?? 0}
-                </span>
-              </span>
-              <button
-                type="button"
-                onClick={refreshProfile}
-                className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
-              >
-                refresh
-              </button>
-            </section>
-
             {/* Account + settings */}
             <section className="rounded-lg border border-hairline bg-paper px-5 py-4">
               <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
@@ -337,16 +316,6 @@ export function ProfileScreen({ onBack, onDeleted, initialNotice = null, initial
                 login and register forms live, so the reasoning sits above
                 them rather than being assumed. */}
             <AuthIntro />
-
-            {/* Streak while signed out: nothing to count yet. */}
-            <section className="flex items-center justify-between rounded-lg border border-hairline bg-paper px-5 py-4">
-              <span className="flex flex-col gap-1">
-                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                  current streak
-                </span>
-                <StreakIndicator count={0} size="lg" />
-              </span>
-            </section>
 
             <section className="rounded-lg border border-hairline bg-paper px-5 py-4">
               <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">

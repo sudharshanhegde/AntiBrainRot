@@ -89,20 +89,59 @@ export function feedCount(cardsToday) {
   return Math.floor((cardsToday || 0) / FEED_EVERY);
 }
 
-// The punny lines shown when the pet is fed, every FEED_EVERY slides. They
-// escalate by feed number so each milestone in a day reads as progress
-// rather than a repeat: the first thanks you, the later ones cheer you
-// on. Index is the zero-based feed number for the day.
-export const FEED_LINES = [
+// The punny lines shown when the pet is fed, every FEED_EVERY slides. Each
+// pet has its own set so the delivery matches the animal, and within a set
+// they escalate by feed number so each milestone in a day reads as progress
+// rather than a repeat: the first thanks you, the later ones cheer you on.
+// Index is the zero-based feed number for the day. Same copy rules as
+// MOOD_COPY: warm, never shaming, no em dashes or emoji.
+export const FEED_LINES = {
+  bablu: [
+    "You fed me. Purr-fect timing.",
+    "That hit the spot. Let us keep the pages turning.",
+    "Feeling sharp. Curiosity fed the cat.",
+    "You are on a roll. Well, a scroll.",
+    "Another snack. I could get used to this.",
+    "Stronger by the slide. No bones about it, keep reading.",
+  ],
+  guddu: [
+    "You fed me. Thanks, human.",
+    "Purring already. Keep going?",
+    "That was tasty. On to the next one.",
+    "You are on a roll. Well, a scroll.",
+    "Another snack. Nine lives, endless snacks.",
+    "Feeling great. Let us chase the next page.",
+  ],
+  maya: [
+    "Moo. You fed me. Thanks!",
+    "That was udderly delicious.",
+    "Feeling strong. Hay, keep going?",
+    "You are on a roll. Moo-ving right along.",
+    "Another snack. I am not calf-ing around.",
+    "Moo-ch appreciated. On to the next slide.",
+  ],
+  tippu: [
+    "You fed me. Thanks! Want to keep going?",
+    "Tail is wagging. Good human.",
+    "That was a treat. Fetch the next one?",
+    "You are on a roll. Well, a scroll.",
+    "Another snack. I could do this all day.",
+    "Feeling top dog. Keep the pages coming.",
+  ],
+};
+
+// Species-neutral fallback, used if a pet type has no set of its own.
+export const DEFAULT_FEED_LINES = [
   "You fed me. Thanks! Want to keep going?",
   "I'm happy! You're a real page-turner.",
   "Feeling sharp. On to the next chapter?",
   "You're on a roll. Well, a scroll.",
-  "Another snack! Curiosity fed the cat.",
+  "Another snack! Knowledge tastes good.",
   "I feel stronger. No bones about it, keep reading.",
 ];
 
-export function feedMessage(feedNumber = 0) {
-  const i = Math.max(0, feedNumber) % FEED_LINES.length;
-  return FEED_LINES[i];
+export function feedMessage(feedNumber = 0, type) {
+  const lines = FEED_LINES[type] || DEFAULT_FEED_LINES;
+  const i = Math.max(0, feedNumber) % lines.length;
+  return lines[i];
 }

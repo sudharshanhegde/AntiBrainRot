@@ -110,8 +110,12 @@ export function PetProvider({ children }) {
     const feeds = pet?.feeds || 0;
     if (feeds > prevFeedsRef.current) {
       // feeds is the new count, so feeds - 1 is this feed's zero-based
-      // number for the day, which selects the escalating line.
-      setFeedEvent({ id: Date.now(), message: feedMessage(feeds - 1) });
+      // number for the day, which selects the escalating line. The pet's
+      // type picks the set, so the line matches the animal speaking it.
+      setFeedEvent({
+        id: Date.now(),
+        message: feedMessage(feeds - 1, pet?.type),
+      });
     }
     prevFeedsRef.current = feeds;
   }, [pet]);

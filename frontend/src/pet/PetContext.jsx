@@ -162,6 +162,7 @@ export function PetProvider({ children }) {
       shouldPrompt,
       hidden,
       surfaceAllows,
+      setSurfaceAllows,
       streak: streakCount,
       adopt,
       changePet,

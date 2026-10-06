@@ -17,10 +17,11 @@ const MOOD_COLOR = {
 // compact panel with the pet's name, a mood line, and its stats. It never
 // covers the card body, and renders nothing until a pet is adopted.
 export function PetCompanion() {
-  const { pet, stats, mood, hidden, feedEvent, hideCompanion } = usePet();
+  const { pet, stats, mood, hidden, surfaceAllows, feedEvent, hideCompanion } =
+    usePet();
   const [open, setOpen] = useState(false);
 
-  if (!pet || hidden) return null;
+  if (!pet || hidden || !surfaceAllows) return null;
   const color = MOOD_COLOR[mood] || "var(--accent-pet)";
 
   return (
@@ -102,7 +103,7 @@ export function PetCompanion() {
 // more of a character beat than a system notification. Auto-dismisses,
 // tappable to dismiss early, and never blocks the scroll behind it.
 export function PetToast() {
-  const { feedEvent, dismissFeedEvent, pet, mood } = usePet();
+  const { feedEvent, dismissFeedEvent, pet, mood, surfaceAllows } = usePet();
 
   useEffect(() => {
     if (!feedEvent) return;
@@ -110,7 +111,7 @@ export function PetToast() {
     return () => clearTimeout(t);
   }, [feedEvent, dismissFeedEvent]);
 
-  if (!feedEvent || !pet) return null;
+  if (!feedEvent || !pet || !surfaceAllows) return null;
 
   return (
     <div className="pet-toast" role="status" aria-live="polite">

@@ -65,7 +65,17 @@ export function Feed({
 
   const activeIndex = useActiveCardIndex(scrollRef, cards.length + (hasMore ? 0 : 1));
   const topic = topicPalette[topicSlug] || topicPalette["operating-systems"];
-  const { recordRead } = usePet();
+  const { recordRead, setSurfaceAllows } = usePet();
+
+  // The reading cards fill the viewport, so the pet would cover their text.
+  // The quiz cards leave room, so the companion is allowed only there. Quick
+  // Bites never calls this and keeps the companion on every card.
+  const activeCardIsQuiz = cards[activeIndex]?.type === "quiz";
+  useEffect(() => {
+    setSurfaceAllows(activeCardIsQuiz);
+  }, [activeCardIsQuiz, setSurfaceAllows]);
+  // Leaving the deck hands the surface back to whatever comes next.
+  useEffect(() => () => setSurfaceAllows(true), [setSurfaceAllows]);
 
   // A clearly horizontal swipe (left or right) exits back to topics
   // without ever touching the vertical scroll that moves between cards.

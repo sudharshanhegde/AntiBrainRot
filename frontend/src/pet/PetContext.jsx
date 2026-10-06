@@ -45,6 +45,11 @@ export function PetProvider({ children }) {
   const [prompted, setPrompted] = useState(() => hasPetPrompted());
   // Whether the floating companion is hidden on the reading screens.
   const [hidden, setHidden] = useState(() => isPetHidden());
+  // Whether the current reading surface has room for the pet at all. The
+  // topic deck turns this off on its full-page reading cards and on for the
+  // quiz cards, where there is space; Quick Bites and every other screen
+  // leave it true. Distinct from `hidden`, which is the user's own toggle.
+  const [surfaceAllows, setSurfaceAllows] = useState(true);
 
   useEffect(() => {
     const id = setInterval(() => setToday(localDateString()), 60 * 1000);
@@ -156,6 +161,7 @@ export function PetProvider({ children }) {
       feedEvent,
       shouldPrompt,
       hidden,
+      surfaceAllows,
       streak: streakCount,
       adopt,
       changePet,
@@ -174,6 +180,8 @@ export function PetProvider({ children }) {
       feedEvent,
       shouldPrompt,
       hidden,
+      surfaceAllows,
+      setSurfaceAllows,
       streakCount,
       adopt,
       changePet,

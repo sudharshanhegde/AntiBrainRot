@@ -362,15 +362,18 @@
   }
 
   /* --- photo pet idle life ---
-     Layered so the transforms compose instead of overriding: the wrapper
-     breathes (a slow scale from the feet) while the photo sways and drifts
-     inside its frame, so a still photo reads as a living companion. The
-     mood class tunes the energy; the celebrate class adds a hop when the
-     pet is fed. Transforms and opacity only, so nothing triggers layout. */
+     A photograph cannot blink or breathe like a drawing, so the idle is
+     kept to one slow, tiny lift of the whole cutout. No scale and no
+     rotation: those read as zooming or tilting a picture, which is exactly
+     what makes a photo feel fake. The real life is saved for the
+     reactions (the celebrate hop on feed, the tap responses), so the
+     resting pet stays calm instead of constantly moving. Transforms and
+     opacity only, so nothing triggers layout. */
   .pet-art {
     display: block;
-    animation: pet-breathe 2.6s ease-in-out infinite;
+    animation: pet-idle 6.5s ease-in-out infinite;
     transform-origin: center bottom;
+    will-change: transform;
   }
   .pet-photo {
     display: block;
@@ -378,52 +381,31 @@
     height: 100%;
     object-fit: contain;
     filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.28));
-    animation: pet-sway 5.4s ease-in-out infinite;
-    transform-origin: center bottom;
-    will-change: transform;
   }
-  @keyframes pet-breathe {
+  @keyframes pet-idle {
     0%,
     100% {
-      transform: scale(1);
+      transform: translateY(0);
     }
     50% {
-      transform: scale(1.035);
-    }
-  }
-  @keyframes pet-sway {
-    0%,
-    100% {
-      transform: translateY(0) rotate(-1.2deg) scale(1);
-    }
-    50% {
-      transform: translateY(-2px) rotate(1.2deg) scale(1.04);
+      transform: translateY(-2px);
     }
   }
 
-  /* Mood tunes the energy: a happy pet moves faster, a hungry one slows
-     down, a sick one goes still and desaturates. */
+  /* Mood tunes the pace: a happy pet lifts a touch quicker, a hungry or
+     away one drifts slower, a sick one goes still and desaturates. */
   .pet-mood-happy {
-    animation-duration: 2.1s;
-  }
-  .pet-mood-happy .pet-photo {
-    animation-duration: 3.4s;
+    animation-duration: 4.6s;
   }
   .pet-mood-hungry {
-    animation-duration: 4.2s;
-  }
-  .pet-mood-hungry .pet-photo {
-    animation-duration: 7.2s;
+    animation-duration: 9s;
   }
   .pet-mood-away {
-    animation-duration: 4.4s;
+    animation-duration: 9.5s;
   }
   .pet-mood-sick {
     filter: grayscale(0.55);
     opacity: 0.85;
-  }
-  .pet-mood-sick,
-  .pet-mood-sick .pet-photo {
     animation: none;
   }
 
@@ -447,7 +429,6 @@
 
   @media (prefers-reduced-motion: reduce) {
     .pet-art,
-    .pet-photo,
     .pet-celebrate {
       animation: none;
     }

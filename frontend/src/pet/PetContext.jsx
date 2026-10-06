@@ -18,6 +18,7 @@ import {
   loadPet,
   markPetPrompted,
   setPetHidden,
+  switchPet,
 } from "../api/pet";
 import { recordReadStreak } from "../api/progress";
 import { computeStats, feedMessage, moodOf } from "./petModel";
@@ -54,6 +55,12 @@ export function PetProvider({ children }) {
     setPet(adoptPet(type, name));
     markPetPrompted();
     setPrompted(true);
+  }, []);
+
+  // Swaps the adopted pet for another, keeping the stored stats and
+  // streak. Unlike adopt, this never re-triggers the one-time prompt.
+  const changePet = useCallback((type) => {
+    setPet(switchPet(type));
   }, []);
 
   // Dismisses the one-time adoption invitation without adopting; the
@@ -147,6 +154,7 @@ export function PetProvider({ children }) {
       hidden,
       streak: streakCount,
       adopt,
+      changePet,
       recordRead,
       dismissFeedEvent,
       dismissPrompt,
@@ -164,6 +172,7 @@ export function PetProvider({ children }) {
       hidden,
       streakCount,
       adopt,
+      changePet,
       recordRead,
       dismissFeedEvent,
       dismissPrompt,

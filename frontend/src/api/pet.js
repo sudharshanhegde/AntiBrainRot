@@ -106,6 +106,23 @@ export function adoptPet(type, name) {
   });
 }
 
+// Switches an adopted pet to another one, keeping its stats, streak and
+// feed history so changing companion never resets progress. The name
+// follows the new pet only while it is still the previous pet's default
+// label; a custom name the user typed is left untouched.
+export function switchPet(type) {
+  const pet = read();
+  if (!pet || !PET_TYPES.includes(pet.type) || !PET_TYPES.includes(type)) {
+    return pet;
+  }
+  const wasDefault = pet.name === petLabel(pet.type);
+  return write({
+    ...pet,
+    type,
+    name: wasDefault ? petLabel(type) : pet.name,
+  });
+}
+
 // Applies one slide read. The streak advances the same way the backend's
 // updateStreak does: same day keeps it, yesterday increments, anything
 // older restarts at 1. Returns { pet, fed } where fed is true when this

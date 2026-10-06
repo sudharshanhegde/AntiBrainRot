@@ -333,16 +333,16 @@
     z-index: 45;
   }
 
-  /* The "you fed me" toast: a quiet, non-blocking note after every five
-     slides read. It sits above the tab bar, centered, and never traps
-     focus or blocks the scroll behind it. */
+  /* The "you fed me" toast: the pet itself, oversized, delivering its line
+     as a spoken aside after every five slides read. It sits above the tab
+     bar, centered, and never traps focus or blocks the scroll behind it. */
   .pet-toast {
     position: fixed;
     left: 50%;
     bottom: calc(var(--tabbar-h) + 1rem + env(safe-area-inset-bottom));
     transform: translateX(-50%);
     z-index: 50;
-    width: min(22rem, calc(100vw - 2rem));
+    width: min(26rem, calc(100vw - 2rem));
     animation: pet-toast-in 200ms ease-out both;
   }
   @keyframes pet-toast-in {
@@ -361,15 +361,26 @@
     }
   }
 
-  /* --- vector pet idle life ---
-     Layered so the transforms compose instead of overriding: the <svg>
-     breathes (a slow scale from the feet), the inner body group bobs, and
-     named parts (tail, ears, wing, head) move on their own. The mood class
-     tunes the energy; the celebrate class adds a hop when the pet is fed.
-     Transforms and opacity only, so nothing triggers layout. */
+  /* --- photo pet idle life ---
+     Layered so the transforms compose instead of overriding: the wrapper
+     breathes (a slow scale from the feet) while the photo sways and drifts
+     inside its frame, so a still photo reads as a living companion. The
+     mood class tunes the energy; the celebrate class adds a hop when the
+     pet is fed. Transforms and opacity only, so nothing triggers layout. */
   .pet-art {
+    display: block;
     animation: pet-breathe 2.6s ease-in-out infinite;
     transform-origin: center bottom;
+  }
+  .pet-photo {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.28));
+    animation: pet-sway 5.4s ease-in-out infinite;
+    transform-origin: center bottom;
+    will-change: transform;
   }
   @keyframes pet-breathe {
     0%,
@@ -380,124 +391,39 @@
       transform: scale(1.035);
     }
   }
-
-  .pet-bob {
-    animation: pet-bob 3.2s ease-in-out infinite;
-    transform-origin: center bottom;
-  }
-  @keyframes pet-bob {
+  @keyframes pet-sway {
     0%,
     100% {
-      transform: translateY(0);
+      transform: translateY(0) rotate(-1.2deg) scale(1);
     }
     50% {
-      transform: translateY(-3px);
+      transform: translateY(-2px) rotate(1.2deg) scale(1.04);
     }
   }
 
-  .pet-tail {
-    animation: pet-tail-wag 1.9s ease-in-out infinite;
-    transform-box: fill-box;
-    transform-origin: center;
-  }
-  @keyframes pet-tail-wag {
-    0%,
-    100% {
-      transform: rotate(-5deg);
-    }
-    50% {
-      transform: rotate(6deg);
-    }
-  }
-
-  .pet-ear {
-    animation: pet-ear-twitch 3.6s ease-in-out infinite;
-    transform-box: fill-box;
-    transform-origin: bottom center;
-  }
-  @keyframes pet-ear-twitch {
-    0%,
-    84%,
-    100% {
-      transform: rotate(0deg);
-    }
-    88% {
-      transform: rotate(-7deg);
-    }
-    92% {
-      transform: rotate(5deg);
-    }
-  }
-
-  .pet-wing {
-    animation: pet-wing-flap 2.4s ease-in-out infinite;
-    transform-box: fill-box;
-    transform-origin: top left;
-  }
-  @keyframes pet-wing-flap {
-    0%,
-    100% {
-      transform: rotate(0deg);
-    }
-    50% {
-      transform: rotate(-8deg);
-    }
-  }
-
-  .pet-head {
-    animation: pet-head-nod 3.2s ease-in-out infinite;
-    transform-box: fill-box;
-    transform-origin: bottom center;
-  }
-  @keyframes pet-head-nod {
-    0%,
-    100% {
-      transform: rotate(0deg);
-    }
-    50% {
-      transform: rotate(2deg);
-    }
-  }
-
-  .pet-eye {
-    animation: pet-blink 4.6s steps(1, end) infinite;
-    transform-box: fill-box;
-    transform-origin: center;
-  }
-  @keyframes pet-blink {
-    0%,
-    92%,
-    100% {
-      transform: scaleY(1);
-    }
-    95% {
-      transform: scaleY(0.1);
-    }
-  }
-
-  /* Mood tunes the energy: a happy pet bounces faster and wags harder, a
-     hungry one slows down, a sick one goes still and desaturates. */
-  .pet-mood-happy .pet-bob {
+  /* Mood tunes the energy: a happy pet moves faster, a hungry one slows
+     down, a sick one goes still and desaturates. */
+  .pet-mood-happy {
     animation-duration: 2.1s;
   }
-  .pet-mood-happy .pet-tail {
-    animation-duration: 1.2s;
+  .pet-mood-happy .pet-photo {
+    animation-duration: 3.4s;
   }
-  .pet-mood-hungry .pet-bob {
+  .pet-mood-hungry {
     animation-duration: 4.2s;
   }
-  .pet-mood-away .pet-bob {
+  .pet-mood-hungry .pet-photo {
+    animation-duration: 7.2s;
+  }
+  .pet-mood-away {
     animation-duration: 4.4s;
   }
   .pet-mood-sick {
     filter: grayscale(0.55);
     opacity: 0.85;
   }
-  .pet-mood-sick .pet-bob,
-  .pet-mood-sick .pet-tail,
-  .pet-mood-sick .pet-ear,
-  .pet-mood-sick .pet-wing,
-  .pet-mood-sick .pet-head {
+  .pet-mood-sick,
+  .pet-mood-sick .pet-photo {
     animation: none;
   }
 
@@ -521,12 +447,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .pet-art,
-    .pet-bob,
-    .pet-tail,
-    .pet-ear,
-    .pet-wing,
-    .pet-head,
-    .pet-eye,
+    .pet-photo,
     .pet-celebrate {
       animation: none;
     }

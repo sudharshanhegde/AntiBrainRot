@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { usePet } from "../../pet/PetContext";
-import { MOOD_COPY, petLabel } from "../../pet/petModel";
+import { MOOD_COPY, PET_TYPES, petLabel } from "../../pet/petModel";
 import { PetAdoptForm } from "./PetAdoptForm";
 import { PetArt } from "./PetArt";
 import { PetStatBar } from "./PetStatBar";
@@ -8,8 +9,18 @@ import { PetStatBar } from "./PetStatBar";
 // adoption picker when there is none yet. Local-only (api/pet.js), so it
 // renders for guests and signed-in users alike.
 export function PetCard() {
-  const { pet, stats, mood, hidden, streak, adopt, hideCompanion, showCompanion } =
-    usePet();
+  const {
+    pet,
+    stats,
+    mood,
+    hidden,
+    streak,
+    adopt,
+    changePet,
+    hideCompanion,
+    showCompanion,
+  } = usePet();
+  const [changing, setChanging] = useState(false);
 
   if (!pet) return <AdoptPet onAdopt={adopt} />;
 
@@ -90,6 +101,50 @@ export function PetCard() {
             }`}
           />
         </button>
+      </div>
+
+      {/* Swap the companion. Changing keeps the stats and streak, so this
+          is a wardrobe change rather than a reset. */}
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={() => setChanging((v) => !v)}
+          aria-expanded={changing}
+          className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+        >
+          {changing ? "cancel" : "change pet"}
+        </button>
+
+        {changing && (
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            {PET_TYPES.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => {
+                  changePet(t);
+                  setChanging(false);
+                }}
+                aria-pressed={t === pet.type}
+                aria-label={`Use ${petLabel(t)}`}
+                className="flex flex-col items-center gap-1 rounded-lg border p-2 transition-colors"
+                style={{
+                  borderColor:
+                    t === pet.type ? "var(--accent-pet)" : "var(--color-hairline)",
+                }}
+              >
+                <PetArt
+                  type={t}
+                  className="h-8 w-8"
+                  style={t === pet.type ? undefined : { opacity: 0.5 }}
+                />
+                <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-muted">
+                  {petLabel(t)}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

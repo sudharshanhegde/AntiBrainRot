@@ -14,15 +14,18 @@ export const DAY_MS = 24 * 60 * 60 * 1000;
 // How many slides in a day count as one "feed" of the pet.
 export const FEED_EVERY = 5;
 
-// The four animals to pick from, one chosen at adoption and never
-// changed. Artwork is the vector set in components/pet/PetArt.jsx.
-export const PET_TYPES = ["cat", "poodle", "parrot", "dinosaur"];
+// The four pets to pick from. One is chosen at adoption and can be swapped
+// later from the profile card (api/pet.js switchPet), which keeps the
+// stats and streak. Each is a transparent cutout served from public/pets
+// and rendered (animated) by components/pet/PetArt.jsx. The label doubles
+// as the default pet name.
+export const PET_TYPES = ["bablu", "guddu", "maya", "tippu"];
 
 export const PET_CONFIGS = {
-  cat: { label: "Cat" },
-  poodle: { label: "Poodle" },
-  parrot: { label: "Parrot" },
-  dinosaur: { label: "Dinosaur" },
+  bablu: { label: "Bablu" },
+  guddu: { label: "Guddu" },
+  maya: { label: "Maya" },
+  tippu: { label: "Tippu" },
 };
 
 // Keeps every stat inside 0-100, the same contract as the original
@@ -32,7 +35,7 @@ export function clamp(value) {
 }
 
 export function petLabel(type) {
-  return (PET_CONFIGS[type] || PET_CONFIGS.cat).label;
+  return (PET_CONFIGS[type] || PET_CONFIGS[PET_TYPES[0]]).label;
 }
 
 // Whole days between two YYYY-MM-DD strings (b - a). Compared as UTC

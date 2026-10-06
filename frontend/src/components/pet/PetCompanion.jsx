@@ -97,7 +97,10 @@ export function PetCompanion() {
 }
 
 // The "you fed me" note, raised by PetContext every fifth slide read on
-// the feeds. Auto-dismisses, and never blocks the scroll behind it.
+// the feeds. The pet appears oversized (uncropped, so it reads as the
+// animal itself rather than a thumbnail) with its line as a spoken aside,
+// more of a character beat than a system notification. Auto-dismisses,
+// tappable to dismiss early, and never blocks the scroll behind it.
 export function PetToast() {
   const { feedEvent, dismissFeedEvent, pet, mood } = usePet();
 
@@ -111,28 +114,25 @@ export function PetToast() {
 
   return (
     <div className="pet-toast" role="status" aria-live="polite">
-      <div className="flex items-center gap-3 rounded-lg border border-hairline bg-ink px-4 py-3 text-paper shadow-xl">
-        <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2"
-          style={{ borderColor: "var(--accent-pet)" }}
-        >
-          <PetArt
-            type={pet.type}
-            title={petLabel(pet.type)}
-            mood={mood}
-            className="h-7 w-7"
-          />
+      <div className="flex items-end gap-3 rounded-2xl border border-hairline bg-paper px-4 py-3 shadow-xl">
+        <PetArt
+          type={pet.type}
+          title={petLabel(pet.type)}
+          mood={mood}
+          className="h-28 w-28 shrink-0"
+        />
+        <div className="min-w-0 pb-1">
+          <p className="font-sans text-[14px] leading-snug text-ink">
+            {feedEvent.message}
+          </p>
+          <button
+            type="button"
+            onClick={dismissFeedEvent}
+            className="mt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+          >
+            keep going
+          </button>
         </div>
-        <p className="flex-1 font-sans text-[13px] leading-snug">
-          {feedEvent.message}
-        </p>
-        <button
-          type="button"
-          onClick={dismissFeedEvent}
-          className="font-mono text-[10px] uppercase tracking-[0.14em] text-paper/80 transition-colors hover:text-paper"
-        >
-          keep going
-        </button>
       </div>
     </div>
   );

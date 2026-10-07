@@ -56,6 +56,12 @@ const TOPICS = [
     blurb: "The layered stack behind every packet, frame by frame.",
   },
   {
+    slug: "c-cpp-systems",
+    name: "C/C++ and Systems",
+    accent: "accent-cpp",
+    blurb: "Pointers, memory, signals, and systems ideas made concrete with real code.",
+  },
+  {
     slug: "quantitative-aptitude",
     name: "Quantitative Aptitude",
     accent: "accent-apt",

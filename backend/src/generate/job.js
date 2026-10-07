@@ -76,6 +76,7 @@ const CONTENT_RESCHEDULED = process.env.CONTENT_RESCHEDULED === "1";
 const TARGET_BY_SLUG = {
   "data-structures": 200,
   "operating-systems": 150,
+  "c-cpp-systems": 150,
   "computer-networks": 120,
   databases: 120,
   "system-design": 120,

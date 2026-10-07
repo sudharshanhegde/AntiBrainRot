@@ -123,8 +123,13 @@
     border-radius: 6px;
   }
 
+  /* The code panel sits on its own fill (the panel token) so a snippet
+     separates from the prose body at a glance. pre preserves whitespace
+     and indentation exactly as generated; overflow scrolls horizontally
+     instead of collapsing the layout. */
   .code-panel {
     min-height: 0;
+    background: var(--color-panel);
   }
   .code-panel pre {
     font-family: var(--font-mono);
@@ -136,6 +141,30 @@
   }
   .code-panel pre::-webkit-scrollbar {
     display: none;
+  }
+  .code-panel code {
+    color: var(--color-ink);
+  }
+  /* Syntax token tones, resolved from the theme tokens so a snippet stays
+     legible in both light and dark mode. */
+  .tok-com {
+    color: var(--code-comment);
+    font-style: italic;
+  }
+  .tok-str {
+    color: var(--code-string);
+  }
+  .tok-num {
+    color: var(--code-number);
+  }
+  .tok-kw {
+    color: var(--code-keyword);
+  }
+  .tok-type {
+    color: var(--code-type);
+  }
+  .tok-meta {
+    color: var(--code-number);
   }
 
   /* Diagram area has a reserved fixed height so the card never

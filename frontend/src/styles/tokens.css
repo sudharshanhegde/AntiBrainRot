@@ -32,6 +32,7 @@
   --color-accent-apt: #3730A3; /* deep indigo, numbers and reasoning */
   --color-accent-cog: #475569; /* graphite, reasoning and pattern tests */
   --color-accent-oop: #8A5A2B; /* copper, object-oriented programming */
+  --color-accent-cpp: #5B6C8F; /* steel blue, C/C++ and systems code */
 
   /* --- streak flame (SKILL_auth.md) ---
      A dedicated warm accent so the streak indicator reads as one
@@ -108,6 +109,7 @@
   --accent-apt: #3730a3;
   --accent-cog: #475569;
   --accent-oop: #8a5a2b;
+  --accent-cpp: #5b6c8f;
   --accent-flame: #e8590c;
   --accent-complete: #1e88e5;
   --accent-bite: #a16207;
@@ -115,6 +117,17 @@
   --accent-job: #4d7c0f;
   --accent-pet: #a8557a;
   --accent-pet-soft: #e7d2da;
+
+  /* --- code syntax tokens ---
+     Tuned to stay legible on the code panel in both themes: a comment
+     tone, a string tone, a number tone, a keyword tone, and a type and
+     preprocessor tone, all deliberately quieter than the ink body so a
+     highlighted snippet never reads louder than the prose around it. */
+  --code-comment: #6b7280;
+  --code-string: #0f766e;
+  --code-number: #b45309;
+  --code-keyword: #7c3aed;
+  --code-type: #1d4ed8;
 }
 
 /* Dark mode.
@@ -143,6 +156,7 @@
   --accent-apt: #818cf8;
   --accent-cog: #a3aab5;
   --accent-oop: #d9a066;
+  --accent-cpp: #9db0d4;
   --accent-flame: #fb923c;
   --accent-complete: #60a5fa;
   --accent-bite: #eab308;
@@ -150,4 +164,10 @@
   --accent-job: #a3e635;
   --accent-pet: #e9a9c6;
   --accent-pet-soft: #43303a;
+
+  --code-comment: #7c8794;
+  --code-string: #6ee7b7;
+  --code-number: #fbbf24;
+  --code-keyword: #c4b5fd;
+  --code-type: #93c5fd;
 }

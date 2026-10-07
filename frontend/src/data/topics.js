@@ -88,6 +88,13 @@ export const topicPalette = {
     blurb:
       "Classes, inheritance, polymorphism, and the design patterns built on them.",
   },
+  "c-cpp-systems": {
+    name: "C/C++ and Systems",
+    short: "C/C++",
+    accent: "accent-cpp",
+    blurb:
+      "Pointers, memory, signals, and systems ideas made concrete with real code.",
+  },
 };
 
 // A niche decides which topics appear on the topic list. The content
@@ -110,6 +117,7 @@ export const niches = [
       "quantitative-aptitude",
       "cognitive-ability",
       "object-oriented-programming",
+      "c-cpp-systems",
     ],
   },
   {
@@ -124,6 +132,7 @@ export const niches = [
       "databases",
       "system-design",
       "computer-organization-and-architecture",
+      "c-cpp-systems",
     ],
   },
   {

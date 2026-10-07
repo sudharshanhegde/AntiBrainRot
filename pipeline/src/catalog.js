@@ -7,6 +7,7 @@
 
 export const TOPICS = [
   { slug: "operating-systems", name: "Operating Systems" },
+  { slug: "c-cpp-systems", name: "C/C++ and Systems" },
   { slug: "computer-networks", name: "Computer Networks" },
   { slug: "data-structures", name: "Data Structures" },
   { slug: "system-design", name: "System Design" },
@@ -27,6 +28,7 @@ export const NICHES = [
       "system-design",
       "databases",
       "network-security",
+      "c-cpp-systems",
     ],
   },
   {
@@ -39,6 +41,7 @@ export const NICHES = [
       "network-security",
       "databases",
       "system-design",
+      "c-cpp-systems",
     ],
   },
   {

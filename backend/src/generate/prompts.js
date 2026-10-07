@@ -19,6 +19,23 @@ export function difficultyForDeckIndex(index) {
   return "advanced";
 }
 
+// Topic-specific template guidance. Most topics are prose-first and only
+// reach for text_code when a snippet genuinely clarifies; c-cpp-systems is
+// code-first, so its cards are expected to carry a short, real snippet
+// whenever the concept is code-shaped. Appended to the system prompt for
+// that topic only, in both passes, so generation and validation agree.
+const C_CPP_TEMPLATE_GUIDANCE = `
+
+Topic-specific template rule for c-cpp-systems (overrides the general template guidance above):
+- This topic teaches through code. Prefer "text_code" whenever a short snippet makes the mechanism concrete: pointer arithmetic and dereferencing, array indexing, struct layout and padding, const, references, RAII, a signal handler, a signal number, a syscall call, a fork and exec pair, a file descriptor. Put the snippet in "code_snippet" and use the body to explain what the snippet shows.
+- Use "text_only" only when the concept is genuinely conceptual and no short snippet clarifies it. Use "text_diagram" when a layout or state diagram clarifies better than code.
+- A snippet does not replace the body: still write a full 110 to 180 word body explaining what happens.
+- The snippet must be real, minimal, and correct C or C++ (or a real shell command or syscall example). No pseudo-code, no ellipses, no placeholder identifiers.`;
+
+const C_CPP_VALIDATION_NOTE = `
+
+Note for c-cpp-systems: code snippets are expected on cards whose concept is code-shaped (pointer arithmetic, struct layout, signals, syscalls, RAII, const, references). Do not flag a text_code card as a template mismatch when its snippet genuinely illustrates the mechanism and is correct. Do flag a snippet that is pseudo-code, incorrect, or unsafe.`;
+
 const COMMON_RULES = `Hard writing rules, non-negotiable:
 - No em dashes anywhere. No emojis anywhere. Use a period, a comma, or restructure the sentence instead.
 - Every card body must be between 110 and 180 words. Write 130 to 160 words per body, and count them. Never write fewer than 110 words; a body under 100 words fails validation.
@@ -151,10 +168,14 @@ ${bulletList(recent(priorTitles, MAX_PRIOR_TITLES), "none yet")}
 
 ${sourceSection}${manualQuizBlock(manualQuizzes)}`;
 
+  const system =
+    (grounded ? GENERATION_SYSTEM_GROUNDED : GENERATION_SYSTEM_SELF) +
+    (topicSlug === "c-cpp-systems" ? C_CPP_TEMPLATE_GUIDANCE : "");
+
   return [
     {
       role: "system",
-      content: grounded ? GENERATION_SYSTEM_GROUNDED : GENERATION_SYSTEM_SELF,
+      content: system,
     },
     { role: "user", content: user },
   ];
@@ -218,10 +239,14 @@ ${grounded ? `Source material:\n${sourceBlock(sources)}` : "No source material w
 Draft deck to judge:
 ${JSON.stringify(draft, null, 2)}`;
 
+  const system =
+    (grounded ? VALIDATION_SYSTEM_GROUNDED : VALIDATION_SYSTEM_SELF) +
+    (topicSlug === "c-cpp-systems" ? C_CPP_VALIDATION_NOTE : "");
+
   return [
     {
       role: "system",
-      content: grounded ? VALIDATION_SYSTEM_GROUNDED : VALIDATION_SYSTEM_SELF,
+      content: system,
     },
     { role: "user", content: user },
   ];

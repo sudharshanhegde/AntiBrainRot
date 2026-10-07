@@ -69,8 +69,20 @@ async function apiDeckChunk(topicSlug, deckIndex, offset, limit = CHUNK_SIZE) {
   const data = await res.json();
 
   if (data.status !== "ok") {
-    // exhausted: no reviewed decks exist for this topic yet
-    return { cards: [], hasMore: false, total: 0, difficulty: "fundamentals", deckIndex };
+    // exhausted: no reviewed deck is available at this index yet. This is
+    // either "the topic has no content at all" (next_deck_index 0) or "the
+    // user is caught up and the next day is not generated yet"
+    // (next_deck_index > 0). Callers use next_deck_index to tell the two
+    // apart, so a caught-up user is never shown an empty dead end.
+    return {
+      cards: [],
+      hasMore: false,
+      total: 0,
+      difficulty: "fundamentals",
+      deckIndex,
+      exhausted: true,
+      nextDeckIndex: Number.isInteger(data.next_deck_index) ? data.next_deck_index : null,
+    };
   }
 
   const all = data.deck.cards || [];

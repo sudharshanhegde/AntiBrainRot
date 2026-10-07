@@ -48,6 +48,12 @@ export function Feed({
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // True when the requested deck does not exist yet but the topic already
+  // has earlier days (next_deck_index > 0): the user has read everything
+  // published and the next day is not generated. Distinct from a topic
+  // with no content at all, so a caught-up user can revise old days
+  // instead of hitting a dead end.
+  const [caughtUp, setCaughtUp] = useState(false);
   const completedRef = useRef(false);
   // Whether the initial card position has been restored for this open.
   const restoredRef = useRef(false);
@@ -106,10 +112,20 @@ export function Feed({
       setError(null);
       setLoading(true);
       try {
-        const { cards: chunk, hasMore: more, total, difficulty, deckIndex } =
-          await fetchDeckChunk(topicSlug, deckTarget, offset, limit);
+        const {
+          cards: chunk,
+          hasMore: more,
+          total,
+          difficulty,
+          deckIndex,
+          exhausted: noDeck,
+          nextDeckIndex,
+        } = await fetchDeckChunk(topicSlug, deckTarget, offset, limit);
         setCards((prev) => [...prev, ...chunk]);
         setHasMore(more);
+        setCaughtUp(
+          Boolean(noDeck) && Number.isInteger(nextDeckIndex) && nextDeckIndex > 0
+        );
         if (offset === 0) setMeta({ total, difficulty, deckIndex });
       } catch (err) {
         setError(err instanceof Error ? err.message : "could not load the deck");
@@ -128,6 +144,7 @@ export function Feed({
   useEffect(() => {
     setCards([]);
     setHasMore(true);
+    setCaughtUp(false);
     completedRef.current = false;
     restoredRef.current = false;
     countedRef.current.clear();
@@ -249,6 +266,32 @@ export function Feed({
     );
   }
   if (cards.length === 0) {
+    // Caught up: every published day is read and the next deck is not
+    // generated yet. This must not block: explain the wait and offer the
+    // day list so any previously generated day can be revised.
+    if (caughtUp) {
+      return (
+        <>
+          <StatusScreen
+            label="all caught up"
+            title={topic.name}
+            accent={topic.accent}
+            description="No new day for this topic right now. The next one is generated within 24 hours. You can revise any day you have already read."
+            onAction={openDrawer}
+            actionLabel="revise previous days"
+          />
+          {drawerOpen && (
+            <DaysDrawer
+              topicSlug={topicSlug}
+              days={days.days}
+              onSelect={handleSelectDay}
+              onClose={() => setDrawerOpen(false)}
+              onBackToTopics={onBack}
+            />
+          )}
+        </>
+      );
+    }
     // Loaded but nothing to serve: the topic has no reviewed decks yet.
     return (
       <StatusScreen

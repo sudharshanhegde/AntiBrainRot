@@ -51,8 +51,9 @@ export function EndCard({ topic, difficulty, onExplore, onSurprise }) {
           You're all caught up here.
         </h2>
         <p className="max-w-sm font-sans text-[16px] leading-relaxed text-muted">
-          You finished the {difficulty} day for {topic.name}. The next day
-          unlocks soon.
+          You finished the {difficulty} day for {topic.name}. The next day is
+          generated within 24 hours. Use the days button to revise any day you
+          have already read.
         </p>
         <div className="mt-2 flex flex-col items-center gap-3">
           <button

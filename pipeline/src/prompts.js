@@ -6,23 +6,6 @@ export function difficultyForDeckIndex(index) {
   return "advanced";
 }
 
-// Topic-specific template guidance. Most topics are prose-first and only
-// reach for text_code when a snippet genuinely clarifies; c-cpp-systems is
-// code-first, so its cards are expected to carry a short, real snippet
-// whenever the concept is code-shaped. Appended to the system prompt for
-// that topic only, in both passes, so generation and validation agree.
-const C_CPP_TEMPLATE_GUIDANCE = `
-
-Topic-specific template rule for c-cpp-systems (overrides the general template guidance above):
-- This topic teaches through code. Prefer "text_code" whenever a short snippet makes the mechanism concrete: pointer arithmetic and dereferencing, array indexing, struct layout and padding, const, references, RAII, a signal handler, a signal number, a syscall call, a fork and exec pair, a file descriptor. Put the snippet in "code_snippet" and use the body to explain what the snippet shows.
-- Use "text_only" only when the concept is genuinely conceptual and no short snippet clarifies it. Use "text_diagram" when a layout or state diagram clarifies better than code.
-- A snippet does not replace the body: still write a full 110 to 180 word body explaining what happens.
-- The snippet must be real, minimal, and correct C or C++ (or a real shell command or syscall example). No pseudo-code, no ellipses, no placeholder identifiers.`;
-
-const C_CPP_VALIDATION_NOTE = `
-
-Note for c-cpp-systems: code snippets are expected on cards whose concept is code-shaped (pointer arithmetic, struct layout, signals, syscalls, RAII, const, references). Do not flag a text_code card as a template mismatch when its snippet genuinely illustrates the mechanism and is correct. Do flag a snippet that is pseudo-code, incorrect, or unsafe.`;
-
 // A deck is 20 cards, concept, quiz, concept, quiz,
 // repeated. Even order_index (0, 2, ... 18) are concept cards; odd
 // (1, 3, ... 19) are quiz cards that test the concept immediately
@@ -85,7 +68,9 @@ Reply with ONLY a single JSON object. No markdown fences, no commentary. Schema:
     }
   ]
 }
-Use text_code only when a short code or syscall snippet genuinely clarifies. Use text_diagram only when a simple diagram meaningfully helps; otherwise use text_only.`;
+- Template choice, applies to every topic: prefer "text_code" whenever a short snippet makes the mechanism concrete, because seeing the code is how these concepts usually click. Use "text_only" when no short snippet genuinely clarifies the idea, and "text_diagram" when a layout or state diagram clarifies better than code or prose.
+- A snippet does not replace the body: still write a full 110 to 180 word body explaining what the snippet shows.
+- The snippet must be real, minimal, and correct: a real language, shell, or syscall example. No pseudo-code, no ellipses, no placeholder identifiers.`;
 
 function sourceBlock(sources) {
   if (!sources || sources.length === 0) {
@@ -139,11 +124,8 @@ ${coverageContext(manifest)}
 Source material to ground every claim:
 ${sourceBlock(sources)}${manualQuizBlock(manualQuizzes)}`;
 
-  const system =
-    GENERATION_SYSTEM + (topicSlug === "c-cpp-systems" ? C_CPP_TEMPLATE_GUIDANCE : "");
-
   return [
-    { role: "system", content: system },
+    { role: "system", content: GENERATION_SYSTEM },
     { role: "user", content: user },
   ];
 }
@@ -157,7 +139,7 @@ Checklist, judge each card against all of these:
 1. Every factual claim traces to the provided source material.
 2. No concept overlaps with the prior deck titles for this topic.
 3. Title is specific, not generic or teaser-style.
-4. Template matches the content needs: text_diagram only when a diagram meaningfully helps, text_code only when a snippet clarifies, otherwise text_only.
+4. Template matches the content needs: text_code when a short snippet clarifies the mechanism, text_diagram when a diagram does, otherwise text_only. Flag a snippet that is pseudo-code, incorrect, or unsafe.
 5. The deck reads as a coherent progression, not 10 unrelated facts.
 6. For every quiz card: the correct answer must be derivable entirely from the body of the concept card immediately before it. The three distractors must be plausible-sounding but clearly wrong for someone who actually read that card. Flag any unfair question: a trick question, a negation trick ("which of these is NOT true"), a distractor that is really a matter of interpretation, or a question that tests a minor aside while ignoring the card's main point.
 
@@ -191,11 +173,8 @@ ${sourceBlock(sources)}
 Draft deck to judge:
 ${JSON.stringify(draft, null, 2)}`;
 
-  const system =
-    VALIDATION_SYSTEM + (topicSlug === "c-cpp-systems" ? C_CPP_VALIDATION_NOTE : "");
-
   return [
-    { role: "system", content: system },
+    { role: "system", content: VALIDATION_SYSTEM },
     { role: "user", content: user },
   ];
 }

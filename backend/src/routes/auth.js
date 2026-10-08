@@ -8,11 +8,24 @@ export const authRouter = Router();
 // email, display name, avatar. Nothing beyond name/avatar/email is pulled.
 // Google's provider puts full_name/avatar_url in
 // user_metadata; email/password puts name in user_metadata too.
+//
+// display_name never falls back to the full email: it is shown to other
+// users on the leaderboard, so the address must stay private. Email and
+// password accounts carry no name in metadata, so their public handle is
+// the local part of the address (the text before the @), matching the
+// profile screen's own fallback. It stays null only when there is neither a
+// name nor an email, and the read layer then shows a neutral placeholder.
 function profileFromUser(u) {
   const meta = u.user_metadata || {};
+  const email = u.email || "";
+  const name =
+    (meta.full_name && String(meta.full_name).trim()) ||
+    (meta.name && String(meta.name).trim()) ||
+    email.split("@")[0].trim() ||
+    null;
   return {
     email: u.email || null,
-    display_name: meta.full_name || meta.name || u.email || null,
+    display_name: name,
     avatar_url: meta.avatar_url || meta.picture || null,
   };
 }

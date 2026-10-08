@@ -4,6 +4,17 @@ import { optionalUserId } from "../auth.js";
 
 export const leaderboardRouter = Router();
 
+// A public name safe to show to other users. The stored display_name must
+// never be an email (auth stores the intended handle for email accounts),
+// but guard here too so a legacy row written before that rule can never
+// leak an address to the public list.
+function publicName(value) {
+  const name = String(value || "").trim();
+  if (!name) return "anonymous";
+  const at = name.indexOf("@");
+  return at > 0 ? name.slice(0, at) : name;
+}
+
 // GET /api/leaderboard
 //
 // Ranked by daily streak. Only users who opted in (leaderboard_opt_in)
@@ -30,7 +41,7 @@ leaderboardRouter.get("/", optionalUserId, async (req, res) => {
 
     const leaderboard = rows.map((r, i) => ({
       rank: i + 1,
-      display_name: r.display_name || "anonymous",
+      display_name: publicName(r.display_name),
       avatar_url: r.avatar_url,
       current_streak: r.current_streak,
       is_me: r.user_id === req.userId,
@@ -65,7 +76,7 @@ leaderboardRouter.get("/", optionalUserId, async (req, res) => {
         );
         me = {
           rank: rankRes.rows[0].rank,
-          display_name: myRow.display_name || "anonymous",
+          display_name: publicName(myRow.display_name),
           avatar_url: myRow.avatar_url,
           current_streak: myRow.current_streak,
         };

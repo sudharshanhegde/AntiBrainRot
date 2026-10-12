@@ -13,11 +13,11 @@
    ============================================================ */
 @theme {
   /* --- base palette (5 named colors) --- */
-  --color-paper: #F3F2EC; /* aged terminal paper, the app background */
-  --color-ink: #1B1E23; /* near-black, cool slate, primary text */
-  --color-muted: #666B72; /* secondary text, metadata */
-  --color-hairline: #DCDAD2; /* rule color, panel borders */
-  --color-panel: #E9E7DE; /* code and diagram panel fills */
+  --color-paper: #ECEAE1; /* aged terminal paper, the app background */
+  --color-ink: #2B2F36; /* softened slate, primary text */
+  --color-muted: #5C626A; /* secondary text, metadata */
+  --color-hairline: #D5D2C8; /* rule color, panel borders */
+  --color-panel: #E2DFD5; /* code and diagram panel fills */
 
   /* --- topic accents, one per topic, used sparingly --- */
   --color-accent-os: #B4470B; /* burnt oxide, kernel content */
@@ -138,11 +138,11 @@
    dark paper. Toggled by frontend/src/hooks/useTheme.js and set before
    first paint by an inline script in index.html to avoid a flash. */
 .dark {
-  --color-paper: #14161a;
-  --color-ink: #e9e7df;
-  --color-muted: #9aa0a8;
-  --color-hairline: #2b2f36;
-  --color-panel: #1c1f25;
+  --color-paper: #1C1F26;
+  --color-ink: #DAD8D0;
+  --color-muted: #99A1AB;
+  --color-hairline: #313640;
+  --color-panel: #23272F;
 
   --accent-os: #e8913d;
   --accent-net: #6ca6e8;

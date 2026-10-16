@@ -111,9 +111,17 @@ export function checkDeck(deck, subjectContext = {}) {
   if (!Number.isInteger(deck.deck_index) || deck.deck_index < 0) {
     errors.push("deck_index must be a non-negative integer");
   }
-  if (!Array.isArray(deck.cards) || deck.cards.length !== DECK_SIZE) {
+  // The expected size is the assignment's concept count times two, so the
+  // final part of a subject (fewer than CARDS_PER_DECK concepts left) is a
+  // smaller deck, which the SKILL allows. Without an assignment this falls
+  // back to the fixed DECK_SIZE.
+  const expectedSize =
+    subjectContext.assignedConcepts && subjectContext.assignedConcepts.length > 0
+      ? subjectContext.assignedConcepts.length * 2
+      : DECK_SIZE;
+  if (!Array.isArray(deck.cards) || deck.cards.length !== expectedSize) {
     errors.push(
-      `deck must have exactly ${DECK_SIZE} cards (concept, quiz, repeated), got ${deck.cards ? deck.cards.length : "none"}`
+      `deck must have exactly ${expectedSize} cards (concept, quiz, repeated), got ${deck.cards ? deck.cards.length : "none"}`
     );
   }
 

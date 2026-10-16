@@ -94,21 +94,34 @@ export function activeGroqEndpointCount() {
 
 // Per-run Groq health state, tracked per ENDPOINT (key index "::" model) since
 // the same model under a different key is a different budget:
-//   cooldownUntil - an endpoint that got rate-limited waits here, then retried.
-//   exhausted     - endpoints that failed repeatedly / hit a long retry-after.
-//   keyDailyOut   - an ENTIRE key whose daily token budget is spent; all its
+//   cooldownUntil - an endpoint that got a transient (per-minute) rate limit
+//                   waits here, then is retried.
+//   exhausted     - endpoints permanently unusable this run: a 404 (model not
+//                   granted) or an oversized request (413). NOT set for a
+//                   per-minute 429, which recovers on its own.
+//   keyDailyOut   - an ENTIRE key whose DAILY budget is spent; all its
 //                   endpoints are skipped for the run.
-//   failCount     - how many times each endpoint has rate-limited this run.
+//   failCount     - how many times each endpoint has rate-limited this run,
+//                   used only to widen its cooldown.
 const GROQ_COOLDOWN_MS = Number(process.env.GROQ_COOLDOWN_MS || 20000);
+// Ceiling for the escalating per-endpoint cooldown, so a tight per-minute
+// bucket spreads out instead of hammering the same endpoint.
+const GROQ_MAX_COOLDOWN_MS = Number(process.env.GROQ_MAX_COOLDOWN_MS || 90000);
+// Total time the pool may spend purely waiting on cooldowns without a single
+// success before it gives up, so a genuinely dead key that never reports a
+// daily limit cannot spin the run forever. Reset on every successful call.
+const GROQ_MAX_WAIT_MS = Number(process.env.GROQ_MAX_WAIT_MS || 900000);
 let cooldownUntil = new Map();
 let exhausted = new Set();
 let failCount = new Map();
 let keyDailyOut = new Set();
+let waitedMs = 0;
 export function resetGroqExhaustion() {
   cooldownUntil = new Map();
   exhausted = new Set();
   failCount = new Map();
   keyDailyOut = new Set();
+  waitedMs = 0;
 }
 
 function sleep(ms) {
@@ -185,9 +198,11 @@ async function endpointChat(apiKey, model, messages, opts = {}) {
 // Round-robins over endpoints that are currently available. When an endpoint is
 // rate-limited it is put into a short cooldown (respecting retry-after) so it
 // has time to recover, and the next available endpoint is tried. A long
-// retry-after (daily token cap) retires the WHOLE key for the run. If nothing
-// is available it waits for the soonest cooldown and retries; if every key is
-// out it throws so the caller falls over to the failover keys.
+// retry-after (or a per-day message) retires the WHOLE key for the run; a
+// per-minute rate limit only parks the endpoint. If nothing is available it
+// waits for the soonest cooldown and retries; if every key is daily-exhausted,
+// or nothing has succeeded within GROQ_MAX_WAIT_MS, it throws so the caller
+// falls over to the failover keys.
 let rr = 0;
 async function groqExtraction(messages, opts) {
   const now = Date.now();
@@ -204,14 +219,24 @@ async function groqExtraction(messages, opts) {
       throw new Error("all Groq keys/models exhausted for this run");
     }
     const soonest = Math.min(...possible.map((e) => cooldownUntil.get(e.id) || now));
-    if (soonest > now) await sleep(Math.min(soonest - now, 60000));
+    if (soonest > now) {
+      const wait = Math.min(soonest - now, 60000);
+      waitedMs += wait;
+      if (waitedMs > GROQ_MAX_WAIT_MS) {
+        throw new Error("all Groq keys/models exhausted for this run");
+      }
+      await sleep(wait);
+    }
     return groqExtraction(messages, opts);
   }
 
   const ep = available[rr % available.length];
   rr += 1;
   try {
-    return await endpointChat(ep.key, ep.model, messages, opts);
+    const res = await endpointChat(ep.key, ep.model, messages, opts);
+    // Real progress, so the no-progress wait budget starts over.
+    waitedMs = 0;
+    return res;
   } catch (err) {
     const status = err?.status;
     const msg = err?.message || "";
@@ -230,18 +255,23 @@ async function groqExtraction(messages, opts) {
     if (!(err && (err.status === 429 || isRetryableRateLimit(err)))) throw err;
     const after = err?.headers?.get?.("retry-after");
     const afterSec = after ? Math.max(Number(after) || 1, 1) : 0;
-    failCount.set(ep.id, (failCount.get(ep.id) || 0) + 1);
-    if (afterSec >= 300) {
-      // Long retry-after means this ACCOUNT's daily token budget is spent; all
-      // its models are done for the day, so retire the whole key.
+    const fails = (failCount.get(ep.id) || 0) + 1;
+    failCount.set(ep.id, fails);
+    // Only a genuine DAILY exhaustion retires the key. A per-minute 429
+    // (requests or tokens per minute) is transient: park the endpoint on a
+    // cooldown and try another, or wait it out. Retiring after a few
+    // per-minute 429s retired a healthy free-tier key in a burst, long before
+    // its daily budget was anywhere near spent, which surfaced as the whole
+    // pool being "exhausted" at around a hundred calls.
+    const daily = /per\s*day|RPD|TPD|\bdaily\b/i.test(msg) || afterSec >= 300;
+    if (daily) {
       keyDailyOut.add(ep.key);
       exhausted.add(ep.id);
-    } else if ((failCount.get(ep.id) || 0) >= 4) {
-      // Repeated failures -> give up on this endpoint for the rest of the run.
-      exhausted.add(ep.id);
     } else {
-      // Short cooldown so the endpoint can recover before being tried again.
-      const cooldownMs = afterSec > 0 ? afterSec * 1000 : GROQ_COOLDOWN_MS;
+      // Back off a little further each time this endpoint is hit, on top of
+      // any retry-after, so a tight bucket spreads out instead of failing fast.
+      const base = afterSec > 0 ? afterSec * 1000 : GROQ_COOLDOWN_MS;
+      const cooldownMs = Math.min(base * Math.min(fails, 4), GROQ_MAX_COOLDOWN_MS);
       cooldownUntil.set(ep.id, Date.now() + cooldownMs);
     }
     await sleep(300); // brief pause before hitting the next endpoint

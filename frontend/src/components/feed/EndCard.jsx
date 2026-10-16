@@ -9,7 +9,9 @@ import { useCardEnter } from "../../hooks/useCardEnter";
 // No aggregate quiz score is shown here: every quiz card already gives
 // instant right/wrong feedback, so an end-of-deck sum adds nothing and
 // risks disagreeing with that feedback.
-export function EndCard({ topic, difficulty, onExplore, onSurprise }) {
+// `label` is the subject label ("Array, part 1 of 3") for subject decks, null
+// for legacy mixed decks, which fall back to the difficulty day wording.
+export function EndCard({ topic, label, difficulty, onExplore, onSurprise }) {
   const bodyRef = useRef(null);
   useCardEnter(bodyRef);
 
@@ -51,9 +53,9 @@ export function EndCard({ topic, difficulty, onExplore, onSurprise }) {
           You're all caught up here.
         </h2>
         <p className="max-w-sm font-sans text-[16px] leading-relaxed text-muted">
-          You finished the {difficulty} day for {topic.name}. The next day is
-          generated within 24 hours. Use the days button to revise any day you
-          have already read.
+          You finished {label || `the ${difficulty} day`} for {topic.name}. The
+          next day is generated within 24 hours. Use the days button to revise
+          any day you have already read.
         </p>
         <div className="mt-2 flex flex-col items-center gap-3">
           <button

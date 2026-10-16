@@ -57,6 +57,7 @@ feedRouter.get("/", optionalUserId, async (req, res) => {
         : null;
     if (Number.isInteger(revisionIndex)) {
       const REVISION_SELECT = `select d.deck_index, d.difficulty, d.id as deck_id,
+              d.subject_title, d.part_number, d.part_count,
               c.id as card_id, c.order_index, c.type, c.template, c.title, c.body,
               c.code_snippet, c.diagram_ref, c.concept,
               c.question, c.options, c.correct_option_id, c.tests_card_id
@@ -94,6 +95,9 @@ feedRouter.get("/", optionalUserId, async (req, res) => {
           deck_id: revRes.rows[0].deck_id,
           deck_index: revRes.rows[0].deck_index,
           difficulty: revRes.rows[0].difficulty,
+          subject_title: revRes.rows[0].subject_title,
+          part_number: revRes.rows[0].part_number,
+          part_count: revRes.rows[0].part_count,
           cards: revRes.rows.map(toCard),
         },
       });
@@ -113,6 +117,7 @@ feedRouter.get("/", optionalUserId, async (req, res) => {
     const nextIndex = progress.last_deck_index_completed + 1;
     const deckRes = await query(
       `select d.deck_index, d.difficulty, d.id as deck_id,
+              d.subject_title, d.part_number, d.part_count,
               c.id as card_id, c.order_index, c.type, c.template, c.title, c.body,
               c.code_snippet, c.diagram_ref, c.concept,
               c.question, c.options, c.correct_option_id, c.tests_card_id
@@ -138,6 +143,9 @@ feedRouter.get("/", optionalUserId, async (req, res) => {
         deck_id: deckRes.rows[0].deck_id,
         deck_index: deckRes.rows[0].deck_index,
         difficulty: deckRes.rows[0].difficulty,
+        subject_title: deckRes.rows[0].subject_title,
+        part_number: deckRes.rows[0].part_number,
+        part_count: deckRes.rows[0].part_count,
         cards: deckRes.rows.map(toCard),
       },
     });

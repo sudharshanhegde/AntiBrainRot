@@ -44,7 +44,14 @@ export function Feed({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [days, setDays] = useState({ days: [] });
   const [cards, setCards] = useState([]);
-  const [meta, setMeta] = useState({ total: 0, difficulty: "fundamentals", deckIndex: 0 });
+  const [meta, setMeta] = useState({
+    total: 0,
+    difficulty: "fundamentals",
+    subjectTitle: null,
+    partNumber: null,
+    partCount: null,
+    deckIndex: 0,
+  });
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -117,6 +124,9 @@ export function Feed({
           hasMore: more,
           total,
           difficulty,
+          subjectTitle,
+          partNumber,
+          partCount,
           deckIndex,
           exhausted: noDeck,
           nextDeckIndex,
@@ -126,7 +136,9 @@ export function Feed({
         setCaughtUp(
           Boolean(noDeck) && Number.isInteger(nextDeckIndex) && nextDeckIndex > 0
         );
-        if (offset === 0) setMeta({ total, difficulty, deckIndex });
+        if (offset === 0) {
+          setMeta({ total, difficulty, subjectTitle, partNumber, partCount, deckIndex });
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "could not load the deck");
       } finally {
@@ -305,6 +317,13 @@ export function Feed({
   }
 
   const total = meta.total || cards.length;
+  // Subject decks label themselves by subject and part ("Array, part 1 of
+  // 3"); legacy mixed decks keep the difficulty word.
+  const subjectLabel =
+    meta.subjectTitle && meta.partNumber && meta.partCount
+      ? `${meta.subjectTitle}, part ${meta.partNumber} of ${meta.partCount}`
+      : null;
+  const deckLabel = subjectLabel || meta.difficulty;
   const showEndCard = !hasMore && cards.length > 0;
   const atEnd = showEndCard && activeIndex >= cards.length;
 
@@ -325,7 +344,7 @@ export function Feed({
             key={card.order_index}
             card={card}
             topic={topic}
-            difficulty={meta.difficulty}
+            difficulty={deckLabel}
             deckIndex={meta.deckIndex}
             index={card.order_index}
             total={total}
@@ -338,6 +357,7 @@ export function Feed({
         {showEndCard && (
           <EndCard
             topic={topic}
+            label={subjectLabel}
             difficulty={meta.difficulty}
             onExplore={onExplore || onBack}
             onSurprise={onSurprise}

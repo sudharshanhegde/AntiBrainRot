@@ -29,6 +29,9 @@ async function mockDeckChunk(topicSlug, deckIndex, offset, limit = CHUNK_SIZE) {
     hasMore: offset + slice.length < all.length,
     total: all.length,
     difficulty: "fundamentals",
+    subjectTitle: null,
+    partNumber: null,
+    partCount: null,
     deckIndex,
   };
 }
@@ -79,6 +82,9 @@ async function apiDeckChunk(topicSlug, deckIndex, offset, limit = CHUNK_SIZE) {
       hasMore: false,
       total: 0,
       difficulty: "fundamentals",
+      subjectTitle: null,
+      partNumber: null,
+      partCount: null,
       deckIndex,
       exhausted: true,
       nextDeckIndex: Number.isInteger(data.next_deck_index) ? data.next_deck_index : null,
@@ -92,6 +98,11 @@ async function apiDeckChunk(topicSlug, deckIndex, offset, limit = CHUNK_SIZE) {
     hasMore: offset + slice.length < all.length,
     total: all.length,
     difficulty: data.deck.difficulty,
+    // Subject decks carry a subject and a part number; legacy mixed decks
+    // leave both null and the label falls back to the difficulty word.
+    subjectTitle: data.deck.subject_title || null,
+    partNumber: Number.isInteger(data.deck.part_number) ? data.deck.part_number : null,
+    partCount: Number.isInteger(data.deck.part_count) ? data.deck.part_count : null,
     deckIndex: data.deck.deck_index,
   };
 }

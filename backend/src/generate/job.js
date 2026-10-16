@@ -187,7 +187,11 @@ async function loadManualQuizzes(topicSlug, deckIndex) {
 // the alternating concept/quiz layout so order_index matches the array
 // position (0-19), which the automated checks rely on.
 function applyManualQuizzes(draft, manualQuizzes) {
-  for (const card of draft.cards || []) {
+  // The model occasionally omits cards entirely (malformed but valid JSON);
+  // normalize to an array so the later sort/splice cannot throw and the size
+  // gate reports a clear reason instead.
+  if (!Array.isArray(draft.cards)) draft.cards = [];
+  for (const card of draft.cards) {
     if (!card.type) card.type = "concept";
   }
   if (manualQuizzes && manualQuizzes.size > 0) {
@@ -307,6 +311,18 @@ async function generateOneDeck(
       // Hand-written quiz cards override whatever the model produced for
       // those slots (manual override path).
       applyManualQuizzes(draft, manualQuizzes);
+      if (subject) {
+        // Pin every concept card's label to its syllabus assignment, in
+        // order. Cards are generated in the assigned order, so card i owns
+        // assigned concept i. This keeps covered_concepts and the syllabus
+        // status exact even when the model paraphrases the label, which
+        // otherwise fails the assignment gate and, worse, leaves the
+        // syllabus row pending so the same concept is handed out again.
+        const conceptCards = draft.cards.filter((c) => c.type !== "quiz");
+        conceptCards.forEach((card, i) => {
+          if (i < subject.concepts.length) card.concept = subject.concepts[i];
+        });
+      }
     } catch (err) {
       lastError = `generation error: ${err.message}`;
       console.error(`[generate] ${topicSlug} deck ${deckIndex} attempt ${attempt}: ${lastError}`);
@@ -323,7 +339,9 @@ async function generateOneDeck(
     if (!auto.ok) {
       lastError = auto.errors.join("; ");
       feedback = auto.errors.map((e) => `- ${e}`).join("\n");
-      console.error(`[generate] ${topicSlug} deck ${deckIndex} attempt ${attempt}: automated checks failed`);
+      console.error(
+        `[generate] ${topicSlug} deck ${deckIndex} attempt ${attempt}: automated checks failed: ${lastError}`
+      );
       if (attempt === MAX_ATTEMPTS) break;
       continue;
     }

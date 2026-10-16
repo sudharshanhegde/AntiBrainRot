@@ -542,3 +542,42 @@ create table if not exists push_subscriptions (
 );
 create index if not exists push_subscriptions_user_idx
   on push_subscriptions (user_id);
+
+-- ============================================================
+-- Subject-based decks
+-- ============================================================
+-- A deck teaches one subject (Array, Linked List) through a fixed
+-- progression instead of ten cards at one difficulty band covering
+-- unrelated concepts. The syllabus is the per-topic teaching order, one
+-- file per topic at pipeline/syllabus/<topic-slug>.md, synced into this
+-- table on the daily run (the file wins once it exists; otherwise the
+-- first run asks the model once to draft one and stores it here).
+-- subject_order is teaching order, concept_order is concept order within
+-- the subject. status moves pending -> done as each deck publishes, so
+-- selection always continues the first subject still unfinished.
+create table if not exists syllabus (
+  id serial primary key,
+  topic_id integer not null references topics(id) on delete cascade,
+  subject_slug text not null,
+  subject_title text not null,
+  subject_order integer not null,
+  concept_order integer not null,
+  concept_label text not null,
+  status text not null default 'pending', -- pending | done
+  unique (topic_id, subject_slug, concept_order)
+);
+
+-- Selection reads the pending concepts of the first subject in teaching
+-- order, so this index matches that access pattern.
+create index if not exists syllabus_pending_idx
+  on syllabus (topic_id, status, subject_order, concept_order);
+
+-- Subject fields on the deck. Older mixed decks have these null and keep
+-- their old difficulty label; subject fields are set only on decks
+-- generated after the revamp. subject_analogy is created in part 1 and
+-- passed into every later part so the whole subject uses one picture.
+alter table decks add column if not exists subject_slug text;
+alter table decks add column if not exists subject_title text;
+alter table decks add column if not exists part_number integer;
+alter table decks add column if not exists part_count integer;
+alter table decks add column if not exists subject_analogy text;

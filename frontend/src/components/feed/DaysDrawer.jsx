@@ -11,6 +11,13 @@ export function DaysDrawer({ topicSlug, days, onSelect, onClose, onBackToTopics 
 
   const statusLabel = (day) => (day.status === "completed" ? "done" : "play");
 
+  // Subject decks label themselves by subject and part ("Array, part 1 of
+  // 3"); legacy mixed decks have no subject and keep the difficulty word.
+  const dayLabel = (day) =>
+    day.subject_title && day.part_number && day.part_count
+      ? `${day.subject_title}, part ${day.part_number} of ${day.part_count}`
+      : day.difficulty;
+
   return (
     <div
       className="fixed inset-0 z-50 flex"
@@ -64,7 +71,7 @@ export function DaysDrawer({ topicSlug, days, onSelect, onClose, onBackToTopics 
                       Day {day.day}
                     </span>
                     <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                      {day.difficulty}
+                      {dayLabel(day)}
                     </span>
                   </span>
                   <span

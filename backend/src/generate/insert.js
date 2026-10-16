@@ -20,13 +20,29 @@ export async function insertReviewedDeck(topicSlug, deck) {
     const topicId = topicRes.rows[0].id;
 
     const deckRes = await client.query(
-      `insert into decks (topic_id, deck_index, difficulty, generated_at, reviewed_at)
-       values ($1, $2, $3, now(), now())
+      `insert into decks
+         (topic_id, deck_index, difficulty, generated_at, reviewed_at,
+          subject_slug, subject_title, part_number, part_count, subject_analogy)
+       values ($1, $2, $3, now(), now(), $4, $5, $6, $7, $8)
        on conflict (topic_id, deck_index) do update set
          difficulty = excluded.difficulty,
+         subject_slug = excluded.subject_slug,
+         subject_title = excluded.subject_title,
+         part_number = excluded.part_number,
+         part_count = excluded.part_count,
+         subject_analogy = excluded.subject_analogy,
          reviewed_at = now()
        returning id`,
-      [topicId, deck.deck_index, deck.difficulty || "fundamentals"]
+      [
+        topicId,
+        deck.deck_index,
+        deck.difficulty || "fundamentals",
+        deck.subject_slug || null,
+        deck.subject_title || null,
+        Number.isInteger(deck.part_number) ? deck.part_number : null,
+        Number.isInteger(deck.part_count) ? deck.part_count : null,
+        deck.subject_analogy || null,
+      ]
     );
     const deckId = deckRes.rows[0].id;
 
@@ -80,6 +96,20 @@ export async function insertReviewedDeck(topicSlug, deck) {
            values ($1, $2, $3)
            on conflict (topic_id, concept_label) do nothing`,
           [topicId, card.concept, deckId]
+        );
+      }
+    }
+
+    // Subject decks mark their assigned concepts done in the same
+    // transaction, so the syllabus can never hand out a concept that was
+    // just published. Legacy mixed decks (no subject_slug) skip this.
+    if (deck.subject_slug) {
+      for (const card of deck.cards) {
+        if (card.type === "quiz" || !card.concept) continue;
+        await client.query(
+          `update syllabus set status = 'done'
+            where topic_id = $1 and subject_slug = $2 and concept_label = $3`,
+          [topicId, deck.subject_slug, card.concept]
         );
       }
     }

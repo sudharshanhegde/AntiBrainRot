@@ -43,7 +43,10 @@ daysRouter.get("/", optionalUserId, async (req, res) => {
     const topic = topicRes.rows[0];
 
     const deckRes = await query(
-      "select deck_index, difficulty from decks where topic_id = $1 and reviewed_at is not null order by deck_index",
+      `select deck_index, difficulty, subject_title, part_number, part_count
+         from decks
+        where topic_id = $1 and reviewed_at is not null
+        order by deck_index`,
       [topicId]
     );
 
@@ -72,6 +75,12 @@ daysRouter.get("/", optionalUserId, async (req, res) => {
           day: d.deck_index,
           deck_index: d.deck_index,
           difficulty: d.difficulty,
+          // Subject decks carry a subject and a part number; legacy mixed
+          // decks leave both null and the client falls back to the
+          // difficulty word.
+          subject_title: d.subject_title,
+          part_number: d.part_number,
+          part_count: d.part_count,
           status,
           cooldown_remaining_hours: 0,
         };

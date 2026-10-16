@@ -3,10 +3,15 @@
 // fails any of these is never published, no matter what the LLM judge
 // says.
 
-// A deck alternates concept, quiz, concept, quiz, repeated.
-// 10 concepts plus their 10 quiz cards = 20 cards. Even positions are
-// concept cards, odd positions are the quiz that immediately follows.
-export const DECK_SIZE = 20;
+// A deck teaches one subject through CARDS_PER_DECK concepts, each
+// immediately followed by its quiz. The deck is CARDS_PER_DECK * 2 cards
+// (3 concepts + 3 quizzes = 6 swipes, one sitting). Raise this only if
+// decks feel too thin; it is the single knob the whole job reads.
+export const CARDS_PER_DECK = Number(process.env.CARDS_PER_DECK) || 3;
+
+// A deck alternates concept, quiz, concept, quiz, repeated. Even positions
+// are concept cards, odd positions are the quiz that immediately follows.
+export const DECK_SIZE = CARDS_PER_DECK * 2;
 
 export const EM_DASH_RE = /[\u2013\u2014]/;
 export const EMOJI_RE = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
@@ -90,7 +95,15 @@ function checkQuizCard(card, at, conceptCard, errors) {
   }
 }
 
-export function checkDeck(deck) {
+// `subjectContext` is optional and only supplied for subject-based decks
+// (the automated daily job always supplies it): assignedConcepts is the
+// deck's assigned concept labels from the syllabus, doneConcepts is the
+// labels already marked done for the topic. With it, two extra hard gates
+// run: every card must map to one assigned concept, and no card may repeat
+// a concept already done (across subjects). The connect-back and
+// analogy-fidelity checks are not machine-checkable and stay in the LLM
+// validation pass.
+export function checkDeck(deck, subjectContext = {}) {
   const errors = [];
   if (!deck || typeof deck !== "object") {
     return { ok: false, errors: ["deck is not an object"] };
@@ -102,6 +115,16 @@ export function checkDeck(deck) {
     errors.push(
       `deck must have exactly ${DECK_SIZE} cards (concept, quiz, repeated), got ${deck.cards ? deck.cards.length : "none"}`
     );
+  }
+
+  // Subject decks must carry the one running analogy for the subject, so
+  // every later part can reuse it (created on part 1, echoed on the rest).
+  if (subjectContext.assignedConcepts && subjectContext.assignedConcepts.length > 0) {
+    if (typeof deck.subject_analogy !== "string" || !deck.subject_analogy.trim()) {
+      errors.push("subject_analogy: required, the one running analogy for this subject");
+    } else {
+      errors.push(...checkString(deck.subject_analogy, "subject_analogy"));
+    }
   }
 
   const seenOrders = new Set();
@@ -170,10 +193,28 @@ export function checkDeck(deck) {
       errors.push(`${at("concept")}: required short noun phrase for coverage`);
     } else {
       errors.push(...checkString(card.concept, at("concept")));
+
+      const label = normalizeLabel(card.concept);
+      const assigned = subjectContext.assignedConcepts;
+      if (assigned && assigned.length > 0 && !assigned.some((a) => normalizeLabel(a) === label)) {
+        errors.push(
+          `${at("concept")}: "${card.concept}" is not one of this deck's assigned concepts (${assigned.join(", ")})`
+        );
+      }
+      const done = subjectContext.doneConcepts;
+      if (done && done.some((d) => normalizeLabel(d) === label)) {
+        errors.push(`${at("concept")}: "${card.concept}" is already marked done for another deck`);
+      }
     }
   }
 
   return { ok: errors.length === 0, errors };
+}
+
+// Case- and whitespace-insensitive comparison for concept labels, so an
+// assigned label and the model's phrasing of it still match.
+function normalizeLabel(text) {
+  return String(text || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 // --- Quick Bites checks ---

@@ -10,6 +10,7 @@ import {
   difficultyForDeckIndex,
 } from "./prompts.js";
 import { insertReviewedDeck } from "./insert.js";
+import { syncSyllabus, nextAssignment, subjectAnalogyFor } from "./syllabus.js";
 import { loadSources } from "./sources.js";
 import { runQuickBitesJob } from "./quickBites.js";
 import { runCognitiveBatchJob } from "./cognitive.js";
@@ -249,11 +250,14 @@ export async function syncQueue() {
   }
 }
 
-// Generates, validates, and publishes one deck for one topic. `state`
-// holds the run-wide DeepSeek call counter and token total so the cost
-// cap applies across all topics in the run.
+// Generates, validates, and publishes one deck for one topic. `subject`
+// carries the syllabus assignment for this deck: the subject, its part
+// number and count, the assigned concept labels in order, and the stored
+// running analogy (null on part 1, which creates it). `state` holds the
+// run-wide DeepSeek call counter and token total so the cost cap applies
+// across all topics in the run.
 async function generateOneDeck(
-  { topicSlug, topicId, deckIndex, coveredConcepts, priorTitles, sources, targetDeckCount },
+  { topicSlug, topicId, deckIndex, coveredConcepts, priorTitles, sources, targetDeckCount, subject },
   state
 ) {
   let feedback = "";
@@ -274,7 +278,7 @@ async function generateOneDeck(
     }
 
     const messages = buildGenerationMessages(
-      topicSlug, deckIndex, coveredConcepts, priorTitles, sources, manualQuizzes
+      topicSlug, deckIndex, coveredConcepts, priorTitles, sources, manualQuizzes, subject
     );
     if (feedback) {
       messages[1].content += `\n\nA previous attempt at this deck was rejected. Fix these issues:\n${feedback}`;
@@ -290,6 +294,16 @@ async function generateOneDeck(
       draft.deck_index = deckIndex;
       draft.topic = topicSlug;
       draft.difficulty = draft.difficulty || difficultyForDeckIndex(deckIndex);
+      if (subject) {
+        draft.subject_slug = subject.slug;
+        draft.subject_title = subject.title;
+        draft.part_number = subject.partNumber;
+        draft.part_count = subject.partCount;
+        // Part 1 creates the running analogy; later parts reuse the stored
+        // one so the whole subject keeps the same picture.
+        draft.subject_analogy =
+          subject.partNumber > 1 ? subject.analogy : draft.subject_analogy;
+      }
       // Hand-written quiz cards override whatever the model produced for
       // those slots (manual override path).
       applyManualQuizzes(draft, manualQuizzes);
@@ -300,8 +314,12 @@ async function generateOneDeck(
       continue;
     }
 
-    // Automated hard gates.
-    const auto = checkDeck(draft);
+    // Automated hard gates. In subject mode the deck is also held to its
+    // assigned concepts and to not repeating a concept already done.
+    const auto = checkDeck(
+      draft,
+      subject ? { assignedConcepts: subject.concepts, doneConcepts: coveredConcepts } : {}
+    );
     if (!auto.ok) {
       lastError = auto.errors.join("; ");
       feedback = auto.errors.map((e) => `- ${e}`).join("\n");
@@ -321,7 +339,9 @@ async function generateOneDeck(
     try {
       state.calls++;
       const vres = await deckChat(
-        buildValidationMessages(topicSlug, deckIndex, draft, coveredConcepts, priorTitles, sources),
+        buildValidationMessages(
+          topicSlug, deckIndex, draft, coveredConcepts, priorTitles, sources, subject
+        ),
         { temperature: 0, json: true, topic: topicSlug, maxTokens: DECK_VALIDATION_MAX_TOKENS }
       );
       state.totalTokens += vres.tokens;
@@ -474,6 +494,45 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
     const topicId = (await query("select id from topics where slug = $1", [t.slug])).rows[0].id;
     const deckIndex = t.decks_generated;
 
+    // Keep the syllabus in step before selecting concepts: the file wins
+    // when it exists, an already-stored syllabus is reused, and otherwise
+    // the model drafts one once and it is stored. Drafting costs a call, so
+    // it only happens on a real run (not a dry-run) and is counted.
+    if (!dryRun) {
+      try {
+        const sync = await syncSyllabus(t.slug, topicId);
+        if (sync.source === "drafted") state.calls += 1;
+      } catch (err) {
+        // A failed draft (no key, bad JSON) skips this topic for the run
+        // rather than aborting every other topic's generation.
+        console.error(`[generate] syllabus sync failed for ${t.slug}: ${err.message}`);
+        results.push({ status: "failure", topic_slug: t.slug, reason: `syllabus: ${err.message}` });
+        continue;
+      }
+    }
+
+    // Concept selection now follows the syllabus: the first subject in
+    // teaching order with pending concepts, and its next CARDS_PER_DECK
+    // pending concepts in order. A subject with no pending concepts left
+    // is finished, so the topic is done generating.
+    const assignment = await nextAssignment(topicId);
+    if (!assignment) {
+      results.push({
+        status: "skipped",
+        topic_slug: t.slug,
+        reason: "syllabus has no pending concepts",
+      });
+      continue;
+    }
+    const subject = {
+      ...assignment.subject,
+      concepts: assignment.concepts,
+      analogy:
+        assignment.subject.partNumber > 1
+          ? await subjectAnalogyFor(topicId, assignment.subject.slug)
+          : null,
+    };
+
     const covRes = await query(
       "select concept_label from covered_concepts where topic_id = $1 order by covered_at",
       [topicId]
@@ -499,13 +558,26 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
         status: "dry-run",
         topic_slug: t.slug,
         deck_index: deckIndex,
+        subject: subject.title,
+        part_number: subject.partNumber,
+        part_count: subject.partCount,
+        concepts: subject.concepts,
         mode: sources.length > 0 ? "grounded" : "self-knowledge",
       });
       continue;
     }
 
     const result = await generateOneDeck(
-      { topicSlug: t.slug, topicId, deckIndex, coveredConcepts, priorTitles, sources, targetDeckCount: t.target_decks },
+      {
+        topicSlug: t.slug,
+        topicId,
+        deckIndex,
+        coveredConcepts,
+        priorTitles,
+        sources,
+        targetDeckCount: t.target_decks,
+        subject,
+      },
       state
     );
     results.push(result);

@@ -110,7 +110,7 @@ export function PetCard() {
           type="button"
           onClick={() => setChanging((v) => !v)}
           aria-expanded={changing}
-          className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+          className="btn-quiet"
         >
           {changing ? "cancel" : "change pet"}
         </button>

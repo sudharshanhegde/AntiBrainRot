@@ -180,7 +180,7 @@ export function TestRunner({ test, onComplete, onExit }) {
           <button
             type="button"
             onClick={onExit}
-            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="btn-quiet"
           >
             exit
           </button>
@@ -236,7 +236,7 @@ export function TestRunner({ test, onComplete, onExit }) {
           <button
             type="button"
             onClick={skip}
-            className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="btn-quiet gap-2"
           >
             <span className="inline-block h-2 w-2 rounded-[2px]" style={{ backgroundColor: TESTS_ACCENT }} aria-hidden="true" />
             skip (-{formatClock(test.skip_penalty_ms)})

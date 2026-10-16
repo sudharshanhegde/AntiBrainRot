@@ -28,7 +28,7 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="btn-quiet"
           >
             {cancelLabel}
           </button>

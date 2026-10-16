@@ -133,7 +133,7 @@ function JobProfileForm({ onSave, onBack }) {
           <button
             type="button"
             onClick={onBack}
-            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="btn-quiet"
           >
             go back
           </button>
@@ -327,7 +327,7 @@ function JobCard({ job, index, onApply, onFlag, onBack, onOpenProfile, onOpenApp
           <button
             type="button"
             onClick={onBack}
-            className="font-mono text-[13px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="btn-quiet"
           >
             go back
           </button>
@@ -469,7 +469,7 @@ function ApplicationVerifier({ items, onAnswer, onSkip, onBack }) {
           <button
             type="button"
             onClick={onBack}
-            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="btn-quiet"
           >
             go back
           </button>
@@ -537,7 +537,7 @@ function ApplicationVerifier({ items, onAnswer, onSkip, onBack }) {
         <button
           type="button"
           onClick={onSkip}
-          className="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+          className="btn-quiet mt-2"
         >
           skip for now
         </button>
@@ -948,7 +948,7 @@ export function JobsScreen({ onBack, onOpenProfile = () => {}, onOpenApplication
               type="button"
               onClick={() => setSearchQuery("")}
               aria-label="Clear search"
-              className="shrink-0 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+              className="btn-quiet shrink-0"
             >
               clear
             </button>

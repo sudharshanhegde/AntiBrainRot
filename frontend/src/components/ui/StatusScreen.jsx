@@ -29,7 +29,7 @@ export function StatusScreen({ label, title, accent, onAction, actionLabel, desc
         <button
           type="button"
           onClick={onAction}
-          className="mt-2 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+          className="btn-quiet mt-2"
         >
           {actionLabel || "try again"}
         </button>

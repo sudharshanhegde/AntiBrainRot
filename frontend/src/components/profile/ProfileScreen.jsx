@@ -156,7 +156,7 @@ export function ProfileScreen({ onBack, onDeleted, initialNotice = null, initial
           <button
             type="button"
             onClick={onBack}
-            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="btn-quiet"
           >
             back
           </button>
@@ -375,7 +375,7 @@ export function ProfileScreen({ onBack, onDeleted, initialNotice = null, initial
               <button
                 type="button"
                 onClick={() => setMode(mode === "login" ? "signup" : "login")}
-                className="mt-3 w-full font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+                className="btn-quiet mt-3 w-full"
               >
                 {mode === "login" ? "need an account? sign up" : "have an account? sign in"}
               </button>

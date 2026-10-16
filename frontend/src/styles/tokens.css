@@ -12,12 +12,16 @@
    colors or typefaces. Extend this file, not the components.
    ============================================================ */
 @theme {
-  /* --- base palette (5 named colors) --- */
-  --color-paper: #ECEAE1; /* aged terminal paper, the app background */
-  --color-ink: #2B2F36; /* softened slate, primary text */
-  --color-muted: #5C626A; /* secondary text, metadata */
-  --color-hairline: #D5D2C8; /* rule color, panel borders */
-  --color-panel: #E2DFD5; /* code and diagram panel fills */
+  /* --- base palette (5 named colors) ---
+     Light mode is a warm sepia reading paper rather than a neutral grey,
+     so long reading sessions are easier on the eyes (the same idea as a
+     phone's reading / night-time color temperature). The ink, muted and
+     hairline tones are warm neutrals so nothing reads cold against it. */
+  --color-paper: #F5EBD6; /* warm sepia reading paper, the app background */
+  --color-ink: #33302A; /* warm near-black, primary text */
+  --color-muted: #6D6252; /* warm secondary text, metadata */
+  --color-hairline: #DED0B6; /* warm rule color, panel borders */
+  --color-panel: #ECE1C9; /* warm code and diagram panel fills */
 
   /* --- topic accents, one per topic, used sparingly --- */
   --color-accent-os: #B4470B; /* burnt oxide, kernel content */

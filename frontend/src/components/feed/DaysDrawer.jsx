@@ -42,7 +42,7 @@ export function DaysDrawer({ topicSlug, days, onSelect, onClose, onBackToTopics 
           <button
             type="button"
             onClick={onClose}
-            className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="btn-quiet"
           >
             close
           </button>

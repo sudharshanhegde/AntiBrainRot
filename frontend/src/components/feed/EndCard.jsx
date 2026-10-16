@@ -68,7 +68,7 @@ export function EndCard({ topic, label, difficulty, onExplore, onSurprise }) {
           <button
             type="button"
             onClick={onSurprise}
-            className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="btn-quiet"
           >
             surprise me
           </button>

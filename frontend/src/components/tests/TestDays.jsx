@@ -56,7 +56,7 @@ export function TestDays({
           <button
             type="button"
             onClick={onBack}
-            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="btn-quiet"
           >
             all tests
           </button>

@@ -42,7 +42,7 @@ function applyTheme(theme) {
   root.classList.toggle("dark", theme === "dark");
   const meta = document.querySelector(`meta[name="${META_THEME_COLOR}"]`);
   if (meta) {
-    meta.setAttribute("content", theme === "dark" ? "#14161a" : "#F3F2EC");
+    meta.setAttribute("content", theme === "dark" ? "#14161a" : "#F5EBD6");
   }
   try {
     localStorage.setItem(STORAGE_KEY, theme);

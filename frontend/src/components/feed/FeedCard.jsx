@@ -61,7 +61,7 @@ export const FeedCard = memo(function FeedCard({
               type="button"
               onClick={onOpenDays}
               aria-label="Open days"
-              className="flex items-center gap-1.5 p-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+              className="btn-quiet gap-1.5"
             >
               <DaysIcon />
               days
@@ -71,7 +71,7 @@ export const FeedCard = memo(function FeedCard({
           <button
             type="button"
             onClick={onBack}
-            className="font-mono text-[13px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="btn-quiet"
           >
             go back
           </button>

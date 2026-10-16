@@ -33,7 +33,7 @@ const QuickBiteCard = memo(function QuickBiteCard({ bite, index, onBack }) {
           <button
             type="button"
             onClick={onBack}
-            className="font-mono text-[13px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="btn-quiet"
           >
             go back
           </button>

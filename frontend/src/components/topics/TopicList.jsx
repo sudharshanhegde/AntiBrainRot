@@ -94,7 +94,7 @@ export function TopicList({
           <button
             type="button"
             onClick={onChangeNiche}
-            className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="btn-quiet"
           >
             change niche
           </button>
@@ -122,7 +122,7 @@ export function TopicList({
         <button
           type="button"
           onClick={onOpenLeaderboard}
-          className="group flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+          className="btn-quiet group gap-2"
         >
           leaderboard
           <Chevron />
@@ -138,7 +138,7 @@ export function TopicList({
             type="button"
             onClick={onDismissNotice}
             aria-label="Dismiss notice"
-            className="shrink-0 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="btn-quiet shrink-0"
           >
             close
           </button>

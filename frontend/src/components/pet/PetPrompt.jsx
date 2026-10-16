@@ -31,7 +31,7 @@ export function PetPrompt() {
         <button
           type="button"
           onClick={dismissPrompt}
-          className="mt-3 w-full font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+          className="btn-quiet mt-3 w-full"
         >
           maybe later
         </button>

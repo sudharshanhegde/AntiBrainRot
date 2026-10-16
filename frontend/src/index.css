@@ -86,6 +86,42 @@
     scroll-snap-stop: always;
   }
 
+  /* ---------------- quiet action button ----------------
+     The boxed pill used for navigation and secondary actions across every
+     screen, so a control reads as a button instead of a bare text label.
+     Kept deliberately quiet (hairline border, muted label) so chrome never
+     competes with card content. */
+  .btn-quiet {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--color-hairline);
+    border-radius: 999px;
+    background: var(--color-paper);
+    color: var(--color-muted);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    line-height: 1;
+    cursor: pointer;
+    transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+  }
+  .btn-quiet:hover {
+    border-color: var(--color-ink);
+    color: var(--color-ink);
+  }
+  .btn-quiet:active {
+    background: var(--color-panel);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .btn-quiet {
+      transition: none;
+    }
+  }
+
   /* -------- jobs search board --------
      The Jobs tab sits a compact, persistent search bar above its swipe
      feed. The board is a full-viewport flex column: the search bar is a

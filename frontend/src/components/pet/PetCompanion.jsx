@@ -129,7 +129,7 @@ export function PetToast() {
           <button
             type="button"
             onClick={dismissFeedEvent}
-            className="mt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-ink"
+            className="btn-quiet mt-2"
           >
             keep going
           </button>

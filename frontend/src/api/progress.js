@@ -55,6 +55,10 @@ export async function markDeckCompleted(topicSlug, deckIndex) {
       });
       if (res.status === 401) {
         console.warn("progress requires sign-in; deck not recorded");
+      } else if (!res.ok) {
+        // Surface a real backend failure (500/400) instead of silently
+        // leaving the day unmarked.
+        console.warn("progress could not be recorded on the API", res.status);
       }
     } catch (err) {
       console.warn("progress could not be recorded on the API", err);

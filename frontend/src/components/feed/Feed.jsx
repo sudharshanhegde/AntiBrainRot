@@ -43,6 +43,10 @@ export function Feed({
   const [deckTarget, setDeckTarget] = useState(revisionDeckIndex); // null = next deck, number = specific day
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [days, setDays] = useState({ days: [] });
+  // Bumped to refetch the day list after a completion or whenever the
+  // drawer is opened, so a day just finished shows as done instead of the
+  // list fetched when the Feed first mounted.
+  const [daysReloadKey, setDaysReloadKey] = useState(0);
   const [cards, setCards] = useState([]);
   const [meta, setMeta] = useState({
     total: 0,
@@ -99,7 +103,10 @@ export function Feed({
     setDeckTarget(revisionDeckIndex);
   }, [revisionDeckIndex, topicSlug]);
 
-  // Load the day list for the drawer.
+  const reloadDays = useCallback(() => setDaysReloadKey((k) => k + 1), []);
+
+  // Load the day list for the drawer. Refetched on topic change, after a
+  // completion, and when the drawer opens, so status is never stale.
   useEffect(() => {
     let active = true;
     fetchDays(topicSlug)
@@ -112,7 +119,7 @@ export function Feed({
     return () => {
       active = false;
     };
-  }, [topicSlug]);
+  }, [topicSlug, daysReloadKey]);
 
   const loadChunk = useCallback(
     async (offset, limit) => {
@@ -201,8 +208,10 @@ export function Feed({
     if (endCardIndex !== -1 && activeIndex === endCardIndex && !completedRef.current) {
       completedRef.current = true;
       onDeckComplete(meta.deckIndex);
+      // The day just finished is now done; refetch so the drawer reflects it.
+      reloadDays();
     }
-  }, [activeIndex, endCardIndex, meta.deckIndex, onDeckComplete, deckTarget]);
+  }, [activeIndex, endCardIndex, meta.deckIndex, onDeckComplete, deckTarget, reloadDays]);
 
   // Debounced resume-position save (~1s). Not on the end card, not after
   // completion, not in revision mode.
@@ -260,9 +269,13 @@ export function Feed({
     setDrawerOpen(false);
   };
 
-  // Stable callback so memoized FeedCards do not re-render when the days
-  // drawer opens.
-  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+  // Refetch the day list when the drawer opens so it always reflects the
+  // latest completion, then open it. Stable so memoized FeedCards do not
+  // re-render when the drawer opens.
+  const openDrawer = useCallback(() => {
+    reloadDays();
+    setDrawerOpen(true);
+  }, [reloadDays]);
 
   if (cards.length === 0 && loading) {
     return <StatusScreen label="loading deck" title={topic.name} accent={topic.accent} />;

@@ -192,7 +192,16 @@ function applyManualQuizzes(draft, manualQuizzes) {
   // gate reports a clear reason instead.
   if (!Array.isArray(draft.cards)) draft.cards = [];
   for (const card of draft.cards) {
-    if (!card.type) card.type = "concept";
+    // The model sometimes writes the template name ("text_code") into `type`
+    // instead of "concept". Treat that as a concept card and keep the value as
+    // its template, rather than failing the alternation gate and burning an
+    // attempt on an otherwise valid card.
+    if (card.type === "text_only" || card.type === "text_code" || card.type === "text_diagram") {
+      card.template = card.template || card.type;
+      card.type = "concept";
+    } else if (!card.type) {
+      card.type = "concept";
+    }
   }
   if (manualQuizzes && manualQuizzes.size > 0) {
     for (const [orderIndex, quiz] of manualQuizzes) {

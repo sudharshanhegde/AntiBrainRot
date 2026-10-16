@@ -67,8 +67,18 @@ async function loadSyllabusFile(topicSlug) {
   return subjects.length > 0 ? subjects : null;
 }
 
-async function draftSyllabus(topicSlug) {
-  const prompt = `Draft a teaching syllabus for the topic "${topicSlug}" for a spaced-reading app. List the subjects a learner should meet, in teaching order (fundamentals before anything that depends on them), and for each subject list 5 to 10 concepts in the order they should be taught, one short line per concept. A concept line names what the card teaches, for example "indexing and why access is O(1)".
+async function draftSyllabus(topicSlug, coveredConcepts = []) {
+  // Existing covered concepts are named so the draft avoids them: without
+  // this a topic that already has pre-revamp content gets a syllabus whose
+  // concepts are largely already covered, and those rows can never be
+  // generated.
+  const avoid = coveredConcepts.length
+    ? `\n\nThese concepts are already covered by existing decks for this topic, so do not include them or close paraphrases of them:\n${coveredConcepts
+        .slice(0, 60)
+        .map((c) => `  - ${c}`)
+        .join("\n")}`
+    : "";
+  const prompt = `Draft a teaching syllabus for the topic "${topicSlug}" for a spaced-reading app. List the subjects a learner should meet, in teaching order (fundamentals before anything that depends on them), and for each subject list 5 to 10 concepts in the order they should be taught, one short line per concept. A concept line names what the card teaches, for example "indexing and why access is O(1)".${avoid}
 
 Reply with ONLY a single JSON object:
 {
@@ -136,7 +146,12 @@ export async function syncSyllabus(topicSlug, topicId) {
   if (existing.rows[0].n > 0) {
     return { source: "db", subjects: null };
   }
-  const drafted = await draftSyllabus(topicSlug);
+  const coveredRes = await query(
+    "select concept_label from covered_concepts where topic_id = $1",
+    [topicId]
+  );
+  const covered = coveredRes.rows.map((r) => r.concept_label);
+  const drafted = await draftSyllabus(topicSlug, covered);
   if (drafted.length === 0) {
     return { source: "none", subjects: 0 };
   }
@@ -172,6 +187,23 @@ export function pickNextAssignment(rows, cardsPerDeck) {
 // exhausted. partNumber is the number of decks already published for the
 // subject plus one.
 export async function nextAssignment(topicId, cardsPerDeck = CARDS_PER_DECK) {
+  // A concept already present in covered_concepts for this topic is done,
+  // whatever its syllabus row still says (it may have been covered before
+  // the syllabus existed, or by an earlier draft of it). Mark those rows done
+  // so selection stops handing them out: without this the same concept is
+  // re-assigned on every run and rejected by the done-overlap gate each time,
+  // so the topic never advances.
+  await query(
+    `update syllabus s set status = 'done'
+      where s.topic_id = $1 and s.status = 'pending'
+        and exists (
+          select 1 from covered_concepts c
+           where c.topic_id = $1
+             and lower(regexp_replace(btrim(c.concept_label), '\\s+', ' ', 'g'))
+               = lower(regexp_replace(btrim(s.concept_label), '\\s+', ' ', 'g'))
+        )`,
+    [topicId]
+  );
   const rowsRes = await query(
     `select subject_slug, subject_title, subject_order, concept_order, concept_label, status
        from syllabus where topic_id = $1

@@ -67,18 +67,25 @@ async function loadSyllabusFile(topicSlug) {
   return subjects.length > 0 ? subjects : null;
 }
 
-async function draftSyllabus(topicSlug, coveredConcepts = []) {
+async function draftSyllabus(topicSlug, coveredConcepts = [], excludeSubjects = []) {
   // Existing covered concepts are named so the draft avoids them: without
   // this a topic that already has pre-revamp content gets a syllabus whose
   // concepts are largely already covered, and those rows can never be
-  // generated.
+  // generated. On an extension the already-taught subject titles are named
+  // too, so the model continues the curriculum instead of repeating it.
   const avoid = coveredConcepts.length
-    ? `\n\nThese concepts are already covered by existing decks for this topic, so do not include them or close paraphrases of them:\n${coveredConcepts
-        .slice(0, 60)
+    ? `\n\nThese concepts are already covered or already planned for this topic, so do not include them or close paraphrases of them:\n${coveredConcepts
+        .slice(0, 80)
         .map((c) => `  - ${c}`)
         .join("\n")}`
     : "";
-  const prompt = `Draft a teaching syllabus for the topic "${topicSlug}" for a spaced-reading app. List the subjects a learner should meet, in teaching order (fundamentals before anything that depends on them), and for each subject list 5 to 10 concepts in the order they should be taught, one short line per concept. A concept line names what the card teaches, for example "indexing and why access is O(1)".${avoid}
+  const skipSubjects = excludeSubjects.length
+    ? `\n\nThese subjects are already covered, so do not reuse them. Extend the curriculum with further subjects that naturally follow them:\n${excludeSubjects
+        .slice(0, 80)
+        .map((s) => `  - ${s}`)
+        .join("\n")}`
+    : "";
+  const prompt = `Draft a teaching syllabus for the topic "${topicSlug}" for a spaced-reading app. List the subjects a learner should meet, in teaching order (fundamentals before anything that depends on them), and for each subject list 5 to 10 concepts in the order they should be taught, one short line per concept. A concept line names what the card teaches, for example "indexing and why access is O(1)". Produce between 8 and 12 subjects so the syllabus covers many sittings.${skipSubjects}${avoid}
 
 Reply with ONLY a single JSON object:
 {
@@ -97,7 +104,7 @@ Reply with ONLY a single JSON object:
       { role: "system", content: "You design compact CS teaching syllabi. Reply with only the JSON object." },
       { role: "user", content: prompt },
     ],
-    { temperature: 0.2, json: true, models: GROQ_CONTENT_MODELS, topic: topicSlug, maxTokens: 3000 }
+    { temperature: 0.2, json: true, models: GROQ_CONTENT_MODELS, topic: topicSlug, maxTokens: 4000 }
   );
   const parsed = JSON.parse(res.content);
   return (parsed.subjects || [])
@@ -111,8 +118,9 @@ Reply with ONLY a single JSON object:
 
 // Upserts subjects into the syllabus table, preserving each concept's status
 // (an already done concept stays done). Existing topics only get their
-// ordering and title refreshed.
-async function upsertSubjects(topicId, subjects) {
+// ordering and title refreshed. startOrder offsets the subject_order so an
+// extension appends after the subjects already stored.
+async function upsertSubjects(topicId, subjects, startOrder = 0) {
   for (let si = 0; si < subjects.length; si++) {
     const subject = subjects[si];
     for (let ci = 0; ci < subject.concepts.length; ci++) {
@@ -124,10 +132,43 @@ async function upsertSubjects(topicId, subjects) {
            subject_title = excluded.subject_title,
            subject_order = excluded.subject_order,
            concept_label = excluded.concept_label`,
-        [topicId, subject.slug, subject.title, si, ci, subject.concepts[ci]]
+        [topicId, subject.slug, subject.title, startOrder + si, ci, subject.concepts[ci]]
       );
     }
   }
+}
+
+// The syllabus is exhausted but the topic still has ground to cover: ask the
+// model for a further batch of subjects that follows what is already there,
+// avoiding everything already taught or planned, and append it. This is what
+// lets a topic keep generating past a short hand-written syllabus file; the
+// file still wins for the subjects it defines, this only appends after them.
+export async function extendSyllabus(topicSlug, topicId) {
+  const rowsRes = await query(
+    `select subject_slug, subject_title, subject_order, concept_label
+       from syllabus where topic_id = $1
+      order by subject_order, concept_order`,
+    [topicId]
+  );
+  const subjectTitles = [];
+  const plannedConcepts = [];
+  let maxOrder = -1;
+  for (const r of rowsRes.rows) {
+    if (!subjectTitles.includes(r.subject_title)) subjectTitles.push(r.subject_title);
+    if (!plannedConcepts.includes(r.concept_label)) plannedConcepts.push(r.concept_label);
+    if (r.subject_order > maxOrder) maxOrder = r.subject_order;
+  }
+  const coveredRes = await query(
+    "select concept_label from covered_concepts where topic_id = $1",
+    [topicId]
+  );
+  const avoidConcepts = [
+    ...new Set([...coveredRes.rows.map((r) => r.concept_label), ...plannedConcepts]),
+  ];
+  const drafted = await draftSyllabus(topicSlug, avoidConcepts, subjectTitles);
+  if (drafted.length === 0) return { added: 0 };
+  await upsertSubjects(topicId, drafted, maxOrder + 1);
+  return { added: drafted.length };
 }
 
 // Ensures the syllabus table is populated for a topic. File wins when it

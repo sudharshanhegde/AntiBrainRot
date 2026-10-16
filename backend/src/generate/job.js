@@ -10,7 +10,12 @@ import {
   difficultyForDeckIndex,
 } from "./prompts.js";
 import { insertReviewedDeck } from "./insert.js";
-import { syncSyllabus, nextAssignment, subjectAnalogyFor } from "./syllabus.js";
+import {
+  syncSyllabus,
+  nextAssignment,
+  subjectAnalogyFor,
+  extendSyllabus,
+} from "./syllabus.js";
 import { loadSources } from "./sources.js";
 import { runQuickBitesJob } from "./quickBites.js";
 import { runCognitiveBatchJob } from "./cognitive.js";
@@ -542,7 +547,22 @@ export async function runDailyJob({ dryRun = false, force = false, topics = [] }
     // teaching order with pending concepts, and its next CARDS_PER_DECK
     // pending concepts in order. A subject with no pending concepts left
     // is finished, so the topic is done generating.
-    const assignment = await nextAssignment(topicId);
+    let assignment = await nextAssignment(topicId);
+    // A short or fully consumed syllabus no longer caps a topic: while it
+    // still has ground to cover (below its deck target), ask the model for a
+    // further batch of subjects, append it, and select from that. This is
+    // what lets a topic keep producing past a small hand-written syllabus.
+    if (!assignment && !dryRun && t.decks_generated < t.target_decks) {
+      try {
+        const ext = await extendSyllabus(t.slug, topicId);
+        if (ext.added > 0) {
+          state.calls += 1;
+          assignment = await nextAssignment(topicId);
+        }
+      } catch (err) {
+        console.error(`[generate] syllabus extension failed for ${t.slug}: ${err.message}`);
+      }
+    }
     if (!assignment) {
       results.push({
         status: "skipped",

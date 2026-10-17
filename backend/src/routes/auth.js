@@ -144,10 +144,24 @@ authRouter.post("/migrate", requireAuth, async (req, res) => {
       "update quiz_answers set user_id = $1 where user_id = $2",
       [req.userId, localUserId]
     );
+    // Completions are keyed by (user_id, topic_id, deck_index), so move
+    // them across without clobbering rows the account already has.
+    const completions = await client.query(
+      `insert into user_deck_completions (user_id, topic_id, deck_index, completed_at)
+       select $1, topic_id, deck_index, completed_at
+         from user_deck_completions
+        where user_id = $2
+       on conflict (user_id, topic_id, deck_index) do nothing`,
+      [req.userId, localUserId]
+    );
+    await client.query(
+      "delete from user_deck_completions where user_id = $1",
+      [localUserId]
+    );
     await client.query("commit");
     res.json({
       ok: true,
-      migrated: progress.rowCount + answers.rowCount,
+      migrated: progress.rowCount + answers.rowCount + completions.rowCount,
     });
   } catch (err) {
     await client.query("rollback");
@@ -160,13 +174,13 @@ authRouter.post("/migrate", requireAuth, async (req, res) => {
 
 // DELETE /api/auth/me
 //
-// Permanently deletes the account: quiz answers, progress, the streak,
-// and the users row in a single transaction, and only then removes the
-// Supabase Auth user via the service-role admin API. The ordering matters:
-// if the app-data deletes fail, the auth
-// account is left untouched; the admin delete runs only after they have
-// committed, so a failure partway cannot leave an orphaned auth account
-// with no app data or app data with no auth account behind it.
+// Permanently deletes the account: quiz answers, progress, day
+// completions, the streak, and the users row in a single transaction, and
+// only then removes the Supabase Auth user via the service-role admin API.
+// The ordering matters: if the app-data deletes fail, the auth account is
+// left untouched; the admin delete runs only after they have committed, so
+// a failure partway cannot leave an orphaned auth account with no app data
+// or app data with no auth account behind it.
 authRouter.delete("/me", requireAuth, async (req, res) => {
   const userId = req.userId;
 
@@ -174,6 +188,7 @@ authRouter.delete("/me", requireAuth, async (req, res) => {
   try {
     await client.query("begin");
     await client.query("delete from quiz_answers where user_id = $1", [userId]);
+    await client.query("delete from user_deck_completions where user_id = $1", [userId]);
     await client.query("delete from user_progress where user_id = $1", [userId]);
     await client.query("delete from user_streaks where user_id = $1", [userId]);
     await client.query("delete from users where id = $1", [userId]);

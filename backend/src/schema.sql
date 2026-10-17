@@ -80,6 +80,36 @@ create table if not exists user_progress (
 -- users and guests (guests keep it in the local mirror instead).
 alter table user_progress add column if not exists last_viewed_card_index integer not null default 0;
 
+-- Per-day completions. user_progress.last_deck_index_completed stays the
+-- high-water mark that decides the next day served, but the days drawer
+-- marks a day done only when this row exists: a user who skips ahead and
+-- finishes day 3 has day 3 done and day 1/day 2 still unread, and the
+-- next open resumes at day 4.
+create table if not exists user_deck_completions (
+  user_id text not null,
+  topic_id integer not null references topics(id) on delete cascade,
+  deck_index integer not null,
+  completed_at timestamptz not null default now(),
+  primary key (user_id, topic_id, deck_index)
+);
+
+-- One-time backfill for progress recorded before this table existed: seed
+-- a user's missing completions from their high-water mark, but only for a
+-- topic that has no completion rows yet. A user who later skips a day
+-- already has rows, so re-applying this schema never marks skipped days
+-- as done.
+insert into user_deck_completions (user_id, topic_id, deck_index)
+select up.user_id, up.topic_id, d.deck_index
+  from user_progress up
+  join decks d on d.topic_id = up.topic_id
+   and d.deck_index <= up.last_deck_index_completed
+ where up.last_deck_index_completed >= 0
+   and not exists (
+     select 1 from user_deck_completions c
+      where c.user_id = up.user_id and c.topic_id = up.topic_id
+   )
+on conflict (user_id, topic_id, deck_index) do nothing;
+
 -- Concept-level coverage tracking for the automated pipeline. One row
 -- per covered concept per topic, so generation never repeats a concept.
 create table if not exists covered_concepts (

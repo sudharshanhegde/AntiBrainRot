@@ -23,8 +23,13 @@ export const daysRouter = Router();
 // served in sequence by the feed, so nothing is locked and nothing is lost.
 //
 // Status per day:
-//   completed  - already finished, can be re-read (revision)
+//   completed  - this exact day was finished, can be re-read (revision)
 //   available  - any listed day not yet finished, playable immediately
+//
+// Completion is per day (user_deck_completions), not "everything up to the
+// high-water mark": a user who skips day 1 and day 2 and finishes day 3
+// sees day 3 done while day 1 and day 2 stay available and unclaimed.
+// last_deck_index_completed still decides which day is served next.
 daysRouter.get("/", optionalUserId, async (req, res) => {
   try {
     const topicId = Number(req.query.topic_id);
@@ -61,6 +66,12 @@ daysRouter.get("/", optionalUserId, async (req, res) => {
 
     const lastCompleted = progress.last_deck_index_completed;
 
+    const completionRes = await query(
+      "select deck_index from user_deck_completions where user_id = $1 and topic_id = $2",
+      [userId, topicId]
+    );
+    const completedDays = new Set(completionRes.rows.map((r) => r.deck_index));
+
     // target_decks marks where the moved pre-existing content begins.
     // Those decks stay out of the list until the user reaches them (their
     // next deck is exactly lastCompleted + 1), while the current days are
@@ -70,7 +81,7 @@ daysRouter.get("/", optionalUserId, async (req, res) => {
     const days = deckRes.rows
       .filter((d) => d.deck_index < legacyFloor || d.deck_index <= lastCompleted + 1)
       .map((d) => {
-        const status = d.deck_index <= lastCompleted ? "completed" : "available";
+        const status = completedDays.has(d.deck_index) ? "completed" : "available";
         return {
           day: d.deck_index,
           deck_index: d.deck_index,

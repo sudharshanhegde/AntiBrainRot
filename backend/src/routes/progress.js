@@ -42,12 +42,13 @@ progressRouter.get("/", requireAuth, async (req, res) => {
 
 // POST /api/progress
 // body: { topic_id, deck_index, niche? }
-// Marks a deck as completed for the signed-in user. Progress only ever
-// moves forward: a user who skips ahead and finishes day 3 has day 3
-// recorded (and the next open resumes at day 4), while re-reading an
-// older completed day cannot roll the account back to it. The
-// account-level streak is no longer advanced here: it counts any slide
-// read, in any feed, and is advanced by POST /api/progress/read.
+// Marks one day as completed for the signed-in user. The exact day is
+// recorded in user_deck_completions, so a user who skips ahead and
+// finishes day 3 has day 3 marked done (and the next open resumes at day
+// 4) without claiming day 1 or day 2 were read. The high-water mark only
+// ever moves forward, so re-reading an older day cannot roll the account
+// back. The account-level streak is no longer advanced here: it counts
+// any slide read, in any feed, and is advanced by POST /api/progress/read.
 progressRouter.post("/", requireAuth, async (req, res) => {
   try {
     const { topic_id, deck_index, niche } = req.body || {};
@@ -86,6 +87,13 @@ progressRouter.post("/", requireAuth, async (req, res) => {
              else user_progress.last_viewed_card_index
            end`,
         [req.userId, topic_id, deck_index, niche || null]
+      );
+      // The day itself: idempotent, so a re-read of the same day is safe.
+      await client.query(
+        `insert into user_deck_completions (user_id, topic_id, deck_index)
+         values ($1, $2, $3)
+         on conflict (user_id, topic_id, deck_index) do nothing`,
+        [req.userId, topic_id, deck_index]
       );
       await client.query("commit");
       res.json({ ok: true });

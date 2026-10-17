@@ -6,18 +6,18 @@ import { fetchTopics } from "../../api/feedService";
 import { fetchCooldownMap } from "../../api/progress";
 import { useAuth } from "../../auth/AuthContext";
 
-// Topic picker for the chosen niche, laid out as a ledger rather than a
-// stack of identical boxes:
+// Topic picker for the chosen niche:
 //   - a streak strip carrying the day streak (left) and the Leaderboard
 //     entry (right),
 //   - a Worth a Read aside, visually separate from the lesson list,
-//   - the subjects themselves as one bordered table with hairline row
-//     dividers, each row a full-height accent rail, the topic's mono short
-//     code, its name and blurb, and a register-style day counter.
-// The accent is used sparingly per row (the rail and the short code), so a
-// topic keeps its colour association without every name shouting at once.
-// There is no cooldown: tapping a topic always opens its next deck, and
-// the day tracker lets the user jump to any published day freely.
+//   - the subjects themselves as square tiles, the way a cloud drive lists
+//     folders: two per row on a phone, three on a tablet and four on a
+//     laptop, each tile opening the topic.
+// The accent is used sparingly per tile (the top rail, the folder glyph and
+// the short code), so a topic keeps its colour association without every
+// name shouting at once. There is no cooldown: tapping a topic always opens
+// its next deck, and the day tracker lets the user jump to any published
+// day freely.
 export function TopicList({
   nicheSlug,
   onPick,
@@ -175,15 +175,15 @@ export function TopicList({
         </button>
       </section>
 
-      {/* The subjects, as one table. Rows are separated by hairlines inside
-          a single border, so the list reads as a register instead of a pile
-          of loose cards. */}
+      {/* The subjects as square tiles, like folders in a cloud drive: two
+          per row on a phone, more as the screen widens. Each tile is a
+          single tap target that opens the topic's next deck. */}
       <section className="mt-7 px-6">
         <SectionLabel>
           {topicCount === 1 ? "1 subject" : `${topicCount} subjects`}
         </SectionLabel>
 
-        <div className="mt-3 overflow-hidden rounded-lg border border-hairline bg-paper">
+        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {topicSlugs.map((slug) => {
             const t = topicPalette[slug];
             if (!t) return null;
@@ -194,31 +194,29 @@ export function TopicList({
                 key={slug}
                 type="button"
                 onClick={() => onPick(slug)}
-                className="group flex w-full items-stretch border-b border-hairline text-left transition-colors last:border-b-0 hover:bg-panel"
+                className="group relative flex aspect-square flex-col justify-between overflow-hidden rounded-lg border border-hairline bg-panel p-4 text-left transition-colors hover:border-ink"
               >
                 <span
-                  className="w-[3px] shrink-0 self-stretch"
+                  className="absolute inset-x-0 top-0 h-[3px]"
                   style={{ backgroundColor: accent }}
                   aria-hidden="true"
                 />
-                <span className="flex min-w-0 flex-1 items-center gap-4 px-4 py-4">
-                  <span
-                    className="w-11 shrink-0 font-mono text-[11px] uppercase tracking-[0.14em]"
-                    style={{ color: accent }}
-                  >
+                <span className="flex min-w-0 flex-col gap-2">
+                  <span style={{ color: accent }}>
+                    <FolderGlyph />
+                  </span>
+                  <span className="line-clamp-2 font-sans text-[15px] font-semibold leading-snug tracking-tight text-ink">
+                    {t.name}
+                  </span>
+                  <span className="line-clamp-2 font-sans text-[13px] leading-snug text-muted">
+                    {t.blurb}
+                  </span>
+                </span>
+                <span className="mt-3 flex items-baseline justify-between gap-2 font-mono text-[10px] uppercase tracking-[0.14em]">
+                  <span className="truncate" style={{ color: accent }}>
                     {t.short}
                   </span>
-                  <span className="flex min-w-0 flex-1 flex-col gap-1">
-                    <span className="font-sans text-[17px] font-semibold tracking-tight text-ink">
-                      {t.name}
-                    </span>
-                    <span className="font-sans text-[14px] leading-relaxed text-muted">
-                      {t.blurb}
-                    </span>
-                  </span>
-                  <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-                    day {day}
-                  </span>
+                  <span className="shrink-0 text-muted">day {day}</span>
                 </span>
               </button>
             );
@@ -226,6 +224,26 @@ export function TopicList({
         </div>
       </section>
     </main>
+  );
+}
+
+// A folder glyph in the tile's accent color, the same 24px stroke language
+// as the rest of the chrome.
+function FolderGlyph() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.2l2 2.4h8.8A1.5 1.5 0 0 1 21 9.9v7.6A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5z" />
+    </svg>
   );
 }
 

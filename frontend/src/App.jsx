@@ -77,9 +77,9 @@ export default function App() {
   const { user, loading } = useAuth();
   const [nicheSlug, setNicheSlug] = useState(() => readStored(STORAGE_KEYS.niche));
   const [topicSlug, setTopicSlug] = useState(() => readStored(STORAGE_KEYS.topic));
-  // Quick Bites is the app's default landing tab, whatever a user sees
-  // first after the first-visit gate resolves.
-  const [view, setView] = useState("quickBites");
+  // Subjects is the app's default landing tab, whatever a user sees first
+  // after the first-visit gate resolves.
+  const [view, setView] = useState("topics");
   const [revisionDeckIndex, setRevisionDeckIndex] = useState(null);
   // Which card within the deck to resume at (0 = start of deck).
   const [initialCardIndex, setInitialCardIndex] = useState(0);
@@ -129,7 +129,7 @@ export default function App() {
     const onHash = () => {
       const route = parseRoute(window.location.hash);
       if (!route) {
-        setView("quickBites");
+        setView("topics");
         setRevisionDeckIndex(null);
         return;
       }
@@ -182,7 +182,7 @@ export default function App() {
           resetToGuest();
           markVisited();
           setGateChosen(true);
-          navigate("#/quick-bites");
+          navigate("#/topics");
         }}
       />
     );
@@ -256,7 +256,7 @@ export default function App() {
     setRevisionDeckIndex(null);
     writeStored(STORAGE_KEYS.niche, "");
     writeStored(STORAGE_KEYS.topic, "");
-    navigate("#/quick-bites");
+    navigate("#/topics");
   };
 
   // Called when the user reaches the end card of a deck. Records

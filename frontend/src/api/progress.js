@@ -18,6 +18,13 @@ const KEY = "antibrainrot:progress";
 // topic list already loaded the same data.
 let cooldownCache = null;
 
+// Drops the cached progress map. Called when the signed-in identity
+// changes, so a guest or previous account's map is never served for the
+// new one (progress belongs to the account, not the browser).
+export function clearProgressCache() {
+  cooldownCache = null;
+}
+
 function read() {
   try {
     return JSON.parse(localStorage.getItem(KEY)) || {};

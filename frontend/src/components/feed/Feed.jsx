@@ -199,19 +199,19 @@ export function Feed({
     }
   }, [activeIndex, cards, hasMore, loading, loadChunk]);
 
-  // Mark the deck complete once the end card becomes the active snap.
-  // Skipped in revision mode (deckTarget set) so re-reading a specific
-  // day does not advance progress.
+  // Mark the deck complete once the end card becomes the active snap,
+  // whichever way the day was opened: served in sequence, or picked
+  // directly from the days drawer to skip ahead. The backend never moves
+  // progress backwards, so re-reading an older day is a no-op there.
   const endCardIndex = hasMore ? -1 : cards.length;
   useEffect(() => {
-    if (deckTarget != null) return;
     if (endCardIndex !== -1 && activeIndex === endCardIndex && !completedRef.current) {
       completedRef.current = true;
       onDeckComplete(meta.deckIndex);
       // The day just finished is now done; refetch so the drawer reflects it.
       reloadDays();
     }
-  }, [activeIndex, endCardIndex, meta.deckIndex, onDeckComplete, deckTarget, reloadDays]);
+  }, [activeIndex, endCardIndex, meta.deckIndex, onDeckComplete, reloadDays]);
 
   // Debounced resume-position save (~1s). Not on the end card, not after
   // completion, not in revision mode.

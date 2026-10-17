@@ -13,3 +13,4 @@
 - [Reflections on Trusting Trust](https://www.cs.cmu.edu/~rdriley/487/papers/Thompson_1984_ReflectionsonTrustingTrust.pdf)
 - [Linux Kernel Startup, Explained](https://internals-for-interns.com/posts/linux-kernel-startup/) — clear, well-taught walkthrough of the kernel's internals; great if OS week left you wanting more depth
 - [HTTP/2 Explained](https://http2-explained.haxx.se/en/part1) — by Daniel Stenberg, author of curl; a genuinely clear account of how HTTP/2 was implemented
+- [Learn C++](https://www.learncpp.com/cpp-tutorial/) — the most thorough free tutorial-style C++ course; the best place to actually learn the language end to end

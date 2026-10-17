@@ -42,9 +42,12 @@ progressRouter.get("/", requireAuth, async (req, res) => {
 
 // POST /api/progress
 // body: { topic_id, deck_index, niche? }
-// Marks a deck as completed for the signed-in user. The account-level
-// streak is no longer advanced here: it now counts any slide read, in any
-// feed, and is advanced by POST /api/progress/read as the user reads.
+// Marks a deck as completed for the signed-in user. Progress only ever
+// moves forward: a user who skips ahead and finishes day 3 has day 3
+// recorded (and the next open resumes at day 4), while re-reading an
+// older completed day cannot roll the account back to it. The
+// account-level streak is no longer advanced here: it counts any slide
+// read, in any feed, and is advanced by POST /api/progress/read.
 progressRouter.post("/", requireAuth, async (req, res) => {
   try {
     const { topic_id, deck_index, niche } = req.body || {};
@@ -62,11 +65,26 @@ progressRouter.post("/", requireAuth, async (req, res) => {
            (user_id, topic_id, last_deck_index_completed, last_completed_at, niche)
          values ($1, $2, $3, now(), $4)
          on conflict (user_id, topic_id) do update set
-           last_deck_index_completed = excluded.last_deck_index_completed,
-           last_completed_at = now(),
+           -- Skip-ahead completion counts, re-reads never move it back.
+           last_deck_index_completed = greatest(
+             user_progress.last_deck_index_completed,
+             excluded.last_deck_index_completed
+           ),
+           last_completed_at = case
+             when excluded.last_deck_index_completed
+                  > user_progress.last_deck_index_completed
+               then now()
+             else user_progress.last_completed_at
+           end,
            niche = coalesce(excluded.niche, user_progress.niche),
-           -- Reset the resume position: the next deck starts at card 0.
-           last_viewed_card_index = 0`,
+           -- Reset the resume position only when the completion advances:
+           -- the next deck then starts at card 0.
+           last_viewed_card_index = case
+             when excluded.last_deck_index_completed
+                  > user_progress.last_deck_index_completed
+               then 0
+             else user_progress.last_viewed_card_index
+           end`,
         [req.userId, topic_id, deck_index, niche || null]
       );
       await client.query("commit");

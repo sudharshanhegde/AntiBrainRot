@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "../api/supabase";
 import { setCurrentUserId } from "../api/client";
+import { clearProgressCache } from "../api/progress";
 import {
   registerSession,
   fetchMe,
@@ -42,6 +43,10 @@ export function AuthProvider({ children }) {
     async (authUser) => {
       setUser(authUser);
       setCurrentUserId(authUser.id);
+      // Any progress loaded before this identity was known belongs to a
+      // different user (guest or a previous session); drop it so the
+      // account's own progress is fetched.
+      clearProgressCache();
       if (signedInHandled.current) return;
       signedInHandled.current = true;
       // Register/upsert the users row with the backend.
@@ -72,6 +77,7 @@ export function AuthProvider({ children }) {
     setProfile(null);
     setStreak(null);
     setCurrentUserId(null);
+    clearProgressCache();
     signedInHandled.current = false;
   }, []);
 

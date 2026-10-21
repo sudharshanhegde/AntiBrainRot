@@ -5,6 +5,7 @@ import { DaysDrawer } from "./DaysDrawer";
 import { FeedCard } from "./FeedCard";
 import { topicPalette } from "../../data/topics";
 import { CHUNK_SIZE, fetchDeckChunk, fetchDays } from "../../api/feedService";
+import { pickNextDay } from "./nextDay";
 import { saveViewedCardIndex } from "../../api/progress";
 import { useActiveCardIndex } from "../../hooks/useActiveCardIndex";
 import { useSwipeExit } from "../../hooks/useSwipeExit";
@@ -337,6 +338,9 @@ export function Feed({
       ? `${meta.subjectTitle}, part ${meta.partNumber} of ${meta.partCount}`
       : null;
   const deckLabel = subjectLabel || meta.difficulty;
+  // An unread published day after this one, offered on the end card as a
+  // continuation. Falls back to the 24-hour wait copy when there is none.
+  const nextDay = pickNextDay(days.days, meta.deckIndex);
   const showEndCard = !hasMore && cards.length > 0;
   const atEnd = showEndCard && activeIndex >= cards.length;
 
@@ -372,6 +376,8 @@ export function Feed({
             topic={topic}
             label={subjectLabel}
             difficulty={meta.difficulty}
+            nextDay={nextDay}
+            onNextDay={handleSelectDay}
             onExplore={onExplore || onBack}
             onSurprise={onSurprise}
           />

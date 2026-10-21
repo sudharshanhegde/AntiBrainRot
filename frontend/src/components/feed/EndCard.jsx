@@ -2,16 +2,26 @@ import { useRef } from "react";
 import { useCardEnter } from "../../hooks/useCardEnter";
 
 // The deliberate stopping point at the end of a deck. States what was
-// just finished and offers one clear next action (explore another
-// topic), with a quiet "surprise me" alternative. Same token system as
-// the content cards; no gamification.
+// just finished and offers one clear next action: continue to the next
+// published day when one is waiting, otherwise explore another topic.
+// A quiet "surprise me" alternative stays. Same token system as the
+// content cards; no gamification.
 //
 // No aggregate quiz score is shown here: every quiz card already gives
 // instant right/wrong feedback, so an end-of-deck sum adds nothing and
 // risks disagreeing with that feedback.
 // `label` is the subject label ("Array, part 1 of 3") for subject decks, null
 // for legacy mixed decks, which fall back to the difficulty day wording.
-export function EndCard({ topic, label, difficulty, onExplore, onSurprise }) {
+// `nextDay` is the unread day that follows, or null when none exists yet.
+export function EndCard({
+  topic,
+  label,
+  difficulty,
+  nextDay,
+  onExplore,
+  onNextDay,
+  onSurprise,
+}) {
   const bodyRef = useRef(null);
   useCardEnter(bodyRef);
 
@@ -47,21 +57,43 @@ export function EndCard({ topic, label, difficulty, onExplore, onSurprise }) {
           className="font-mono text-[11px] uppercase tracking-[0.14em]"
           style={{ color: accentVar }}
         >
-          all caught up
+          {nextDay ? "day complete" : "all caught up"}
         </p>
         <h2 className="font-sans text-3xl font-semibold leading-tight tracking-tight">
-          You're all caught up here.
+          {nextDay ? "Choose what's next." : "You're all caught up here."}
         </h2>
         <p className="max-w-sm font-sans text-[16px] leading-relaxed text-muted">
-          You finished {label || `the ${difficulty} day`} for {topic.name}. The
-          next day is generated within 24 hours. Use the days button to revise
-          any day you have already read.
+          {nextDay ? (
+            <>
+              You finished {label || `the ${difficulty} day`} for {topic.name}.
+              Day {nextDay.day} is ready. Keep going or explore another topic.
+            </>
+          ) : (
+            <>
+              You finished {label || `the ${difficulty} day`} for {topic.name}.
+              The next day is generated within 24 hours. Use the days button to
+              revise any day you have already read.
+            </>
+          )}
         </p>
         <div className="mt-2 flex flex-col items-center gap-3">
+          {nextDay && (
+            <button
+              type="button"
+              onClick={() => onNextDay(nextDay)}
+              className="rounded-lg border border-ink bg-paper px-6 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-ink transition-colors hover:bg-ink hover:text-paper"
+            >
+              continue to day {nextDay.day}
+            </button>
+          )}
           <button
             type="button"
             onClick={onExplore}
-            className="rounded-lg border border-ink bg-paper px-6 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-ink transition-colors hover:bg-ink hover:text-paper"
+            className={
+              nextDay
+                ? "btn-quiet"
+                : "rounded-lg border border-ink bg-paper px-6 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-ink transition-colors hover:bg-ink hover:text-paper"
+            }
           >
             explore another topic
           </button>

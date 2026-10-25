@@ -226,16 +226,17 @@ function normalizeLabel(text) {
 }
 
 // --- Quick Bites checks ---
-// The low-commitment feed uses a much shorter, fixed word-count band than
-// the concept cards. It is enforced as a hard gate just like the concept
-// band: anything outside 40-60 words is rejected and regenerated, so the
-// shape never drifts toward the longer concept-card length over time.
-export const QUICK_BITE_MIN_WORDS = 40;
-export const QUICK_BITE_MAX_WORDS = 60;
+// The low-commitment feed uses its own fixed word-count band, shorter than
+// the concept cards but long enough to carry one idea and one action. It is
+// enforced as a hard gate just like the concept band: anything outside
+// 60-100 words is rejected and regenerated, so the shape stays a quick read
+// and never drifts toward the longer concept-card length over time.
+export const QUICK_BITE_MIN_WORDS = 60;
+export const QUICK_BITE_MAX_WORDS = 100;
 
 // Validates a Quick Bites batch ({ bites: [{ tag, fact_label, body }] }).
 // Mechanical checks only: no em dashes, no emojis, each body inside the
-// 40-60 word band, and every fact_label unique within the batch. Factual
+// 60-100 word band, and every fact_label unique within the batch. Factual
 // accuracy is the separate LLM self-check pass.
 export function checkQuickBites(batch) {
   const errors = [];

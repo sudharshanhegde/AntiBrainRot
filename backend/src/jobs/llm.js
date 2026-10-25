@@ -62,7 +62,7 @@ const GROQ_EXTRACT_MODELS = (
 
 // Content model pool for deck generation, Quick Bites, and cognitive tests.
 // These outputs carry a strict word/shape requirement (a 110-180 word card, a
-// 40-60 word bite) that the small extraction-oriented models do not reliably
+// 60-100 word bite) that the small extraction-oriented models do not reliably
 // meet, so content favors the larger models in the pool. Override with
 // GROQ_CONTENT_MODELS (comma-separated).
 export const GROQ_CONTENT_MODELS = (

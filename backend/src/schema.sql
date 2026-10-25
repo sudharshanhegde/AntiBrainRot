@@ -163,8 +163,9 @@ create table if not exists user_streaks (
 -- Quick Bites: the low-commitment feed module . A
 -- separate content shape sitting alongside the structured topic decks,
 -- deliberately with none of their structure: no decks, no difficulty, no
--- quiz. Each row is one short, self-contained fact (40-60 words), loosely
--- tagged for variety rather than organized into a curriculum.
+-- quiz. Each row is one short, self-contained idea (60-100 words) with a
+-- practical takeaway, loosely tagged for variety rather than organized into a
+-- curriculum.
 create table if not exists quick_bites (
   id serial primary key,
   tag text not null,

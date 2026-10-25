@@ -11,11 +11,12 @@ import {
 //
 // A separate, additive part of the daily pipeline, alongside the topic
 // deck generation, not a replacement for it. At 80 bites a day across
-// the whole of computer science, curating reference material per fact is
-// not practical, so generation runs from the model's own knowledge and is
-// mitigated with a separate self-check validation pass: given the draft
-// batch with clean context, the model flags anything it is not confident
-// is factually accurate, and anything flagged is cut or regenerated.
+// that breadth of practical advice and psychology, curating reference
+// material per bite is not practical, so generation runs from the model's
+// own knowledge and is mitigated with a separate self-check validation
+// pass: given the draft batch with clean context, the model flags anything
+// it is not confident is correct or safe to act on, and anything flagged
+// is cut or regenerated.
 //
 // The batch is generated in a few smaller calls (PER_CALL per call)
 // rather than one huge call, so a large daily target (80) does not strain

@@ -16,28 +16,28 @@ export const QUICK_BITES_CHUNK = 12;
 const MOCK_LATENCY = 180;
 const mockDelay = () => new Promise((resolve) => setTimeout(resolve, MOCK_LATENCY));
 
-// A few placeholder bites for mock mode (backend not running). Short,
-// single-idea, inside the 40-60 word band.
+// A few placeholder bites for mock mode (backend not running). Single
+// idea plus one action, inside the 60-100 word band.
 const MOCK_BITES = [
   {
-    tag: "internet-history",
-    body: "The first message ever sent on ARPANET in 1969 was meant to spell LOGIN, but the system crashed after sending just the letters LO. That two-character fragment still counts as the first packet switched between two computers on what became the internet.",
+    tag: "focus",
+    body: "Unfinished work stays mentally open. The Zeigarnik effect: the brain holds unclosed loops like browser tabs, which is why a half-written reply keeps nagging you at dinner. It has an upside. Stop before you finish. Do two minutes on the task you are avoiding, then stop mid-step while you still know the next move. Write one line, next tiny step is, and leave it. Coming back is far easier than starting from nothing.",
   },
   {
-    tag: "famous-bugs",
-    body: "The Y2K bug was a storage shortcut: years were stored as two digits, so 99 rolled over to 00. Widespread preparation meant few real failures in 2000, but the same design logic still resurfaces in old embedded systems and timestamp handling.",
+    tag: "career",
+    body: "Most people answer how was your week with busy. A sharper move: keep a running file of three things you shipped, learned, or unblocked each week. It takes two minutes on Friday. In a review, a raise conversation, or an interview, you stop reconstructing a year from memory and read it back. Specific beats memorable, and the person who can name their own results is the one who gets trusted with bigger ones.",
   },
   {
-    tag: "algorithms",
-    body: "A Bloom filter is a space-efficient data structure that answers is-this-in-the-set with no false negatives but occasional false positives. It uses several hash functions to set bits in a bitmap, trading a tiny error rate for dramatically less memory than storing every element.",
+    tag: "learning",
+    body: "Reading feels like learning and mostly is not. Retrieval is. Close the page and write, from memory, what the idea was and where it breaks. Then check. Getting it wrong is the useful part, because the effort of pulling it back is what makes it stick, while rereading just builds familiarity with the page. Two minutes of recall beats another pass through the same paragraphs. Try it on the last thing you read today.",
   },
   {
-    tag: "hardware",
-    body: "SSDs wear out because each flash cell can only be erased and rewritten a limited number of times. Wear leveling spreads writes evenly across all cells, while the controller's overprovisioning keeps spare cells ready so the drive keeps working long after individual cells fail.",
+    tag: "communication",
+    body: "Criticism lands badly when it sounds like a verdict on you. Swap the verdict for a request. Instead of you never send updates, try I get stuck when I do not know where things stand, can you send one line by Thursday. The second version names the problem, the cost, and a specific ask, so the other person has something to do rather than something to defend. Same complaint, very different odds of a fix.",
   },
   {
-    tag: "plt-trivia",
-    body: "JavaScript and Java share only a name. Java compiles to bytecode for a virtual machine, while JavaScript is interpreted by the browser. The similar names were a 1990s marketing move: JavaScript was originally called LiveScript before Netscape renamed it to ride Java's popularity.",
+    tag: "money",
+    body: "Fixed costs decide how free you feel. A small recurring charge is easy to ignore alone and heavy in a stack, so once a year list every subscription and cancel the ones you cannot name a use for from last month. The point is not frugality, it is that optional money buys options: leaving a bad job, taking a pay cut to learn something, covering a broken laptop without a loan. Flexibility is the return.",
   },
 ];
 

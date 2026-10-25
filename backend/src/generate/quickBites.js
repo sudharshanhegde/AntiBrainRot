@@ -10,7 +10,7 @@ import {
 // The Quick Bites daily generation job ().
 //
 // A separate, additive part of the daily pipeline, alongside the topic
-// deck generation, not a replacement for it. At 80 bites a day across
+// deck generation, not a replacement for it. At 20 bites a day across
 // that breadth of practical advice and psychology, curating reference
 // material per bite is not practical, so generation runs from the model's
 // own knowledge and is mitigated with a separate self-check validation
@@ -18,26 +18,28 @@ import {
 // it is not confident is correct or safe to act on, and anything flagged
 // is cut or regenerated.
 //
-// The batch is generated in a few smaller calls (PER_CALL per call)
-// rather than one huge call, so a large daily target (80) does not strain
-// a single completion's output quality or length. Passing bites are
+// The batch is generated in smaller calls (PER_CALL per call) rather than
+// one completion, so the daily target is never produced in a single pass.
+// Passing bites are
 // inserted together with their fact_labels into covered_facts in one
 // transaction, stamped with today's generated_date. Same failure handling
 // and alerting as the rest of the pipeline: on failure log it and alert,
 // never publish, never silently drop the day's batch without a record.
 
 const MAX_ATTEMPTS = 2; // one generation + one retry, hard cap
-// Bites per generation/validation call. Keep well under a large 80-bite
-// target so the model does not drift on length or quality in one call.
-const PER_CALL = 20;
-// The full daily target (80 bites a day). The loop is proven at the
-// default now, so it runs at the production volume. Override with
-// QUICK_BITES_BATCH_SIZE to tune.
-const DEFAULT_BATCH = Number(process.env.QUICK_BITES_BATCH_SIZE || 80);
+// Bites per generation/validation call. The daily target is small, so this
+// splits it into at most two calls and the model never drifts on length or
+// quality in one big completion.
+const PER_CALL = 10;
+// The daily target (20 bites a day). Deliberately small: this is a
+// low-commitment feed read in short sessions, not a firehose. Override
+// with QUICK_BITES_BATCH_SIZE to tune.
+const DEFAULT_BATCH = Number(process.env.QUICK_BITES_BATCH_SIZE || 20);
 
 // Output bound for a Quick Bites call. Only used on the Groq path (the
-// shared client lets the provider pick); a 20-bite batch needs far more room
-// than the small extraction default, so it gets its own bound.
+// shared client lets the provider pick); a PER_CALL batch of 60-100 word
+// bites needs far more room than the small extraction default, so it gets
+// its own bound.
 const QUICK_BITES_MAX_TOKENS = Number(process.env.QUICK_BITES_MAX_TOKENS || 6000);
 
 // Quick Bites defaults to the shared Gemini/DeepSeek client. Under

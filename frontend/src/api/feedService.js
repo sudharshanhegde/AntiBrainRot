@@ -137,6 +137,22 @@ export async function fetchDays(topicSlug) {
   return USE_MOCK ? mockDays(topicSlug) : apiDays(topicSlug);
 }
 
+// The earliest published day for a topic the user has not finished yet, or
+// null when every listed day is already completed. "Surprise me" uses this
+// so a topic it picks opens at the first day still unread instead of
+// whatever day `last_deck_index_completed` would serve next, which can be a
+// day generated after ones the user has not opened.
+export async function getFirstUnreadDayIndex(topicSlug) {
+  const { days } = await fetchDays(topicSlug);
+  let first = null;
+  for (const day of days || []) {
+    if (!Number.isInteger(day.deck_index)) continue;
+    if (day.status === "completed") continue;
+    if (first === null || day.deck_index < first) first = day.deck_index;
+  }
+  return first;
+}
+
 export async function fetchTopics(nicheSlug) {
   return USE_MOCK ? mockTopics(nicheSlug) : apiTopics(nicheSlug);
 }

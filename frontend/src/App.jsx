@@ -16,6 +16,7 @@ import { PetCompanion, PetToast } from "./components/pet/PetCompanion";
 import { PetPrompt } from "./components/pet/PetPrompt";
 import { findNiche } from "./data/topics";
 import { markDeckCompleted, getResumeCardIndex } from "./api/progress";
+import { getFirstUnreadDayIndex } from "./api/feedService";
 import { hasGuestId, hasVisited, markVisited, resetToGuest } from "./api/client";
 import { useAuth } from "./auth/AuthContext";
 import { isSupabaseConfigured } from "./api/supabase";
@@ -265,9 +266,12 @@ export default function App() {
     if (topicSlug) markDeckCompleted(topicSlug, deckIndex).catch(() => {});
   };
 
-  // "Surprise me" picks a random topic from the niche. There is no
-  // cooldown or availability gate anymore, so any topic can be picked
-  // directly.
+  // "Surprise me" picks a random topic from the niche, but opens the
+  // earliest day of that topic the user has not finished, not the day
+  // progression would serve next: that can be a day generated after ones
+  // still unread, which reads as being dropped into the newest content.
+  // Topics with nothing unread are skipped; if the whole niche is read, a
+  // plain random open keeps the old behaviour instead of failing.
   const handleSurprise = async () => {
     const niche = findNiche(nicheSlug);
     const all = niche ? [...niche.topics] : [];
@@ -276,8 +280,22 @@ export default function App() {
       navigate("#/topics");
       return;
     }
-    const pick = all[Math.floor(Math.random() * all.length)];
-    pickTopic(pick);
+    // Shuffle first so the pick stays random and an unread day early in the
+    // niche list is not favoured.
+    const order = [...all];
+    for (let i = order.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    const firstUnread = await Promise.all(
+      order.map((slug) => getFirstUnreadDayIndex(slug).catch(() => null))
+    );
+    const pick = firstUnread.findIndex((day) => Number.isInteger(day));
+    if (pick === -1) {
+      pickTopic(order[Math.floor(Math.random() * order.length)]);
+      return;
+    }
+    pickTopic(order[pick], firstUnread[pick]);
   };
 
   let screen;
